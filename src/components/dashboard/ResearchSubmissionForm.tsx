@@ -1,45 +1,126 @@
 'use client'
 
-import { useState, useActionState } from 'react'
-import { Plus, Trash2, FilePlus, Users, Info, AlertCircle } from 'lucide-react'
+import { useState, useEffect, useActionState } from 'react'
+import { Plus, Trash2, FileText, GraduationCap, Users, Calendar, Paperclip, Info, AlertCircle, Search } from 'lucide-react'
 import { SubmitButton } from '@/components/auth/SubmitButton'
 import { submitResearch } from '@/app/(main)/dashboard/submit/actions'
+import { updateResearch } from '@/app/(main)/dashboard/research/[id]/edit/actions'
 
-export function ResearchSubmissionForm() {
-  // useActionState correctly handles the object returned by the Server Action
-  const [state, formAction] = useActionState(submitResearch, null)
-  const [isGroup, setIsGroup] = useState(false)
-  const [members, setMembers] = useState(['']) 
+// --- Custom Searchable Combobox Component ---
+function MemberComboBox({ 
+  index, classmates, value, onChange 
+}: { 
+  index: number, classmates: any[], value: string, onChange: (val: string) => void 
+}) {
+  const [search, setSearch] = useState('')
+  const [isOpen, setIsOpen] = useState(false)
 
-  const addMember = () => setMembers([...members, ''])
+  // Initialize search term to the selected user's name on load
+  useEffect(() => {
+    if (value) {
+      const match = classmates.find(c => c.id === value)
+      if (match) setSearch(`${match.name} (${match.sectionName})`)
+    }
+  }, [value, classmates])
+
+  // Filter based on input
+  const filtered = classmates.filter(c => 
+    c.name.toLowerCase().includes(search.toLowerCase()) || 
+    c.sectionName.toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <div className="relative flex-1">
+      <input type="hidden" name={`member-${index}`} value={value} required />
+      <div className="relative">
+        <input 
+          type="text"
+          value={search}
+          placeholder="Type to search classmates..."
+          onFocus={() => setIsOpen(true)}
+          onBlur={() => setTimeout(() => setIsOpen(false), 200)} // Delay so clicks register
+          onChange={(e) => {
+            setSearch(e.target.value)
+            setIsOpen(true)
+            onChange('') // Clear actual hidden value until a new choice is clicked
+          }}
+          required={!value} // HTML5 validation will trigger if hidden input is empty
+          className="w-full rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 text-sm bg-white dark:bg-gray-800 text-[var(--foreground)] outline-none focus:border-blue-600 transition-all"
+        />
+        <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+      </div>
+
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-56 overflow-y-auto overflow-x-hidden">
+          {filtered.length > 0 ? (
+            filtered.map(c => (
+              <div 
+                key={c.id}
+                onClick={() => {
+                  onChange(c.id)
+                  setSearch(`${c.name} (${c.sectionName})`)
+                  setIsOpen(false)
+                }}
+                className="px-3 py-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 text-sm border-b border-gray-50 dark:border-gray-700 last:border-0"
+              >
+                <p className="font-semibold text-gray-900 dark:text-gray-100">{c.name}</p>
+                <p className="text-[10px] text-gray-500">{c.sectionName}</p>
+              </div>
+            ))
+          ) : (
+            <div className="px-3 py-4 text-sm text-center text-amber-600 bg-amber-50 dark:bg-amber-900/20 flex flex-col items-center gap-1">
+              <AlertCircle size={18} />
+              <p className="font-bold">No matches found.</p>
+              <p className="text-[10px] text-amber-500 max-w-[200px] leading-tight mt-1">
+                Try checking the spelling or ensure they have joined the section.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function ResearchSubmissionForm({
+  classmates = [],
+  sections = [],
+  initialData = null,
+  editId = null
+}: {
+  classmates?: any[],
+  sections?: any[],
+  initialData?: any,
+  editId?: string | null
+}) {
+  const actionToUse = editId ? updateResearch.bind(null, editId) : submitResearch;
+  const [state, formAction] = useActionState(actionToUse, null)
   
-  const removeMember = (index: number) => {
-    const newMembers = members.filter((_, i) => i !== index)
-    setMembers(newMembers)
+  const defaultMembers = initialData?.members?.length > 0 ? initialData.members : ['']
+  const defaultRoles = initialData?.member_roles?.length > 0 ? initialData.member_roles : ['']
+  
+  const [isGroup, setIsGroup] = useState(initialData?.members?.length > 0 || false)
+  const [members, setMembers] = useState<string[]>(defaultMembers)
+  const [roles, setRoles] = useState<string[]>(defaultRoles)
+
+  const addMember = () => {
+    setMembers([...members, ''])
+    setRoles([...roles, ''])
   }
 
-  const handleMemberChange = (index: number, value: string) => {
+  const removeMember = (index: number) => {
+    setMembers(members.filter((_, i) => i !== index))
+    setRoles(roles.filter((_, i) => i !== index))
+  }
+
+  const handleMemberSelection = (index: number, newId: string) => {
     const newMembers = [...members]
-    newMembers[index] = value
+    newMembers[index] = newId
     setMembers(newMembers)
   }
 
   return (
-    <form 
-      action={formAction} 
-      className="space-y-8 bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors"
-    >
-      <div className="flex items-center gap-3 mb-6">
-        <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-          <FilePlus className="text-blue-600" size={24} />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold text-[var(--foreground)]">New Research Submission</h2>
-          <p className="text-xs text-gray-500">Provide the details for your capstone or thesis tracking.</p>
-        </div>
-      </div>
-
-      {/* Server Action Error Banner */}
+    <form action={formAction} className="space-y-8">
       {state?.error && (
         <div className="flex items-center gap-2 p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl animate-in fade-in slide-in-from-top-2">
           <AlertCircle size={18} />
@@ -47,24 +128,21 @@ export function ResearchSubmissionForm() {
         </div>
       )}
 
-      {/* --- Section 1: Research Identity --- */}
-      <div className="space-y-6">
+      {/* --- Section 1: Identity --- */}
+      <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
+        <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-4">
+          <FileText className="text-blue-600" size={20} />
+          <h2 className="text-lg font-bold text-[var(--foreground)]">Identity</h2>
+        </div>
+
         <div className="grid gap-6 md:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-[var(--foreground)]">Research Title</label>
-            <input 
-              name="title" 
-              required 
-              placeholder="Enter full research title" 
-              className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] focus:border-blue-600 outline-none transition-all" 
-            />
+            <input name="title" defaultValue={initialData?.title} required placeholder="Enter full research title" className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] focus:border-blue-600 outline-none transition-all" />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-[var(--foreground)]">Research Type</label>
-            <select 
-              name="type" 
-              className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer"
-            >
+            <select name="type" defaultValue={initialData?.type || "capstone"} className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer">
               <option value="capstone">Capstone Project</option>
               <option value="thesis">Thesis</option>
               <option value="proposal">Research Proposal</option>
@@ -74,90 +152,86 @@ export function ResearchSubmissionForm() {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-semibold text-[var(--foreground)]">Abstract / Description</label>
-            <div className="group relative">
-              {/* Tooltip Fix: Moved title info to a styled absolute div */}
-              <Info size={14} className="text-gray-400 cursor-help" />
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block w-48 p-2 bg-gray-800 text-white text-[10px] rounded shadow-lg z-50">
-                Briefly explain the goal and scope of your research.
-                <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-gray-800" />
-              </div>
-            </div>
-          </div>
-          <textarea 
-            name="abstract" 
-            rows={4} 
-            required 
-            placeholder="Summarize your research goals..."
-            className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] focus:border-blue-600 outline-none resize-none transition-all" 
-          />
+          <label className="text-sm font-semibold text-[var(--foreground)]">Abstract / Description</label>
+          <textarea name="abstract" defaultValue={initialData?.abstract} rows={4} required placeholder="Summarize your research goals..." className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] focus:border-blue-600 outline-none resize-none transition-all" />
         </div>
       </div>
 
-      {/* --- Section 2: Ownership & Dynamic Members --- */}
-      <div className="space-y-4 border-t border-gray-100 dark:border-gray-800 pt-6">
-        <div className="flex items-center justify-between">
+      {/* --- Section 2: Academic --- */}
+      <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
+        <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-4">
+          <GraduationCap className="text-blue-600" size={20} />
+          <h2 className="text-lg font-bold text-[var(--foreground)]">Academic</h2>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold text-[var(--foreground)]">Subject Code</label>
+            <select name="subjectCode" defaultValue={initialData?.subject_code || ""} required className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer">
+              <option value="" disabled>Select subject code...</option>
+              {sections.length === 0 && <option value="" disabled>No sections joined</option>}
+              {sections.map(s => (
+                <option key={s.id} value={s.course_code}>{s.course_code} ({s.name})</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold text-[var(--foreground)]">Adviser</label>
+            <input name="adviser" defaultValue={initialData?.adviser_id || ""} placeholder="e.g. Dr. Juan Dela Cruz" className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold text-[var(--foreground)]">Research Area</label>
+            <input name="researchArea" defaultValue={initialData?.research_area || ""} placeholder="e.g. Web Development, AI" className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all" />
+          </div>
+        </div>
+      </div>
+
+      {/* --- Section 3: Group --- */}
+      <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
+        <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
           <div className="flex items-center gap-2">
-            <Users size={18} className="text-gray-500" />
-            <label className="text-sm font-semibold text-[var(--foreground)]">Ownership Type</label>
+            <Users className="text-blue-600" size={20} />
+            <h2 className="text-lg font-bold text-[var(--foreground)]">Group</h2>
           </div>
           <div className="flex items-center bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
-            <button 
-              type="button"
-              onClick={() => setIsGroup(false)}
-              className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${!isGroup ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'}`}
-            >
-              Individual
-            </button>
-            <button 
-              type="button"
-              onClick={() => setIsGroup(true)}
-              className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${isGroup ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'}`}
-            >
-              Group
-            </button>
+            <button type="button" onClick={() => setIsGroup(false)} className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${!isGroup ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'}`}>Individual</button>
+            <button type="button" onClick={() => setIsGroup(true)} className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${isGroup ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'}`}>Group</button>
           </div>
         </div>
 
         {isGroup && (
-          <div className="space-y-4 bg-gray-50/50 dark:bg-gray-900/30 p-5 rounded-xl border border-dashed border-gray-300 dark:border-gray-700 animate-in fade-in slide-in-from-top-2">
+          <div className="space-y-4 bg-gray-50/50 dark:bg-gray-900/30 p-5 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Member List</label>
-                <p className="text-[10px] text-gray-400">List all additional members apart from yourself.</p>
+                <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Members & Roles</label>
+                <p className="text-[10px] text-gray-400">Search to assign members and define their responsibilities.</p>
               </div>
-              <button 
-                type="button" 
-                onClick={addMember}
-                className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold transition-colors"
-              >
+              <button type="button" onClick={addMember} className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold transition-colors">
                 <Plus size={14} /> Add Member
               </button>
             </div>
-            
-            <div className="grid gap-3">
-              {members.map((member, index) => (
-                <div key={index} className="flex gap-2 group">
-                  <div className="flex-1 relative">
-                    <input 
-                      name={`member-${index}`}
-                      value={member}
-                      onChange={(e) => handleMemberChange(index, e.target.value)}
-                      required
-                      placeholder="Full Name / Student ID" 
-                      className="w-full rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 text-sm bg-white dark:bg-gray-800 text-[var(--foreground)] outline-none focus:border-blue-600 transition-all" 
-                    />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-mono">
-                      #{index + 1}
-                    </span>
-                  </div>
+
+            <div className="grid gap-4">
+              {members.map((memberId, index) => (
+                <div key={index} className="flex flex-col sm:flex-row gap-3 group relative">
+                  
+                  {/* Custom Combobox replaces the select */}
+                  <MemberComboBox 
+                    index={index}
+                    classmates={classmates}
+                    value={memberId}
+                    onChange={(val) => handleMemberSelection(index, val)}
+                  />
+
+                  <input
+                    name={`role-${index}`}
+                    required
+                    defaultValue={roles[index] || ""}
+                    placeholder="Role (e.g. Lead Programmer)"
+                    className="flex-1 rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 text-sm bg-white dark:bg-gray-800 text-[var(--foreground)] outline-none focus:border-blue-600 transition-all"
+                  />
                   {members.length > 1 && (
-                    <button 
-                      type="button" 
-                      onClick={() => removeMember(index)}
-                      className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors border border-transparent hover:border-red-100"
-                    >
+                    <button type="button" onClick={() => removeMember(index)} className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors border border-transparent hover:border-red-100 flex-shrink-0">
                       <Trash2 size={18} />
                     </button>
                   )}
@@ -168,33 +242,63 @@ export function ResearchSubmissionForm() {
         )}
       </div>
 
-      {/* --- Section 3: Academic Info --- */}
-      <div className="grid gap-6 md:grid-cols-2 border-t border-gray-100 dark:border-gray-800 pt-6">
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-semibold text-[var(--foreground)]">Subject / Course Code</label>
-          <input 
-            name="subjectCode" 
-            placeholder="e.g., CS401, ITE302" 
-            className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all" 
-          />
+      {/* --- Section 4: Timeline --- */}
+      <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
+        <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-4">
+          <Calendar className="text-blue-600" size={20} />
+          <h2 className="text-lg font-bold text-[var(--foreground)]">Timeline</h2>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <label className="text-sm font-semibold text-[var(--foreground)]">Adviser</label>
-          <select 
-            name="adviser" 
-            className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer"
-          >
-            <option value="">Select Adviser (Optional)</option>
-            <option value="adviser_1">Dr. Juan Dela Cruz</option>
-            <option value="adviser_2">Prof. Maria Santos</option>
-            <option value="adviser_3">Engr. Robert Lingad</option>
-          </select>
+
+        <div className="grid gap-6 md:grid-cols-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold text-[var(--foreground)]">Start Date</label>
+            <input type="date" name="startDate" defaultValue={initialData?.start_date || ""} required className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-text" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold text-[var(--foreground)]">Target Defense Date</label>
+            <input type="date" name="targetDefenseDate" defaultValue={initialData?.target_defense_date || ""} className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-text" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold text-[var(--foreground)]">Current Stage</label>
+            <select name="currentStage" defaultValue={initialData?.current_stage || "Proposal"} className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer">
+              <option value="Proposal">Proposal</option>
+              <option value="Chapter 1-3">Chapter 1-3</option>
+              <option value="Final Manuscript">Final Manuscript</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      <div className="pt-6 border-t border-gray-100 dark:border-gray-800">
-        <SubmitButton className="w-full md:w-auto px-12 bg-blue-600 text-white rounded-lg py-3.5 font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none">
-          Submit Research Entry
+      {/* --- Section 5: Files --- */}
+      <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
+        <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
+          <div className="flex items-center gap-2">
+            <Paperclip className="text-blue-600" size={20} />
+            <h2 className="text-lg font-bold text-[var(--foreground)]">Files</h2>
+          </div>
+          {initialData?.file_url && (
+            <span className="text-xs bg-green-50 text-green-700 px-3 py-1 rounded-full border border-green-200 font-medium">
+              File already attached
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-sm font-semibold text-[var(--foreground)]">
+            {editId ? "Update Document (Leave empty to keep existing)" : "Initial Document (Optional)"}
+          </label>
+          <input
+            type="file"
+            name="initialDocument"
+            accept=".pdf,.doc,.docx"
+            className="w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/20 dark:file:text-blue-400 dark:hover:file:bg-blue-900/40 transition-all cursor-pointer border border-gray-300 dark:border-gray-700 rounded-lg"
+          />
+        </div>
+      </div>
+
+      <div className="flex justify-end pt-4">
+        <SubmitButton className="w-full md:w-auto px-12 bg-blue-600 text-white rounded-xl py-4 font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none text-lg">
+          {editId ? "Save Changes" : "Submit Research Entry"}
         </SubmitButton>
       </div>
     </form>

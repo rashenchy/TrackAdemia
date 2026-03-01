@@ -181,15 +181,7 @@ export default function StudentSectionsUI({
         <div className="space-y-6">
           <JoinSectionForm />
 
-          <div className="p-6 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/30">
-            <h4 className="font-bold text-amber-900 dark:text-amber-400 flex items-center gap-2 mb-2 text-sm">
-              <AlertCircle size={16} /> Data not showing?
-            </h4>
-            <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">
-              If you joined a section but it is not appearing, please refresh the page
-              or ensure your teacher has configured access properly.
-            </p>
-          </div>
+          
         </div>
       </div>
     </div>

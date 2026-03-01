@@ -3,28 +3,22 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
-export async function submitResearch(prevState: any, formData: FormData) {
+export async function updateResearch(editId: string, prevState: any, formData: FormData) {
   const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Identity
   const title = formData.get('title') as string
   const type = formData.get('type') as string
   const abstract = formData.get('abstract') as string
-
-  // Academic
   const subjectCode = formData.get('subjectCode') as string
   const adviser = formData.get('adviser') as string
   const researchArea = formData.get('researchArea') as string
-
-  // Timeline
   const startDate = formData.get('startDate') as string
-  const targetDefenseDate = formData.get('targetDefenseDate') as string || null
+  const targetDefenseDate = formData.get('targetDefenseDate') as string
   const currentStage = formData.get('currentStage') as string
 
-  // Extract Group Members and Roles
   const members: string[] = []
   const memberRoles: string[] = []
 
@@ -33,17 +27,14 @@ export async function submitResearch(prevState: any, formData: FormData) {
     if (key.startsWith('role-')) memberRoles.push(value as string)
   }
 
-  // --- SECURE FILE UPLOAD LOGIC ---
   const initialDocument = formData.get('initialDocument') as File | null;
-  let fileUrl = null;
+  let fileUrl = undefined; 
 
   if (initialDocument && initialDocument.size > 0) {
-    // Generate a secure, unique file path: userId/timestamp_random.ext
     const fileExt = initialDocument.name.split('.').pop() || 'pdf';
     const uniqueFilename = `${Date.now()}_${Math.random().toString(36).slice(2)}.${fileExt}`;
     const filePath = `${user.id}/${uniqueFilename}`;
 
-    // UPDATED: Using 'trackademiaPapers'
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('trackademiaPapers')
       .upload(filePath, initialDocument, {
@@ -53,34 +44,42 @@ export async function submitResearch(prevState: any, formData: FormData) {
 
     if (uploadError) {
       console.error('Storage Upload Error:', uploadError);
-      return { error: 'Failed to securely upload the document. Please try again.' };
+      return { error: 'Failed to securely upload the new document. Please try again.' };
     }
-
-    // Store the internal bucket path
     fileUrl = uploadData.path; 
   }
 
-  const { error } = await supabase.from('research').insert({
-    user_id: user.id,
+  // FIXED: Strictly convert empty strings to null to prevent Postgres type errors
+  const updatePayload: any = {
     title,
     type,
     abstract,
     subject_code: subjectCode,
-    adviser_id: adviser || null,
+    adviser_id: adviser ? adviser : null,
     research_area: researchArea,
-    start_date: startDate,
-    target_defense_date: targetDefenseDate,
+    start_date: startDate ? startDate : null,
+    target_defense_date: targetDefenseDate ? targetDefenseDate : null,
     current_stage: currentStage,
-    status: 'Pending Review',
-    members: members,
+    members: members.filter(id => id.trim() !== ''),
     member_roles: memberRoles,
-    file_url: fileUrl 
-  })
+  }
+
+  if (fileUrl) {
+    updatePayload.file_url = fileUrl;
+  }
+
+  const { data, error } = await supabase
+    .from('research')
+    .update(updatePayload)
+    .eq('id', editId)
+    .select();
+
+    console.log('update result', data, error);
 
   if (error) {
     console.error('Database Error:', error)
-    return { error: 'Failed to submit research entry.' }
+    return { error: 'Failed to update research entry.' }
   }
 
-  redirect('/dashboard?success=Research submitted successfully')
+  redirect(`/dashboard/research/${editId}?success=Research updated successfully`)
 }

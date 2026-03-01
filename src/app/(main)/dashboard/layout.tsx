@@ -7,7 +7,7 @@ import { createBrowserClient } from '@supabase/ssr'
 import {
   Menu, Home, Settings, Info, ChevronLeft,
   Sun, Moon, UserCircle, FilePlus, GraduationCap,
-  AlertCircle, LogOut, X
+  AlertCircle, LogOut, X, RefreshCw, Loader2 // <-- ADDED Loader2 icon
 } from 'lucide-react'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -18,21 +18,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isTeacher, setIsTeacher] = useState(false)
   const [isVerified, setIsVerified] = useState(false)
   const [isStudent, setIsStudent] = useState(false)
+  
+  // Instant feedback state
+  const [pendingRoute, setPendingRoute] = useState<string | null>(null)
 
-  // NEW: State for logout confirmation modal
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  // Modified: This now handles the actual logout action
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push('/login')
     router.refresh()
   }
+
+  const handleRefresh = () => {
+    setIsRefreshing(true)
+    router.refresh() 
+    setTimeout(() => setIsRefreshing(false), 700)
+  }
+
+  // Clear the pending route whenever the actual pathname changes
+  useEffect(() => {
+    setPendingRoute(null)
+  }, [pathname])
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') || 'light'
@@ -78,14 +91,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
     ] : []),
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },
-    { name: 'About Us', href: '/dashboard/about', icon: Info },
   ]
 
   return (
     <div className="flex h-screen transition-colors duration-300">
       {/* Sidebar */}
       <aside className={`${isCollapsed ? 'w-20' : 'w-64'} flex flex-col transition-all duration-300 border-r border-gray-200 dark:border-gray-800 bg-[var(--sidebar-bg)]`}>
-        <div className="p-4 flex items-center justify-between">
+        
+        <div className={`p-4 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
           {!isCollapsed && (
             <div className="flex items-center ml-2 w-10 h-10 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white flex justify-center items-center">
               <img
@@ -95,35 +108,46 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               />
             </div>
           )}
-          <button onClick={() => setIsCollapsed(!isCollapsed)} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors ml-auto">
+          <button onClick={() => setIsCollapsed(!isCollapsed)} className={`p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors ${!isCollapsed ? 'ml-auto' : ''}`}>
             {isCollapsed ? <Menu size={20} /> : <ChevronLeft size={20} />}
           </button>
         </div>
 
         <nav className="flex-1 mt-4 px-3 space-y-2">
           {navItems.map((item) => {
-            const isActive = pathname === item.href
+            // Determine if active based on actual path OR the path they just clicked
+            const isActive = (pendingRoute || pathname) === item.href
+            const isCurrentlyLoading = pendingRoute === item.href
+
             return (
               <Link
                 key={item.name}
                 href={item.href}
-                className={`flex items-center p-3 rounded-lg transition-colors group ${isActive
+                onClick={() => {
+                  // Only set pending if they are actually navigating somewhere new
+                  if (pathname !== item.href) setPendingRoute(item.href)
+                }}
+                className={`flex items-center ${isCollapsed ? 'justify-center' : ''} p-3 rounded-lg transition-colors group relative ${isActive
                   ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 font-bold'
                   : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400'
                   }`}
               >
                 <item.icon size={22} className={`min-w-[22px] ${isActive ? 'text-blue-600' : ''}`} />
                 {!isCollapsed && <span className="ml-4 font-medium">{item.name}</span>}
+                
+                {/* Tiny spinner for instant feedback */}
+                {!isCollapsed && isCurrentlyLoading && (
+                  <Loader2 size={16} className="absolute right-3 animate-spin text-blue-500" />
+                )}
               </Link>
             )
           })}
         </nav>
 
         <div className="p-4 border-t border-gray-200 dark:border-gray-800">
-          {/* Modified: Click now triggers the confirmation state instead of immediate logout */}
           <button
             onClick={() => setShowLogoutConfirm(true)}
-            className="w-full flex items-center p-3 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 group transition-colors"
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center' : ''} p-3 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 group transition-colors`}
           >
             <LogOut size={22} className="min-w-[22px]" />
             {!isCollapsed && <span className="ml-4 font-medium">Logout</span>}
@@ -136,7 +160,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <header className="h-16 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 bg-[var(--background)]">
           <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">TrackAdemia</h1>
           <div className="flex items-center gap-4">
-            <button onClick={toggleTheme} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors">
+            
+            <button 
+              onClick={handleRefresh} 
+              disabled={isRefreshing}
+              title="Refresh Data"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500"
+            >
+              <RefreshCw size={20} className={isRefreshing ? 'animate-spin text-blue-600' : ''} />
+            </button>
+
+            <button onClick={toggleTheme} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500">
               {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
             <UserCircle size={28} className="text-gray-500 cursor-pointer" />
@@ -150,12 +184,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         )}
 
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="flex-1 overflow-y-auto p-8 relative">
           {children}
         </main>
       </div>
 
-      {/* NEW: Logout Confirmation Modal */}
+      {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-800">

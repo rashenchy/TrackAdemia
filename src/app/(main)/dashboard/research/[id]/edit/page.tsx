@@ -1,12 +1,25 @@
 import { createClient } from '@/lib/supabase/server'
 import { ResearchSubmissionForm } from '@/components/dashboard/ResearchSubmissionForm'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
 
-export default async function SubmitResearchPage() {
+export default async function EditResearchPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = await params;
+  const researchId = resolvedParams.id;
+  
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) redirect('/login')
+
+  const { data: research } = await supabase
+    .from('research')
+    .select('*')
+    .eq('id', researchId)
+    .single()
+
+  if (!research) redirect('/dashboard')
 
   const { data: myMemberships } = await supabase
     .from('section_members')
@@ -61,12 +74,22 @@ export default async function SubmitResearchPage() {
 
   return (
     <div className="max-w-4xl mx-auto pb-12">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">Submit Research</h1>
-        <p className="text-gray-500 mt-1">Provide your capstone or thesis details to start tracking.</p>
+      <div className="flex items-center gap-4 mb-8">
+        <Link href={`/dashboard`} className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+          <ArrowLeft size={20} />
+        </Link>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Edit Research</h1>
+          <p className="text-gray-500 mt-1">Update your capstone or thesis details.</p>
+        </div>
       </div>
       
-      <ResearchSubmissionForm classmates={classmatesList} sections={userSections} />
+      <ResearchSubmissionForm 
+        classmates={classmatesList} 
+        sections={userSections} 
+        initialData={research}
+        editId={researchId}
+      />
     </div>
   )
 }

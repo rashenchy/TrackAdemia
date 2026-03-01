@@ -1,4 +1,7 @@
-import { FileText, Clock, ExternalLink } from 'lucide-react'
+'use client'
+
+import { FileText, Clock, Eye, Edit } from 'lucide-react'
+import Link from 'next/link'
 
 export function SubmissionsTable({ submissions }: { submissions: any[] }) {
   if (submissions.length === 0) {
@@ -52,9 +55,26 @@ export function SubmissionsTable({ submissions }: { submissions: any[] }) {
                   </span>
                 </td>
                 <td className="px-6 py-4 text-right">
-                  <button className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-400 hover:text-blue-600 transition-all">
-                    <ExternalLink size={16} />
-                  </button>
+                  <div className="flex items-center justify-end gap-1">
+                    
+                    {/* View Button -> Routes to the details page */}
+                    <Link 
+                      href={`/dashboard/research/${item.id}`}
+                      title="View Details"
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-400 hover:text-green-600 transition-all"
+                    >
+                      <Eye size={16} />
+                    </Link>
+
+                    {/* Edit Button -> Routes to the edit page */}
+                    <Link 
+                      href={`/dashboard/research/${item.id}/edit`}
+                      title="Edit Submission"
+                      className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-400 hover:text-amber-600 transition-all"
+                    >
+                      <Edit size={16} />
+                    </Link>
+                  </div>
                 </td>
               </tr>
             ))}
