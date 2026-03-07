@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 
 export async function createSection(prevState: any, formData: FormData) {
   const supabase = await createClient()
@@ -34,53 +35,60 @@ export async function joinSection(prevState: any, formData: FormData) {
   if (!user) return { error: 'You must be logged in.' }
 
   const joinCode = (formData.get('joinCode') as string)?.toUpperCase().trim()
-  if (!joinCode || joinCode.length !== 6) {
-    return { error: 'Please enter a valid 6-character code.' }
+
+  // 1. Rate Limiting (Max 5 attempts)
+  const cookieStore = await cookies()
+  const attempts = parseInt(cookieStore.get('join_attempts')?.value || '0')
+  if (attempts >= 5) {
+    return { error: 'Too many failed attempts. Please try again later.' }
   }
 
-  // 1. Find section with explicit type casting to fix property access errors
   const { data: section, error: sectionError } = await supabase
-    .rpc('find_section_by_code', { code: joinCode })
-    .single() as { data: { id: string, name: string } | null, error: any }
+    .from('sections')
+    .select('id, name, is_frozen')
+    .eq('join_code', joinCode)
+    .single()
 
   if (sectionError || !section) {
-    return { error: 'Section not found. Ask your teacher for the correct code.' }
+    cookieStore.set('join_attempts', (attempts + 1).toString(), { maxAge: 300 }) // 5 min lockout
+    return { error: `Invalid code. (${4 - attempts} attempts remaining)` }
   }
 
-  // 2. Check membership using the typed section ID
+  // 2. Freeze Check
+  if (section.is_frozen) {
+    return { error: 'This section is currently frozen by the teacher. No new joins allowed.' }
+  }
+
+  // 3. Ban Check
   const { data: existing } = await supabase
     .from('section_members')
-    .select('id')
+    .select('id, status')
     .eq('section_id', section.id)
     .eq('user_id', user.id)
-    .maybeSingle() // Using maybeSingle to handle "not found" gracefully
+    .maybeSingle()
 
   if (existing) {
+    if (existing.status === 'banned') return { error: 'You have been banned from this section.' }
     return { error: `You are already in ${section.name}.` }
   }
 
-  // 3. Insert membership
-  const { error: joinError } = await supabase
-    .from('section_members')
-    .insert({
-      section_id: section.id,
-      user_id: user.id,
-      role: 'student'
-    })
-
-  if (joinError) {
-    console.error('Join Error:', joinError)
-    // Common cause: RLS policies or unique constraint violations
-    return { error: 'Failed to join section. Please check your connection or permissions.' }
+  // If this was just a "Preview/Confirm" step (UX Improvement)
+  if (formData.get('action') === 'preview') {
+    return { previewSection: section }
   }
 
-  revalidatePath('/dashboard')
+  // 4. Actual Insert
+  const { error: joinError } = await supabase.from('section_members').insert({
+    section_id: section.id, user_id: user.id, role: 'student', status: 'active'
+  })
+
+  if (joinError) return { error: 'Failed to join section.' }
+
+  // Reset rate limit on success
+  cookieStore.delete('join_attempts')
   revalidatePath('/dashboard/sections')
-  
   return { success: `Successfully joined ${section.name}!` }
 }
-
-// Add this to src/app/(main)/dashboard/sections/actions.ts
 
 export async function leaveSection(sectionId: string) {
   const supabase = await createClient();
@@ -104,3 +112,56 @@ export async function leaveSection(sectionId: string) {
   revalidatePath('/dashboard/sections');
   return { success: 'Successfully left the section.' };
 }
+
+export async function regenerateJoinCode(sectionId: string) {
+  const supabase = await createClient()
+  const newCode = Math.random().toString(36).substring(2, 8).toUpperCase()
+
+  const { error } = await supabase
+    .from('sections')
+    .update({ join_code: newCode })
+    .eq('id', sectionId)
+
+  if (error) return { error: 'Failed to regenerate code.' }
+  revalidatePath('/dashboard/sections')
+  return { success: 'New join code generated!' }
+}
+
+export async function toggleSectionFreeze(sectionId: string, currentStatus: boolean) {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('sections')
+    .update({ is_frozen: !currentStatus })
+    .eq('id', sectionId)
+
+  if (error) return { error: 'Failed to update section status.' }
+  revalidatePath('/dashboard/sections')
+  return { success: `Section ${!currentStatus ? 'frozen' : 'unlocked'}.` }
+}
+
+export async function updateStudentStatus(sectionId: string, studentId: string, status: 'banned' | 'active') {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('section_members')
+    .update({ status: status })
+    .eq('section_id', sectionId)
+    .eq('user_id', studentId)
+
+  if (error) return { error: `Failed to ${status === 'banned' ? 'ban' : 'unban'} student.` }
+  revalidatePath('/dashboard/sections')
+  return { success: `Student ${status}.` }
+}
+
+export async function removeStudent(sectionId: string, studentId: string) {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('section_members')
+    .delete()
+    .eq('section_id', sectionId)
+    .eq('user_id', studentId)
+
+  if (error) return { error: 'Failed to remove student.' }
+  revalidatePath('/dashboard/sections')
+  return { success: 'Student completely removed from section.' }
+}
+

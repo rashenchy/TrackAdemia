@@ -44,11 +44,13 @@ export async function submitResearch(prevState: any, formData: FormData) {
     const filePath = `${user.id}/${uniqueFilename}`;
 
     // UPDATED: Using 'trackademiaPapers'
+    // UPDATED: Using 'trackademiaPapers'
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('trackademiaPapers')
       .upload(filePath, initialDocument, {
         cacheControl: '3600',
-        upsert: false
+        upsert: false,
+        contentType: initialDocument.type // <-- ADD THIS LINE
       });
 
     if (uploadError) {
@@ -60,7 +62,8 @@ export async function submitResearch(prevState: any, formData: FormData) {
     fileUrl = uploadData.path; 
   }
 
-  const { error } = await supabase.from('research').insert({
+  // Add .select().single() to get the newly created ID back
+  const { data: newResearch, error } = await supabase.from('research').insert({
     user_id: user.id,
     title,
     type,
@@ -75,11 +78,21 @@ export async function submitResearch(prevState: any, formData: FormData) {
     members: members,
     member_roles: memberRoles,
     file_url: fileUrl 
-  })
+  }).select().single()
 
   if (error) {
     console.error('Database Error:', error)
     return { error: 'Failed to submit research entry.' }
+  }
+
+  // NEW: If a file was uploaded, save it as Version 1
+  if (fileUrl && newResearch) {
+    await supabase.from('research_versions').insert({
+      research_id: newResearch.id,
+      uploaded_by: user.id,
+      file_url: fileUrl,
+      version_number: 1
+    })
   }
 
   redirect('/dashboard?success=Research submitted successfully')

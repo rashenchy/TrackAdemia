@@ -6,11 +6,20 @@ const nextConfig = {
         'localhost:3000',
         '192.168.0.7:3000',
       ],
-      bodySizeLimit: '20mb', 
+      bodySizeLimit: '20mb',
     },
   },
 
   reactStrictMode: true,
+
+  webpack: (config) => {
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      canvas: false,
+    };
+
+    return config;
+  },
 };
 
 module.exports = nextConfig;

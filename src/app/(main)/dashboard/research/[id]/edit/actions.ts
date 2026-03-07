@@ -39,7 +39,8 @@ export async function updateResearch(editId: string, prevState: any, formData: F
       .from('trackademiaPapers')
       .upload(filePath, initialDocument, {
         cacheControl: '3600',
-        upsert: false
+        upsert: false,
+        contentType: initialDocument.type // <-- ADD THIS LINE
       });
 
     if (uploadError) {
