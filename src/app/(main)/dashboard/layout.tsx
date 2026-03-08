@@ -1,6 +1,8 @@
+/* src/app/(main)/dashboard/layout.tsx */
+
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createBrowserClient } from '@supabase/ssr'
@@ -37,8 +39,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  // Task badge count
+  // Task & Resubmission badge counts
   const [unresolvedCount, setUnresolvedCount] = useState(0)
+  const [resubmittedCount, setResubmittedCount] = useState(0)
+  
+  // Use a ref for the real-time closure
+  const isTeacherRef = useRef(false)
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -57,7 +63,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setTimeout(() => setIsRefreshing(false), 700)
   }
 
-  // Clear pending route when navigation completes
   useEffect(() => {
     setPendingRoute(null)
   }, [pathname])
@@ -80,6 +85,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       if (profile?.role === 'mentor') {
         setIsTeacher(true)
+        isTeacherRef.current = true // Keep ref synced for websocket closures
         setIsVerified(profile?.is_verified || false)
       } else if (profile?.role === 'student') {
         setIsStudent(true)
@@ -90,12 +96,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     checkUserRole()
   }, [supabase])
 
-  // Fetch unresolved tasks and subscribe to realtime updates
+  // Fetch counts and subscribe to realtime updates
   useEffect(() => {
     const fetchCounts = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
+      // Task Counts
       const { count: personalCount } = await supabase
         .from('tasks')
         .select('*', { count: 'exact', head: true })
@@ -127,6 +134,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         (teacherCount || 0) +
         (annotationCount || 0)
       )
+
+      // Resubmissions Count (Only for Teachers)
+      if (isTeacherRef.current) {
+        const { count: resubCount } = await supabase
+          .from('research')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'Resubmitted') // RLS ensures they only see their students' papers
+        
+        setResubmittedCount(resubCount || 0)
+      }
     }
 
     if ("Notification" in window && Notification.permission === "default") {
@@ -137,7 +154,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
     const channel = supabase
       .channel('task-updates')
-
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'tasks' },
@@ -150,21 +166,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               })
             }
           }
-
           fetchCounts()
         }
       )
-
+      // NEW: Listen for Resubmissions
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'research' },
+        (payload: any) => {
+          if (payload.new?.status === 'Resubmitted' && payload.old?.status !== 'Resubmitted') {
+            if (isTeacherRef.current && 'Notification' in window && Notification.permission === 'granted') {
+              new Notification('Document Resubmitted', {
+                body: `"${payload.new.title}" has been resubmitted for your review.`,
+                icon: '/logo.png'
+              })
+            }
+            fetchCounts()
+            router.refresh() // Instantly updates the dashboard table
+          }
+        }
+      )
       .on('postgres_changes', { event: '*', schema: 'public', table: 'annotations' }, fetchCounts)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'task_completions' }, fetchCounts)
-
       .subscribe()
-
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [supabase])
+  }, [supabase, router])
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light'
@@ -173,7 +202,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     document.documentElement.setAttribute('data-theme', newTheme)
   }
 
-  // Sidebar navigation items
   const navItems = [
     { name: 'Home', href: '/dashboard', icon: Home },
     { name: 'Submit Research', href: '/dashboard/submit', icon: FilePlus },
@@ -191,17 +219,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen transition-colors duration-300">
-
-      {/* Sidebar */}
       <aside className={`${isCollapsed ? 'w-20' : 'w-64'} flex flex-col transition-all duration-300 border-r border-gray-200 dark:border-gray-800 bg-[var(--sidebar-bg)]`}>
-
         <div className={`p-4 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
           {!isCollapsed && (
             <div className="flex items-center ml-2 w-10 h-10 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white flex justify-center items-center">
               <img src="/logo.png" alt="Logo" className="w-full h-full object-cover scale-125" />
             </div>
           )}
-
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             className={`p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors ${!isCollapsed ? 'ml-auto' : ''}`}
@@ -214,7 +238,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {navItems.map((item) => {
             const isActive = (pendingRoute || pathname) === item.href
             const isCurrentlyLoading = pendingRoute === item.href
-            const hasBadge = item.name === 'Task Manager' && unresolvedCount > 0
+            
+            // Badge calculation
+            const isTaskBadge = item.name === 'Task Manager' && unresolvedCount > 0
+            const isHomeBadge = item.name === 'Home' && resubmittedCount > 0
+            const hasBadge = isTaskBadge || isHomeBadge
+            const badgeValue = item.name === 'Home' ? resubmittedCount : unresolvedCount
 
             return (
               <Link
@@ -230,16 +259,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               >
                 <div className="relative">
                   <item.icon size={22} className={`min-w-[22px] ${isActive ? 'text-blue-600' : ''}`} />
-
                   {hasBadge && (
                     <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white border-2 border-[var(--sidebar-bg)]">
-                      {unresolvedCount > 9 ? '9+' : unresolvedCount}
+                      {badgeValue > 9 ? '9+' : badgeValue}
                     </span>
                   )}
                 </div>
-
                 {!isCollapsed && <span className="ml-4 font-medium">{item.name}</span>}
-
                 {!isCollapsed && isCurrentlyLoading && (
                   <Loader2 size={16} className="absolute right-3 animate-spin text-blue-500" />
                 )}
@@ -257,34 +283,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {!isCollapsed && <span className="ml-4 font-medium">Logout</span>}
           </button>
         </div>
-
       </aside>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden bg-[var(--background)]">
-
         <header className="h-16 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 bg-[var(--background)]">
           <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">TrackAdemia</h1>
-
           <div className="flex items-center gap-4">
-
-            <button
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500"
-            >
+            <button onClick={handleRefresh} disabled={isRefreshing} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500">
               <RefreshCw size={20} className={isRefreshing ? 'animate-spin text-blue-600' : ''} />
             </button>
-
-            <button
-              onClick={toggleTheme}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500"
-            >
+            <button onClick={toggleTheme} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500">
               {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
-
             <UserCircle size={28} className="text-gray-500 cursor-pointer" />
-
           </div>
         </header>
 
@@ -298,57 +310,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <main className="flex-1 overflow-y-auto p-8 relative">
           {children}
         </main>
-
       </div>
 
-      {/* Logout Confirmation Modal */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-800">
-
             <div className="flex items-center justify-between mb-4">
               <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600">
                 <LogOut size={24} />
               </div>
-
-              <button
-                onClick={() => setShowLogoutConfirm(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-              >
+              <button onClick={() => setShowLogoutConfirm(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
                 <X size={20} />
               </button>
             </div>
-
-            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-              Confirm Logout
-            </h3>
-
-            <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
-              Are you sure you want to log out of your account?
-            </p>
-
+            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Confirm Logout</h3>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">Are you sure you want to log out of your account?</p>
             <div className="flex gap-3">
-
-              <button
-                onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold"
-              >
+              <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold">
                 Cancel
               </button>
-
-              <button
-                onClick={handleLogout}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700"
-              >
+              <button onClick={handleLogout} className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700">
                 Logout
               </button>
-
             </div>
-
           </div>
         </div>
       )}
-
     </div>
   )
 }

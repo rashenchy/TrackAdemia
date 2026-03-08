@@ -40,7 +40,6 @@ export async function updateResearch(editId: string, prevState: any, formData: F
 
   /* ------------------ Workflow Logic ------------------ */
 
-
   let nextStatus = current.status
 
   // Save Draft → always Draft
@@ -58,13 +57,11 @@ export async function updateResearch(editId: string, prevState: any, formData: F
 
     // Student submissions
     else {
-
-      // If teacher requested revision → mark as Resubmitted
-      if (current.status === 'Revision Requested') {
+      // If the document is being edited and was already submitted previously, mark as Resubmitted
+      if (current.status !== 'Draft') {
         nextStatus = 'Resubmitted'
       }
-
-      // Otherwise normal submission
+      // If it's a brand new submission coming from a Draft
       else {
         nextStatus = 'Pending Review'
       }
@@ -182,15 +179,18 @@ export async function updateResearch(editId: string, prevState: any, formData: F
 
   if (fileUrl && updatedResearch && !isDraft) {
 
-    const { data: latestVersion } = await supabase
+    // 1. Fetch highest version as an array to prevent silent .single() failures
+    const { data: existingVersions } = await supabase
       .from('research_versions')
       .select('version_number')
       .eq('research_id', editId)
       .order('version_number', { ascending: false })
       .limit(1)
-      .single()
 
-    const nextVersion = (latestVersion?.version_number ?? 0) + 1
+    // 2. Safely determine the next version number
+    const nextVersion = existingVersions && existingVersions.length > 0
+      ? existingVersions[0].version_number + 1
+      : 2 // Fallback to 2 if it's the second upload but first tracked version
 
     const { error: versionError } = await supabase
       .from('research_versions')

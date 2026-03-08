@@ -1,6 +1,6 @@
 'use client'
 
-import { FileText, Clock, Eye, Edit, MessageCircle } from 'lucide-react'
+import { FileText, Clock, Eye, Edit, MessageCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 
 export function SubmissionsTable({ submissions }: { submissions: any[] }) {
@@ -36,20 +36,29 @@ export function SubmissionsTable({ submissions }: { submissions: any[] }) {
             {submissions.map((item) => (
               <tr key={item.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/30 transition-colors">
                 <td className="px-6 py-4">
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-1 items-start">
                     <span className="font-semibold text-gray-900 dark:text-gray-100 truncate max-w-[240px]">
                       {item.title}
                     </span>
+
                     <span className="text-[11px] text-gray-400 flex items-center gap-1">
                       <Clock size={10} />
                       Submitted {new Date(item.created_at).toLocaleDateString()}
                     </span>
 
-                    {/* NEW: Feedback Notification Badge */}
+                    {/* Unresolved Feedback Badge */}
                     {item.unresolved_feedback_count > 0 && (
-                      <span className="w-fit inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-800">
+                      <span className="mt-1 w-fit inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-800">
                         <MessageCircle size={10} />
                         {item.unresolved_feedback_count} Unresolved Comment{item.unresolved_feedback_count !== 1 ? 's' : ''}
+                      </span>
+                    )}
+
+                    {/* NEW: Resubmitted Alert Badge for Teachers */}
+                    {item.status === 'Resubmitted' && isTeacherView && (
+                      <span className="mt-1 w-fit inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800">
+                        <AlertCircle size={10} />
+                        Student Have Resubmitted This Research - Please Review
                       </span>
                     )}
                   </div>
@@ -86,11 +95,11 @@ export function SubmissionsTable({ submissions }: { submissions: any[] }) {
                     <span className={`h-1.5 w-1.5 rounded-full 
                         ${item.status === 'Published' ? 'bg-purple-600' :
                         item.status === 'Resubmitted' ? 'bg-blue-600 animate-pulse' :
-                        item.status === 'Draft' ? 'bg-gray-400' :
-                        item.status === 'Approved' ? 'bg-green-600' :
-                        item.status === 'Revision Requested' ? 'bg-amber-600' :
-                        item.status === 'Rejected' ? 'bg-red-600' :
-                        'bg-blue-600'}`}
+                          item.status === 'Draft' ? 'bg-gray-400' :
+                            item.status === 'Approved' ? 'bg-green-600' :
+                              item.status === 'Revision Requested' ? 'bg-amber-600' :
+                                item.status === 'Rejected' ? 'bg-red-600' :
+                                  'bg-blue-600'}`}
                     />
                     {item.status}
                   </span>
