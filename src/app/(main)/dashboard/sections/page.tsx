@@ -8,64 +8,71 @@ export default async function SectionsPage({
 }: {
   searchParams: Promise<{ success?: string }>
 }) {
-  const resolvedParams = await searchParams;
-  const supabase = await createClient();
+  const resolvedParams = await searchParams
+  const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
     .eq('id', user.id)
-    .single();
+    .single()
 
-  /* =======================
-     TEACHER VIEW
-  ======================= */
+  // ======================
+  // TEACHER VIEW
+  // ======================
   if (profile?.role === 'mentor') {
+
+    // Fetch teacher's sections
     const { data: sections } = await supabase
       .from('sections')
       .select('*')
       .eq('teacher_id', user.id)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
 
-    // Fetch analytics AND roster data
+    // Fetch analytics and roster for each section
     const sectionsWithAnalytics = await Promise.all((sections || []).map(async (sec) => {
-      // 1. Get analytics counts
+
+      // Count active students
       const { count: studentCount } = await supabase
         .from('section_members')
         .select('*', { count: 'exact', head: true })
         .eq('section_id', sec.id)
-        .eq('status', 'active');
+        .eq('status', 'active')
 
+      // Count uploaded research papers
       const { count: paperCount } = await supabase
         .from('research')
         .select('*', { count: 'exact', head: true })
-        .eq('subject_code', sec.course_code);
+        .eq('subject_code', sec.course_code)
 
-      // 2. Fetch the roster members (Without joining profiles)
+      // Fetch section members
       const { data: members } = await supabase
         .from('section_members')
         .select('user_id, status, joined_at')
         .eq('section_id', sec.id)
-        .order('joined_at', { ascending: false });
+        .order('joined_at', { ascending: false })
 
-      // 3. Fetch their profiles separately to avoid the relationship error
-      const memberIds = members?.map(m => m.user_id) || [];
-      let studentProfiles: any[] = [];
-      
+      // Collect member IDs
+      const memberIds = members?.map(m => m.user_id) || []
+      let studentProfiles: any[] = []
+
+      // Fetch student profiles separately
       if (memberIds.length > 0) {
         const { data: profiles } = await supabase
           .from('profiles')
           .select('id, first_name, last_name, course_program')
-          .in('id', memberIds);
-        studentProfiles = profiles || [];
+          .in('id', memberIds)
+
+        studentProfiles = profiles || []
       }
 
-      // 4. Combine the data
+      // Combine roster data with profiles
       const roster = (members || []).map(m => {
-        const p = studentProfiles.find(profile => profile.id === m.user_id);
+        const p = studentProfiles.find(profile => profile.id === m.user_id)
+
         return {
           user_id: m.user_id,
           status: m.status,
@@ -73,7 +80,7 @@ export default async function SectionsPage({
           name: p ? `${p.first_name} ${p.last_name}` : 'Unknown Student',
           course: p?.course_program || 'N/A'
         }
-      });
+      })
 
       return {
         ...sec,
@@ -81,34 +88,34 @@ export default async function SectionsPage({
         analytics: {
           totalStudents: studentCount || 0,
           papersUploaded: paperCount || 0,
-          activeToday: Math.floor((studentCount || 0) * 0.6), 
-          annotationsMade: (paperCount || 0) * 3, 
-          notesCreated: Math.floor(Math.random() * 20) 
+          activeToday: Math.floor((studentCount || 0) * 0.6),
+          annotationsMade: (paperCount || 0) * 3,
+          notesCreated: Math.floor(Math.random() * 20)
         }
       }
-    }));
+    }))
 
     return (
       <SectionsPageUI
         success={resolvedParams.success}
         sections={sectionsWithAnalytics}
       />
-    );
+    )
   }
-  
 
-  /* =======================
-     STUDENT VIEW
-  ======================= */
+  // ======================
+  // STUDENT VIEW
+  // ======================
 
-  // 1️⃣ memberships
+  // Get student's section memberships
   const { data: memberships } = await supabase
     .from('section_members')
     .select('section_id')
-    .eq('user_id', user.id);
+    .eq('user_id', user.id)
 
-  const sectionIds = memberships?.map(m => m.section_id) ?? [];
+  const sectionIds = memberships?.map(m => m.section_id) ?? []
 
+  // If student is not enrolled in any sections
   if (sectionIds.length === 0) {
     return (
       <StudentSectionsUI
@@ -116,49 +123,52 @@ export default async function SectionsPage({
         classmates={[]}
         currentUserId={user.id}
       />
-    );
+    )
   }
 
-  console.log('DEBUG memberships:', memberships);
-  console.log('DEBUG sectionIds:', sectionIds);
+  console.log('DEBUG memberships:', memberships)
+  console.log('DEBUG sectionIds:', sectionIds)
 
-  // 2️⃣ sections
+  // Fetch sections
   const { data: sections } = await supabase
     .from('sections')
     .select('id, name, course_code, teacher_id')
-    .in('id', sectionIds);
+    .in('id', sectionIds)
 
-  // 3️⃣ teachers
-  const teacherIds = sections?.map(s => s.teacher_id) ?? [];
+  // Fetch teacher profiles
+  const teacherIds = sections?.map(s => s.teacher_id) ?? []
 
   const { data: teachers } = await supabase
     .from('profiles')
     .select('id, first_name, last_name')
-    .in('id', teacherIds);
+    .in('id', teacherIds)
 
+  // Attach teacher profile to each section
   const sectionsWithTeacher = sections?.map(section => ({
     ...section,
     profiles: teachers?.find(t => t.id === section.teacher_id) ?? null
-  })) ?? [];
+  })) ?? []
 
-  // 4️⃣ classmates (safe version — no nested expansion)
+  // Fetch classmates (safe version without nested join)
   const { data: memberRows } = await supabase
     .from('section_members')
     .select('section_id, user_id')
-    .in('section_id', sectionIds);
+    .in('section_id', sectionIds)
 
-  const userIds = memberRows?.map(m => m.user_id) ?? [];
+  const userIds = memberRows?.map(m => m.user_id) ?? []
 
+  // Fetch student profiles
   const { data: studentProfiles } = await supabase
     .from('profiles')
     .select('id, first_name, last_name, course_program')
-    .in('id', userIds);
+    .in('id', userIds)
 
+  // Combine classmates with profiles
   const classmates =
     memberRows?.map(m => ({
       section_id: m.section_id,
       profiles: studentProfiles?.find(p => p.id === m.user_id) ?? null
-    })) ?? [];
+    })) ?? []
 
   return (
     <StudentSectionsUI
@@ -166,5 +176,5 @@ export default async function SectionsPage({
       classmates={classmates || []}
       currentUserId={user.id}
     />
-  );
+  )
 }

@@ -6,30 +6,25 @@ import { redirect } from 'next/navigation'
 export async function updateResearch(editId: string, prevState: any, formData: FormData) {
   const supabase = await createClient()
 
+  // AUTHENTICATION & PERMISSIONS
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
   const isDraft = formData.get('isDraft') === 'true'
 
-  /* ------------------ Fetch Current Research (Security) ------------------ */
-
+  // Fetch current record for security validation
   const { data: current } = await supabase
     .from('research')
     .select('status, user_id, members')
     .eq('id', editId)
     .single()
 
-  // Allow owner OR listed members
-  const isAuthor =
-    current?.user_id === user.id ||
-    (current?.members || []).includes(user.id)
+  // Authorization check (Owner or Member)
+  const isAuthor = current?.user_id === user.id || (current?.members || []).includes(user.id)
+  if (!current || !isAuthor) return { error: 'Unauthorized' }
 
-  if (!current || !isAuthor) {
-    return { error: 'Unauthorized' }
-  }
-
-  /* ------------------ Fetch Role ------------------ */
-
+  // Check user role
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
@@ -38,86 +33,58 @@ export async function updateResearch(editId: string, prevState: any, formData: F
 
   const isTeacher = profile?.role === 'mentor'
 
-  /* ------------------ Workflow Logic ------------------ */
+
+  // WORKFLOW LOGIC
 
   let nextStatus = current.status
 
-  // Save Draft → always Draft
+  // Logic to determine new status based on role and draft state
   if (isDraft) {
     nextStatus = 'Draft'
+  } else if (isTeacher) {
+    nextStatus = 'Published'
+  } else {
+    nextStatus = (current.status !== 'Draft') ? 'Resubmitted' : 'Pending Review'
   }
 
-  // Submit
-  if (!isDraft) {
 
-    // Teacher submissions publish immediately
-    if (isTeacher) {
-      nextStatus = 'Published'
-    }
-
-    // Student submissions
-    else {
-      // If the document is being edited and was already submitted previously, mark as Resubmitted
-      if (current.status !== 'Draft') {
-        nextStatus = 'Resubmitted'
-      }
-      // If it's a brand new submission coming from a Draft
-      else {
-        nextStatus = 'Pending Review'
-      }
-    }
-  }
-
-  /* ------------------ Identity ------------------ */
+  // DATA EXTRACTION
 
   const title = (formData.get('title') as string)?.trim()
   const type = (formData.get('type') as string)?.trim()
   const abstract = (formData.get('abstract') as string)?.trim()
-
-  const keywords = formData
-    .getAll('keywords')
+  const keywords = formData.getAll('keywords')
     .map(k => (k as string).trim())
     .filter(k => k !== '')
-
-  /* ------------------ Academic ------------------ */
 
   const subjectCode = (formData.get('subjectCode') as string)?.trim()
   const adviser = (formData.get('adviser') as string)?.trim() || null
   const researchArea = (formData.get('researchArea') as string)?.trim()
 
-  /* ------------------ Timeline ------------------ */
-
   const startDate = (formData.get('startDate') as string) || null
   const targetDefenseDate = (formData.get('targetDefenseDate') as string) || null
   const currentStage = (formData.get('currentStage') as string)?.trim()
 
-  /* ------------------ Members ------------------ */
-
+  // Collect member assignments
   const members: string[] = []
   const memberRoles: string[] = []
-
   for (const [key, value] of formData.entries()) {
     if (key.startsWith('member-')) members.push((value as string).trim())
     if (key.startsWith('role-')) memberRoles.push((value as string).trim())
   }
 
-  /* ------------------ Secure File Upload ------------------ */
+
+  // SECURE FILE UPLOAD
 
   const initialDocument = formData.get('initialDocument') as File | null
   let fileUrl: string | null = null
 
   if (initialDocument && initialDocument.size > 0) {
-
     const allowedTypes = ['application/pdf']
     const MAX_FILE_SIZE = 20 * 1024 * 1024
 
-    if (!allowedTypes.includes(initialDocument.type)) {
-      return { error: 'Only PDF files are allowed.' }
-    }
-
-    if (initialDocument.size > MAX_FILE_SIZE) {
-      return { error: 'File must be under 20MB.' }
-    }
+    if (!allowedTypes.includes(initialDocument.type)) return { error: 'Only PDF files are allowed.' }
+    if (initialDocument.size > MAX_FILE_SIZE) return { error: 'File must be under 20MB.' }
 
     const fileExt = initialDocument.name.split('.').pop() || 'pdf'
     const uniqueFilename = `${Date.now()}_${crypto.randomUUID()}.${fileExt}`
@@ -135,17 +102,14 @@ export async function updateResearch(editId: string, prevState: any, formData: F
       console.error('Storage Upload Error:', uploadError)
       return { error: 'Failed to securely upload the new document.' }
     }
-
     fileUrl = uploadData.path
   }
 
-  /* ------------------ Build Update Payload ------------------ */
+
+  // DATABASE UPDATE
 
   const updatePayload: any = {
-    title,
-    type,
-    abstract,
-    keywords,
+    title, type, abstract, keywords,
     subject_code: subjectCode,
     adviser_id: adviser,
     research_area: researchArea,
@@ -154,14 +118,9 @@ export async function updateResearch(editId: string, prevState: any, formData: F
     current_stage: currentStage,
     status: nextStatus,
     members: members.filter(id => id !== ''),
-    member_roles: memberRoles
+    member_roles: memberRoles,
+    ...(fileUrl && { file_url: fileUrl })
   }
-
-  if (fileUrl) {
-    updatePayload.file_url = fileUrl
-  }
-
-  /* ------------------ Update Research ------------------ */
 
   const { data: updatedResearch, error } = await supabase
     .from('research')
@@ -175,11 +134,11 @@ export async function updateResearch(editId: string, prevState: any, formData: F
     return { error: 'Failed to update research entry.' }
   }
 
-  /* ------------------ Save New Version if File Changed ------------------ */
+
+  // VERSIONING & ANNOTATION MANAGEMENT
 
   if (fileUrl && updatedResearch && !isDraft) {
-
-    // 1. Fetch highest version as an array to prevent silent .single() failures
+    // Fetch latest version number
     const { data: existingVersions } = await supabase
       .from('research_versions')
       .select('version_number')
@@ -187,11 +146,11 @@ export async function updateResearch(editId: string, prevState: any, formData: F
       .order('version_number', { ascending: false })
       .limit(1)
 
-    // 2. Safely determine the next version number
-    const nextVersion = existingVersions && existingVersions.length > 0
-      ? existingVersions[0].version_number + 1
-      : 2 // Fallback to 2 if it's the second upload but first tracked version
+    const nextVersion = (existingVersions && existingVersions.length > 0) 
+      ? existingVersions[0].version_number + 1 
+      : 2
 
+    // Log the new version
     const { error: versionError } = await supabase
       .from('research_versions')
       .insert({
@@ -201,10 +160,9 @@ export async function updateResearch(editId: string, prevState: any, formData: F
         version_number: nextVersion
       })
 
-    if (versionError) {
-      console.error('Version Insert Error:', versionError)
-    }
+    if (versionError) console.error('Version Insert Error:', versionError)
 
+    // Mark existing annotations as resolved
     await supabase
       .from('annotations')
       .update({ is_resolved: true })
@@ -212,11 +170,10 @@ export async function updateResearch(editId: string, prevState: any, formData: F
       .eq('is_resolved', false)
   }
 
-  /* ------------------ Redirect Logic ------------------ */
 
-  if (!isDraft) {
-    redirect(`/dashboard/research/${editId}?success=Resubmitted for review`)
-  }
+  // FINALIZATION
+
+  if (!isDraft) redirect(`/dashboard/research/${editId}?success=Resubmitted for review`)
 
   return { success: 'Draft updated successfully' }
 }

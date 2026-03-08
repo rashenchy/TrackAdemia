@@ -14,6 +14,7 @@ import {
   Loader2 
 } from 'lucide-react'
 
+// UI component that displays a student's enrolled sections and classmates
 export default function StudentSectionsUI({
   sections,
   classmates,
@@ -23,30 +24,39 @@ export default function StudentSectionsUI({
   classmates: any[],
   currentUserId: string
 }) {
-  // Keep your original console logs for debugging
+
+  // Debug logs to inspect incoming data from the server
   console.log('>>> SECTIONS PROP:', sections);
   console.log('>>> CLASSMATES PROP:', classmates);
   console.log('>>> currentUserId:', currentUserId);
 
+  // Track which section is currently expanded
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
+
+  // Track which section is currently being left
   const [isLeaving, setIsLeaving] = useState<string | null>(null);
 
+  // Handle leaving a section with confirmation
   const handleLeave = async (sectionId: string, sectionName: string) => {
+
     const confirmed = confirm(`Are you sure you want to leave ${sectionName}? This will remove you from the class list.`);
     if (!confirmed) return;
 
     setIsLeaving(sectionId);
+
     const result = await leaveSection(sectionId);
     
     if (result?.error) {
       alert(result.error);
     }
+
     setIsLeaving(null);
   };
 
   return (
     <div className="max-w-5xl mx-auto space-y-10">
-      {/* Header Section */}
+
+      {/* Page Header */}
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight text-[var(--foreground)]">
           My Sections
@@ -56,9 +66,13 @@ export default function StudentSectionsUI({
         </p>
       </div>
 
+      {/* Main Layout Grid */}
       <div className="grid lg:grid-cols-3 gap-8">
-        {/* Left Column: Sections List */}
+
+        {/* Left Column: Section Cards */}
         <div className="lg:col-span-2 space-y-4">
+
+          {/* Empty State */}
           {sections.length === 0 ? (
             <div className="p-12 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl text-center text-gray-400 bg-gray-50/50 dark:bg-gray-900/10">
               <GraduationCap size={48} className="mx-auto mb-4 opacity-20" />
@@ -70,9 +84,13 @@ export default function StudentSectionsUI({
               </p>
             </div>
           ) : (
+
+            // Render each section card
             sections.map((section: any) => {
+
               const teacher = section.profiles ?? null;
 
+              // Filter classmates belonging to this section (excluding current user)
               const sectionClassmates = classmates.filter(
                 (c: any) =>
                   c.section_id === section.id &&
@@ -84,7 +102,10 @@ export default function StudentSectionsUI({
                   key={section.id}
                   className="bg-[var(--background)] border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm hover:border-blue-500/50 transition-all"
                 >
+
+                  {/* Section Header Content */}
                   <div className="p-6 flex items-start justify-between">
+
                     <div>
                       <h3 className="text-xl font-bold text-[var(--foreground)]">
                         {section.name}
@@ -94,6 +115,7 @@ export default function StudentSectionsUI({
                         {section.course_code}
                       </p>
 
+                      {/* Adviser Information */}
                       <div className="mt-4 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <User size={16} className="text-blue-500" />
                         <span className="font-medium">Adviser:</span>
@@ -105,8 +127,10 @@ export default function StudentSectionsUI({
                       </div>
                     </div>
 
+                    {/* Section Actions */}
                     <div className="flex flex-col items-end gap-3">
-                      {/* Classmates Toggle Button */}
+
+                      {/* Toggle Classmates Button */}
                       <button
                         onClick={() =>
                           setExpandedSection(
@@ -133,28 +157,37 @@ export default function StudentSectionsUI({
                         )}
                         {isLeaving === section.id ? 'Leaving...' : 'Leave Section'}
                       </button>
+
                     </div>
                   </div>
 
-                  {/* Expanded Classmates Content */}
+                  {/* Expanded Classmates List */}
                   {expandedSection === section.id && (
                     <div className="px-6 pb-6 pt-2 border-t border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-2">
+
                       <div className="grid sm:grid-cols-2 gap-3 mt-4">
+
+                        {/* Empty classmates state */}
                         {sectionClassmates.length === 0 ? (
                           <p className="text-xs text-gray-500 italic col-span-2">
                             No other classmates joined yet.
                           </p>
                         ) : (
+
+                          // Render classmates
                           sectionClassmates.map((c: any) => (
                             <div
                               key={c.profiles?.id}
                               className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-800"
                             >
+
+                              {/* Avatar Initials */}
                               <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-[10px] font-bold border border-blue-200 dark:border-blue-800">
                                 {c.profiles?.first_name?.[0] ?? "?"}
                                 {c.profiles?.last_name?.[0] ?? "?"}
                               </div>
 
+                              {/* Student Information */}
                               <div>
                                 <p className="text-xs font-bold text-[var(--foreground)]">
                                   {c.profiles
@@ -165,24 +198,26 @@ export default function StudentSectionsUI({
                                   {c.profiles?.course_program ?? ''}
                                 </p>
                               </div>
+
                             </div>
                           ))
                         )}
+
                       </div>
                     </div>
                   )}
+
                 </div>
               );
             })
           )}
         </div>
 
-        {/* Right Column: Forms and Help */}
+        {/* Right Column: Join Section Form */}
         <div className="space-y-6">
           <JoinSectionForm />
-
-          
         </div>
+
       </div>
     </div>
   );

@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 
-// 1. Function to OPEN the file in the browser (View)
+//Function to OPEN the file in the browser (View)
 export async function getSignedViewUrl(filePath: string) {
   const supabase = await createClient()
   
@@ -21,7 +21,7 @@ export async function getSignedViewUrl(filePath: string) {
   return { url: data.signedUrl }
 }
 
-// 2. Function to FORCE DOWNLOAD the file
+//Function to FORCE DOWNLOAD the file
 export async function getSignedDownloadUrl(filePath: string) {
   const supabase = await createClient()
   

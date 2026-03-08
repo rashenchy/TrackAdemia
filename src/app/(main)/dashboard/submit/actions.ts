@@ -6,15 +6,14 @@ import { redirect } from 'next/navigation'
 export async function submitResearch(prevState: any, formData: FormData) {
   const supabase = await createClient()
 
+  // Ensure user is authenticated
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  /* ------------------ Draft Detection ------------------ */
-
+  // Check if submission is a draft
   const isDraft = formData.get('isDraft') === 'true'
 
-  /* ------------------ Fetch Role ------------------ */
-
+  // Fetch user role
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
@@ -23,12 +22,12 @@ export async function submitResearch(prevState: any, formData: FormData) {
 
   const isTeacher = profile?.role === 'mentor'
 
+  // Determine research status
   const status = isDraft
     ? 'Draft'
     : (isTeacher ? 'Published' : 'Pending Review')
 
-  /* ------------------ Identity ------------------ */
-
+  // Identity fields
   const title = (formData.get('title') as string)?.trim()
   const type = (formData.get('type') as string)?.trim()
   const abstract = (formData.get('abstract') as string)?.trim()
@@ -38,26 +37,22 @@ export async function submitResearch(prevState: any, formData: FormData) {
     .map(k => (k as string).trim())
     .filter(k => k !== '')
 
-  /* Draft validation: only enforce for real submission */
-
+  // Validate title only for real submissions
   if (!isDraft && (!title || title.length < 5)) {
     return { error: 'A valid title is required for submission.' }
   }
 
-  /* ------------------ Academic ------------------ */
-
+  // Academic fields
   const subjectCode = (formData.get('subjectCode') as string)?.trim()
   const adviser = (formData.get('adviser') as string)?.trim() || null
   const researchArea = (formData.get('researchArea') as string)?.trim()
 
-  /* ------------------ Timeline ------------------ */
-
+  // Timeline fields
   const startDate = formData.get('startDate') as string
   const targetDefenseDate = (formData.get('targetDefenseDate') as string) || null
   const currentStage = (formData.get('currentStage') as string)?.trim()
 
-  /* ------------------ Members ------------------ */
-
+  // Collect members and their roles
   const members: string[] = []
   const memberRoles: string[] = []
 
@@ -66,8 +61,7 @@ export async function submitResearch(prevState: any, formData: FormData) {
     if (key.startsWith('role-')) memberRoles.push((value as string).trim())
   }
 
-  /* ------------------ Secure File Upload ------------------ */
-
+  // Secure file upload
   const initialDocument = formData.get('initialDocument') as File | null
   let fileUrl = null
 
@@ -76,18 +70,22 @@ export async function submitResearch(prevState: any, formData: FormData) {
     const allowedTypes = ['application/pdf']
     const MAX_FILE_SIZE = 20 * 1024 * 1024
 
+    // Validate file type
     if (!allowedTypes.includes(initialDocument.type)) {
       return { error: 'Only PDF files are allowed.' }
     }
 
+    // Validate file size
     if (initialDocument.size > MAX_FILE_SIZE) {
       return { error: 'File must be under 20MB.' }
     }
 
+    // Generate unique filename
     const fileExt = initialDocument.name.split('.').pop() || 'pdf'
     const uniqueFilename = `${Date.now()}_${crypto.randomUUID()}.${fileExt}`
     const filePath = `${user.id}/${uniqueFilename}`
 
+    // Upload file to Supabase Storage
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('trackademiaPapers')
       .upload(filePath, initialDocument, {
@@ -104,8 +102,7 @@ export async function submitResearch(prevState: any, formData: FormData) {
     fileUrl = uploadData.path
   }
 
-  /* ------------------ Insert Research ------------------ */
-
+  // Insert research record
   const { data: newResearch, error } = await supabase
     .from('research')
     .insert({
@@ -133,8 +130,7 @@ export async function submitResearch(prevState: any, formData: FormData) {
     return { error: error.message }
   }
 
-  /* ------------------ Save Version 1 (only if file exists AND not draft) ------------------ */
-
+  // Save version history if file exists and it's not a draft
   if (!isDraft && fileUrl && newResearch) {
 
     const { error: versionError } = await supabase
@@ -151,8 +147,7 @@ export async function submitResearch(prevState: any, formData: FormData) {
     }
   }
 
-  /* ------------------ Response Handling ------------------ */
-
+  // Redirect after submission
   if (!isDraft) {
     redirect('/dashboard?success=Research submitted for review')
   }

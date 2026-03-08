@@ -27,6 +27,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter()
   const pathname = usePathname()
 
+  // State initialization
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [theme, setTheme] = useState('light')
   const [isTeacher, setIsTeacher] = useState(false)
@@ -37,16 +38,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  /*Profile Dropdown States*/
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [userName, setUserName] = useState('')
   const [userRole, setUserRole] = useState('')
 
-  // Task & Resubmission badge counts
   const [unresolvedCount, setUnresolvedCount] = useState(0)
   const [resubmittedCount, setResubmittedCount] = useState(0)
 
-  // Use a ref for the real-time closure
+  // Refs for DOM and persistence
   const profileRef = useRef<HTMLDivElement | null>(null)
   const isTeacherRef = useRef(false)
 
@@ -55,6 +54,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
+  // Authentication and Session Handlers
   const handleLogout = async () => {
     await supabase.auth.signOut()
     router.push('/login')
@@ -66,25 +66,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.refresh()
     setTimeout(() => setIsRefreshing(false), 700)
   }
+
+  // Close profile dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
         setIsProfileOpen(false)
       }
     }
-
     document.addEventListener('mousedown', handleClickOutside)
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Clear pending state on navigation
   useEffect(() => {
     setPendingRoute(null)
   }, [pathname])
 
-  // Theme + role detection
+  // Theme synchronization and role detection
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') || 'light'
     setTheme(savedTheme)
@@ -109,24 +108,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       if (profile?.role === 'mentor') {
         setIsTeacher(true)
-        isTeacherRef.current = true // Keep ref synced for websocket closures
+        isTeacherRef.current = true
         setIsVerified(profile?.is_verified || false)
       } else if (profile?.role === 'student') {
         setIsStudent(true)
         setIsVerified(true)
       }
     }
-
     checkUserRole()
   }, [supabase])
 
-  // Fetch counts and subscribe to realtime updates
+  // Real-time counter logic and subscriptions
   useEffect(() => {
     const fetchCounts = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      // Task Counts
       const { count: personalCount } = await supabase
         .from('tasks')
         .select('*', { count: 'exact', head: true })
@@ -153,18 +150,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .in('research_id', researchIds)
         .eq('is_resolved', false)
 
-      setUnresolvedCount(
-        (personalCount || 0) +
-        (teacherCount || 0) +
-        (annotationCount || 0)
-      )
+      setUnresolvedCount((personalCount || 0) + (teacherCount || 0) + (annotationCount || 0))
 
-      // Resubmissions Count (Only for Teachers)
       if (isTeacherRef.current) {
         const { count: resubCount } = await supabase
           .from('research')
           .select('*', { count: 'exact', head: true })
-          .eq('status', 'Resubmitted') // RLS ensures they only see their students' papers
+          .eq('status', 'Resubmitted')
 
         setResubmittedCount(resubCount || 0)
       }
@@ -184,29 +176,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         (payload: any) => {
           if (payload.new?.type === 'teacher') {
             if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification('New Assigned Task', {
-                body: payload.new.title,
-                icon: '/logo.png'
-              })
+              new Notification('New Assigned Task', { body: payload.new.title, icon: '/logo.png' })
             }
           }
           fetchCounts()
         }
       )
-      // NEW: Listen for Resubmissions
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'research' },
         (payload: any) => {
           if (payload.new?.status === 'Resubmitted' && payload.old?.status !== 'Resubmitted') {
             if (isTeacherRef.current && 'Notification' in window && Notification.permission === 'granted') {
-              new Notification('Document Resubmitted', {
-                body: `"${payload.new.title}" has been resubmitted for your review.`,
-                icon: '/logo.png'
-              })
+              new Notification('Document Resubmitted', { body: `"${payload.new.title}" has been resubmitted for your review.`, icon: '/logo.png' })
             }
             fetchCounts()
-            router.refresh() // Instantly updates the dashboard table
+            router.refresh()
           }
         }
       )
@@ -226,6 +211,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     document.documentElement.setAttribute('data-theme', newTheme)
   }
 
+  // Navigation config
   const navItems = [
     { name: 'Home', href: '/dashboard', icon: Home },
     { name: 'Submit Research', href: '/dashboard/submit', icon: FilePlus },
@@ -243,6 +229,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen transition-colors duration-300">
+      
+      {/* Sidebar navigation */}
       <aside className={`${isCollapsed ? 'w-20' : 'w-64'} flex flex-col transition-all duration-300 border-r border-gray-200 dark:border-gray-800 bg-[var(--sidebar-bg)]`}>
         <div className={`p-4 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
           {!isCollapsed && (
@@ -262,8 +250,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {navItems.map((item) => {
             const isActive = (pendingRoute || pathname) === item.href
             const isCurrentlyLoading = pendingRoute === item.href
-
-            // Badge calculation
             const isTaskBadge = item.name === 'Task Manager' && unresolvedCount > 0
             const isHomeBadge = item.name === 'Home' && resubmittedCount > 0
             const hasBadge = isTaskBadge || isHomeBadge
@@ -309,7 +295,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* Main Content */}
+      {/* Main content area */}
       <div className="flex-1 flex flex-col overflow-hidden bg-[var(--background)]">
         <header className="h-16 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 bg-[var(--background)]">
           <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">TrackAdemia</h1>
@@ -340,22 +326,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
               {isProfileOpen && (
                 <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setIsProfileOpen(false)}
-                  />
-
+                  <div className="fixed inset-0 z-40" onClick={() => setIsProfileOpen(false)} />
                   <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 z-50">
                     <div className="p-4 border-b border-gray-100 dark:border-gray-800">
-                      <p className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
-                        {userName || 'Loading...'}
-                      </p>
-
-                      <p className="text-xs text-gray-500 capitalize mt-0.5">
-                        {userRole === 'mentor' ? 'Teacher / Adviser' : userRole || 'User'}
-                      </p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">{userName || 'Loading...'}</p>
+                      <p className="text-xs text-gray-500 capitalize mt-0.5">{userRole === 'mentor' ? 'Teacher / Adviser' : userRole || 'User'}</p>
                     </div>
-
                     <div className="p-2">
                       <button
                         onClick={() => {
@@ -364,8 +340,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         }}
                         className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-colors text-left font-medium"
                       >
-                        <LogOut size={16} />
-                        Logout
+                        <LogOut size={16} /> Logout
                       </button>
                     </div>
                   </div>
@@ -375,6 +350,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
 
+        {/* Verification banner for unverified teachers */}
         {isTeacher && !isVerified && (
           <div className="flex items-center justify-center gap-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 p-3 text-amber-800 dark:text-amber-400 text-sm font-medium">
             <AlertCircle size={16} />
@@ -382,11 +358,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         )}
 
+        {/* Page content */}
         <main className="flex-1 overflow-y-auto p-8 relative">
           {children}
         </main>
       </div>
 
+      {/* Logout confirmation modal */}
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-800">
@@ -394,7 +372,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600">
                 <LogOut size={24} />
               </div>
-              <button onClick={() => setShowLogoutConfirm(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+              <button onClick={() => setShowLogoutConfirm(false)} className="text-gray-400 hover:text-gray-600 dark:hover:bg-gray-800 rounded-full">
                 <X size={20} />
               </button>
             </div>

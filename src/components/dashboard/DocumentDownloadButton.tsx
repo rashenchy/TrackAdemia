@@ -4,14 +4,20 @@ import { useState } from 'react'
 import { Download, Eye, Loader2 } from 'lucide-react'
 import { getSignedViewUrl, getSignedDownloadUrl } from '@/app/(main)/dashboard/fileActions'
 
+// Button component that allows users to view or download a research document
 export function DocumentDownloadButton({ fileUrl }: { fileUrl: string }) {
+
+  // UI loading states for viewing and downloading
   const [isViewing, setIsViewing] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
 
-  // Handler for Viewing (opens in new tab)
+  // Handle viewing the document (opens PDF in a new browser tab)
   const handleView = async () => {
     setIsViewing(true)
+
+    // Request a temporary signed URL for viewing the file
     const result = await getSignedViewUrl(fileUrl)
+
     setIsViewing(false)
 
     if (result?.error) {
@@ -19,15 +25,19 @@ export function DocumentDownloadButton({ fileUrl }: { fileUrl: string }) {
       return
     }
 
+    // Open the document securely in a new tab
     if (result?.url) {
       window.open(result.url, '_blank', 'noopener,noreferrer')
     }
   }
 
-  // Handler for Downloading (forces file download)
+  // Handle downloading the document (forces a file download)
   const handleDownload = async () => {
     setIsDownloading(true)
+
+    // Request a temporary signed URL configured for download
     const result = await getSignedDownloadUrl(fileUrl)
+
     setIsDownloading(false)
 
     if (result?.error) {
@@ -36,17 +46,22 @@ export function DocumentDownloadButton({ fileUrl }: { fileUrl: string }) {
     }
 
     if (result?.url) {
-      // Create an invisible link to cleanly trigger the forced download
+
+      // Create a temporary invisible link to trigger the download
       const link = document.createElement('a')
       link.href = result.url
+
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
     }
   }
 
+  // Render View and Download buttons with loading indicators
   return (
     <div className="flex items-center gap-3">
+
+      {/* View Button */}
       <button
         onClick={handleView}
         disabled={isViewing || isDownloading}
@@ -55,7 +70,8 @@ export function DocumentDownloadButton({ fileUrl }: { fileUrl: string }) {
         {isViewing ? <Loader2 size={18} className="animate-spin" /> : <Eye size={18} />}
         {isViewing ? 'Opening...' : 'View'}
       </button>
-      
+
+      {/* Download Button */}
       <button
         onClick={handleDownload}
         disabled={isViewing || isDownloading}
@@ -64,6 +80,7 @@ export function DocumentDownloadButton({ fileUrl }: { fileUrl: string }) {
         {isDownloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
         {isDownloading ? 'Downloading...' : 'Download'}
       </button>
+
     </div>
   )
 }

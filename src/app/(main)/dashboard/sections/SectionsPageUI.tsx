@@ -6,19 +6,20 @@ import { SubmitButton } from '@/components/auth/SubmitButton'
 import { Plus, GraduationCap, Copy, CheckCircle2, AlertCircle, Lock, Unlock, RefreshCw, Users, FileText, Activity, X, Ban, UserMinus, ShieldCheck } from 'lucide-react'
 
 export default function SectionsPageUI({ success, sections }: { success?: string, sections: any[] }) {
+  // Initialization of form actions and loading states
   const [state, formAction] = useActionState(createSection, null)
   const [loadingAction, setLoadingAction] = useState<string | null>(null)
-  
-  // State for the Roster Modal
   const [rosterModal, setRosterModal] = useState<any | null>(null)
 
+  // Clipboard handler
   const handleCopy = async (text: string) => {
     navigator.clipboard.writeText(text);
     alert('Join code copied!');
   }
 
+  // Section administrative handlers
   const handleRegenerate = async (id: string) => {
-    if(!confirm("Generate a new code? Old codes will immediately stop working.")) return;
+    if (!confirm("Generate a new code? Old codes will immediately stop working.")) return;
     setLoadingAction(`regen-${id}`)
     await regenerateJoinCode(id);
     setLoadingAction(null)
@@ -35,7 +36,7 @@ export default function SectionsPageUI({ success, sections }: { success?: string
     setLoadingAction(null)
   }
 
-  // Roster Actions
+  // Student roster management handlers
   const handleStatusChange = async (sectionId: string, studentId: string, newStatus: 'active' | 'banned') => {
     setLoadingAction(`status-${studentId}`)
     await updateStudentStatus(sectionId, studentId, newStatus);
@@ -51,7 +52,7 @@ export default function SectionsPageUI({ success, sections }: { success?: string
   }
 
   const handleRemove = async (sectionId: string, studentId: string, studentName: string) => {
-    if(!confirm(`Are you sure you want to completely remove ${studentName} from this section?`)) return;
+    if (!confirm(`Are you sure you want to completely remove ${studentName} from this section?`)) return;
     setLoadingAction(`remove-${studentId}`)
     await removeStudent(sectionId, studentId);
     
@@ -67,6 +68,8 @@ export default function SectionsPageUI({ success, sections }: { success?: string
 
   return (
     <div className="max-w-6xl mx-auto space-y-10 relative">
+      
+      {/* Notification area */}
       {(success || state?.error) && (
         <div className={`flex items-center gap-2 p-4 text-sm border rounded-xl animate-in fade-in ${state?.error ? 'text-red-700 bg-red-50 border-red-200' : 'text-green-700 bg-green-50 border-green-200'}`}>
           {state?.error ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
@@ -74,12 +77,15 @@ export default function SectionsPageUI({ success, sections }: { success?: string
         </div>
       )}
 
+      {/* Page Title */}
       <div className="flex flex-col gap-2 text-[var(--foreground)]">
         <h1 className="text-3xl font-bold tracking-tight">Manage Sections</h1>
         <p className="text-gray-500">Create new classes and manage your students' research groups.</p>
       </div>
 
       <div className="grid md:grid-cols-3 gap-8">
+        
+        {/* New Section Creation Form */}
         <div className="md:col-span-1">
           <form action={formAction} className="p-6 rounded-2xl border border-gray-200 dark:border-gray-800 bg-[var(--background)] shadow-sm space-y-4 sticky top-6">
             <div className="flex items-center gap-2 mb-2 text-blue-600">
@@ -100,6 +106,7 @@ export default function SectionsPageUI({ success, sections }: { success?: string
           </form>
         </div>
 
+        {/* Section List and Analytics */}
         <div className="md:col-span-2 space-y-4">
           <h3 className="font-bold flex items-center gap-2 text-[var(--foreground)]">
             <GraduationCap size={20} className="text-gray-400" />
@@ -127,6 +134,7 @@ export default function SectionsPageUI({ success, sections }: { success?: string
                       <p className="text-sm text-gray-500 font-mono">{section.course_code}</p>
                     </div>
                     
+                    {/* Section controls */}
                     <div className="flex gap-2">
                       <button 
                         onClick={() => handleFreeze(section.id, section.is_frozen)}
@@ -145,7 +153,7 @@ export default function SectionsPageUI({ success, sections }: { success?: string
                     </div>
                   </div>
 
-                  {/* Analytics Grid */}
+                  {/* Section Analytics Grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                     <div className="p-3 bg-blue-50/50 dark:bg-blue-900/10 rounded-xl border border-blue-100/50 dark:border-blue-800/30">
                       <div className="flex items-center gap-1.5 text-blue-600 mb-1">
@@ -173,7 +181,7 @@ export default function SectionsPageUI({ success, sections }: { success?: string
                     </div>
                   </div>
 
-                  {/* Bottom Bar: Join Code & Manage Link */}
+                  {/* Join code and roster navigation */}
                   <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-800">
                     <div className="flex items-center gap-3">
                       <span className="text-[10px] uppercase font-bold text-gray-400">Join Code:</span>
@@ -198,12 +206,11 @@ export default function SectionsPageUI({ success, sections }: { success?: string
         </div>
       </div>
 
-      {/* --- ROSTER MODAL OVERLAY --- */}
+      {/* Roster Management Modal */}
       {rosterModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-[var(--background)] rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
             
-            {/* Modal Header */}
             <div className="flex items-center justify-between p-6 border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50">
               <div>
                 <h3 className="text-xl font-bold text-[var(--foreground)] flex items-center gap-2">
@@ -217,7 +224,7 @@ export default function SectionsPageUI({ success, sections }: { success?: string
               </button>
             </div>
 
-            {/* Modal Body (Scrollable Student List) */}
+            {/* List of students in the selected section */}
             <div className="flex-1 overflow-y-auto p-6 space-y-3">
               {rosterModal.roster?.length === 0 ? (
                 <div className="text-center py-10 text-gray-400">
@@ -250,6 +257,7 @@ export default function SectionsPageUI({ success, sections }: { success?: string
                       </div>
                     </div>
 
+                    {/* Student management actions */}
                     <div className="flex items-center gap-2">
                       {student.status === 'active' ? (
                         <button 
@@ -284,7 +292,6 @@ export default function SectionsPageUI({ success, sections }: { success?: string
                 ))
               )}
             </div>
-
           </div>
         </div>
       )}

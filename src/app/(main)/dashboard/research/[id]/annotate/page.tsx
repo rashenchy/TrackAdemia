@@ -27,6 +27,10 @@ import {
   updateReply
 } from './actions'
 
+
+/* --- UTILITIES --- */
+
+/* Utility function that shortens highlighted text for previews */
 function summarizeQuote(text: string, maxLength = 120) {
   if (!text) return ''
   const cleaned = text.replace(/\s+/g, ' ').trim()
@@ -34,48 +38,64 @@ function summarizeQuote(text: string, maxLength = 120) {
   return cleaned.substring(0, maxLength) + '...'
 }
 
+
+/* --- COMPONENT --- */
+
 export default function AnnotatePage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
+
+  /* --- INITIALIZATION & ROUTING --- */
+
+  /* Resolve the research document ID from the dynamic route */
   const resolvedParams = use(params)
   const researchId = resolvedParams.id
 
+  /* Read optional URL parameters such as deep links to a specific annotation */
   const searchParams = useSearchParams()
   const targetAnnotationId = searchParams.get('annotationId')
 
+
+  /* --- COMPONENT STATE --- */
+
+  /* Data storage for document and annotations */
   const [fileUrl, setFileUrl] = useState<string | null>(null)
   const [annotations, setAnnotations] = useState<any[]>([])
 
-  // --- Filter State ---
+  /* UI/Sidebar Control states */
   const [filter, setFilter] = useState<'all' | 'unresolved' | 'resolved'>('all')
-
-  // --- Phase 2: UX States ---
   const [viewMode, setViewMode] = useState<'list' | 'thread'>('list')
   const [selectedAnnotation, setSelectedAnnotation] = useState<any | null>(null)
 
-  // --- Phase 3: Thread Chat States ---
+  /* Discussion thread management states */
   const [threadReplies, setThreadReplies] = useState<any[]>([])
   const [replyText, setReplyText] = useState('')
   const [isSubmittingReply, setIsSubmittingReply] = useState(false)
   const [isLoadingReplies, setIsLoadingReplies] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-
-  // --- User / Reply Editing State ---
+  
+  /* User and editing permission states */
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [editingReplyId, setEditingReplyId] = useState<string | null>(null)
   const [editMessage, setEditMessage] = useState('')
 
+  /* Modal and creation state */
   const [showCommentBox, setShowCommentBox] = useState(false)
   const [activeHighlight, setActiveHighlight] = useState<any | null>(null)
   const [commentText, setCommentText] = useState('')
 
+  /* References for scrolling behavior */
+  const messagesEndRef = useRef<HTMLDivElement>(null)
   const highlightRefs = useRef<Record<string, HTMLElement | null>>({})
 
-  // --- Smart Sorting & Filtering Engine ---
+
+  /* --- DERIVED DATA & COMPUTED VALUES --- */
+
+  /* Filtered and sorted list of annotations for the sidebar */
   const displayedAnnotations = useMemo(() => {
     let filtered = annotations
+
     if (filter === 'unresolved') {
       filtered = annotations.filter(a => !a.is_resolved)
     } else if (filter === 'resolved') {
@@ -93,7 +113,10 @@ export default function AnnotatePage({
     })
   }, [annotations, filter])
 
-  /* Normalize highlight areas */
+
+  /* --- COORDINATE UTILITIES --- */
+
+  /* Normalizes PDF coordinate values for database storage */
   function normalizeAreas(areas: any[]) {
     return areas.map(area => ({
       pageIndex: area.pageIndex,
@@ -104,6 +127,7 @@ export default function AnnotatePage({
     }))
   }
 
+  /* Converts stored coordinates back to viewer format */
   function denormalizeArea(area: any) {
     return {
       ...area,
@@ -114,7 +138,10 @@ export default function AnnotatePage({
     }
   }
 
-  /* Add Annotation */
+
+  /* --- ANNOTATION HANDLERS --- */
+
+  /* Creates a new annotation and performs an optimistic UI update */
   const handleAddAnnotation = async (highlightData: any, text: string) => {
     if (!highlightData?.selectedText) return
     if (!highlightData?.highlightAreas?.length) return
@@ -135,20 +162,21 @@ export default function AnnotatePage({
     setAnnotations(prev => [...prev, newAnnotation])
 
     try {
-      const saved = await addAnnotation(
-        researchId,
-        { ...highlightData, highlightAreas: normalizedAreas },
-        text
-      )
-      if (saved) setAnnotations(prev => prev.map(a => (a.id === tempId ? saved : a)))
+      const saved = await addAnnotation(researchId, { ...highlightData, highlightAreas: normalizedAreas }, text)
+      if (saved) {
+        setAnnotations(prev => prev.map(a => (a.id === tempId ? saved : a)))
+      }
     } catch {
       setAnnotations(prev => prev.filter(a => a.id !== tempId))
     }
   }
 
-  /* Resolve Toggle */
+  /* Toggles resolved status and updates server */
   const handleToggleResolve = async (id: string, currentStatus: boolean) => {
-    setAnnotations(prev => prev.map(a => (a.id === id ? { ...a, is_resolved: !currentStatus } : a)))
+    setAnnotations(prev =>
+      prev.map(a => a.id === id ? { ...a, is_resolved: !currentStatus } : a)
+    )
+
     if (selectedAnnotation?.id === id) {
       setSelectedAnnotation((prev: any) => ({ ...prev, is_resolved: !currentStatus }))
     }
@@ -156,18 +184,24 @@ export default function AnnotatePage({
     try {
       await toggleAnnotationResolved(id, !currentStatus)
     } catch {
-      setAnnotations(prev => prev.map(a => (a.id === id ? { ...a, is_resolved: currentStatus } : a)))
+      setAnnotations(prev =>
+        prev.map(a => a.id === id ? { ...a, is_resolved: currentStatus } : a)
+      )
       if (selectedAnnotation?.id === id) {
         setSelectedAnnotation((prev: any) => ({ ...prev, is_resolved: currentStatus }))
       }
     }
   }
 
-  // --- Thread Actions ---
+
+  /* --- SCROLLING & NAVIGATION --- */
+
   const scrollToHighlight = (id: string) => {
     setTimeout(() => {
       const entry = Object.entries(highlightRefs.current).find(([key]) => key.startsWith(id))
-      if (entry?.[1]) entry[1].scrollIntoView({ behavior: 'smooth', block: 'center' })
+      if (entry?.[1]) {
+        entry[1].scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
     }, 50)
   }
 
@@ -175,14 +209,16 @@ export default function AnnotatePage({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
+
+  /* --- THREAD MANAGEMENT --- */
+
   const openThread = async (ann: any) => {
     setSelectedAnnotation(ann)
     setViewMode('thread')
     scrollToHighlight(ann.id)
-
-    // Phase 3: Load Thread Replies
     setIsLoadingReplies(true)
-    setThreadReplies([]) // Clear previous
+    setThreadReplies([])
+
     const replies = await getReplies(ann.id)
     setThreadReplies(replies)
     setIsLoadingReplies(false)
@@ -215,7 +251,9 @@ export default function AnnotatePage({
     }
   }
 
-  /* Highlight Plugin */
+
+  /* --- HIGHLIGHT PLUGIN CONFIGURATION --- */
+
   const highlightPluginInstance = highlightPlugin({
     renderHighlightTarget: (renderProps: RenderHighlightTargetProps) => (
       <div
@@ -272,18 +310,20 @@ export default function AnnotatePage({
     ),
   })
 
+
+  /* --- LIFECYCLE EFFECTS --- */
+
+  /* Handle deeplink to annotation */
   useEffect(() => {
     if (targetAnnotationId && annotations.length > 0) {
       const target = annotations.find(a => a.id === targetAnnotationId)
-
       if (target && selectedAnnotation?.id !== target.id) {
-        setTimeout(() => {
-          openThread(target)
-        }, 500)
+        setTimeout(() => openThread(target), 500)
       }
     }
   }, [targetAnnotationId, annotations])
 
+  /* Initial data fetch */
   useEffect(() => {
     async function loadData() {
       const file = await getResearchFile(researchId)
@@ -294,15 +334,18 @@ export default function AnnotatePage({
     loadData()
   }, [researchId])
 
+  /* Get user authentication status */
   useEffect(() => {
     async function getUser() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       setCurrentUserId(user?.id || null)
     }
-
     getUser()
   }, [])
+
+
+  /* --- RENDER --- */
 
   if (!fileUrl) {
     return (
@@ -315,6 +358,8 @@ export default function AnnotatePage({
 
   return (
     <div className="flex flex-col h-screen">
+      
+      {/* --- HEADER --- */}
       <div className="h-16 bg-white border-b border-gray-200 px-6 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Link href={`/dashboard/research/${researchId}`} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-600">
@@ -325,6 +370,8 @@ export default function AnnotatePage({
       </div>
 
       <div className="flex flex-1 overflow-hidden">
+        
+        {/* --- PDF VIEWER SECTION --- */}
         <div className="flex-1 bg-gray-200/50 p-6 overflow-y-auto">
           <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
             <div className="max-w-4xl mx-auto shadow-lg bg-white">
@@ -333,11 +380,11 @@ export default function AnnotatePage({
           </Worker>
         </div>
 
+        {/* --- SIDEBAR SECTION --- */}
         <div className="w-[400px] bg-white border-l border-gray-200 flex flex-col shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.05)] z-10 relative overflow-hidden">
-
           <div className="absolute inset-0 flex transition-transform duration-300 ease-in-out" style={{ transform: viewMode === 'list' ? 'translateX(0)' : 'translateX(-100%)' }}>
 
-            {/* --- VIEW MODE: LIST --- */}
+            {/* View Mode: List */}
             <div className="w-full h-full flex flex-col flex-shrink-0">
               <div className="p-5 border-b border-gray-100">
                 <div className="flex items-center justify-between mb-4">
@@ -348,14 +395,12 @@ export default function AnnotatePage({
                     {annotations.length} total
                   </span>
                 </div>
-
                 <div className="flex p-1 bg-gray-100 rounded-lg">
                   {(['all', 'unresolved', 'resolved'] as const).map(f => (
                     <button
                       key={f}
                       onClick={() => setFilter(f)}
-                      className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold capitalize transition-all duration-200 ${filter === f ? 'bg-white shadow-sm text-blue-600 border border-gray-200/50' : 'text-gray-500 hover:text-gray-700'
-                        }`}
+                      className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold capitalize transition-all duration-200 ${filter === f ? 'bg-white shadow-sm text-blue-600 border border-gray-200/50' : 'text-gray-500 hover:text-gray-700'}`}
                     >
                       {f}
                     </button>
@@ -375,8 +420,8 @@ export default function AnnotatePage({
                       key={ann.id}
                       onClick={() => openThread(ann)}
                       className={`p-4 border rounded-xl cursor-pointer transition-all duration-200 group
-                        ${ann.is_resolved ? 'border-green-100 bg-green-50/30 hover:bg-green-50 hover:border-green-200' : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'}
-                      `}
+                        ${ann.is_resolved ? 'border-green-100 bg-green-50/30 hover:bg-green-50 hover:border-green-200' : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'}
+                      `}
                     >
                       <div className="flex justify-between items-start mb-2">
                         <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">
@@ -388,11 +433,9 @@ export default function AnnotatePage({
                           </span>
                         )}
                       </div>
-
                       <p className={`text-sm mb-3 line-clamp-2 ${ann.is_resolved ? 'text-gray-500' : 'text-gray-900 font-medium'}`}>
                         {ann.comment_text}
                       </p>
-
                       <div className="flex items-center justify-between mt-2 pt-3 border-t border-gray-100">
                         <div className="text-[10px] text-gray-400 italic truncate max-w-[200px]">
                           "{summarizeQuote(ann.quote, 40)}"
@@ -407,7 +450,7 @@ export default function AnnotatePage({
               </div>
             </div>
 
-            {/* --- VIEW MODE: THREAD --- */}
+            {/* View Mode: Thread */}
             <div className="w-full h-full flex flex-col flex-shrink-0 bg-white">
               {selectedAnnotation && (
                 <>
@@ -417,8 +460,7 @@ export default function AnnotatePage({
                     </button>
                     <button
                       onClick={() => handleToggleResolve(selectedAnnotation.id, selectedAnnotation.is_resolved)}
-                      className={`text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-full font-bold transition-colors ${selectedAnnotation.is_resolved ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
+                      className={`text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-full font-bold transition-colors ${selectedAnnotation.is_resolved ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                     >
                       <CheckCircle size={14} />
                       {selectedAnnotation.is_resolved ? 'Resolved' : 'Mark Resolved'}
@@ -426,12 +468,9 @@ export default function AnnotatePage({
                   </div>
 
                   <div className="flex-1 overflow-y-auto p-5 space-y-6">
-
                     <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-100/50 relative">
                       <div className="absolute top-0 left-0 w-1 h-full bg-amber-400 rounded-l-xl"></div>
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-[10px] font-bold uppercase text-amber-600 tracking-wider">Context • Page {(selectedAnnotation.position_data?.[0]?.pageIndex ?? 0) + 1}</p>
-                      </div>
+                      <p className="text-[10px] font-bold uppercase text-amber-600 tracking-wider mb-2">Context • Page {(selectedAnnotation.position_data?.[0]?.pageIndex ?? 0) + 1}</p>
                       <p className="text-sm italic text-gray-700 leading-relaxed">
                         "{selectedAnnotation.quote}"
                       </p>
@@ -461,7 +500,7 @@ export default function AnnotatePage({
                         </div>
                       </div>
 
-                      {/* Phase 3: Replies */}
+                      {/* Replies */}
                       {isLoadingReplies ? (
                         <div className="flex justify-center py-4">
                           <Loader2 size={16} className="animate-spin text-gray-400" />
@@ -476,59 +515,21 @@ export default function AnnotatePage({
 
                               <div className="flex-1">
                                 <div className="flex items-baseline gap-2 mb-1 justify-between">
-                                  <span className="text-xs font-bold text-gray-900">
-                                    {reply.profiles?.first_name}
-                                  </span>
-
+                                  <span className="text-xs font-bold text-gray-900">{reply.profiles?.first_name}</span>
+                                  
                                   {/* Edit/Delete Controls */}
                                   {reply.user_id === currentUserId && editingReplyId !== reply.id && (
                                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <button
-                                        onClick={() => {
-                                          setEditingReplyId(reply.id)
-                                          setEditMessage(reply.message)
-                                        }}
-                                        className="text-[10px] text-blue-600 hover:underline"
-                                      >
-                                        Edit
-                                      </button>
-
-                                      <button
-                                        onClick={async () => {
-                                          await deleteReply(reply.id)
-                                          setThreadReplies((prev) =>
-                                            prev.filter((r) => r.id !== reply.id)
-                                          )
-                                        }}
-                                        className="text-[10px] text-red-600 hover:underline"
-                                      >
-                                        Delete
-                                      </button>
+                                      <button onClick={() => { setEditingReplyId(reply.id); setEditMessage(reply.message) }} className="text-[10px] text-blue-600 hover:underline">Edit</button>
+                                      <button onClick={async () => { await deleteReply(reply.id); setThreadReplies((prev) => prev.filter((r) => r.id !== reply.id)) }} className="text-[10px] text-red-600 hover:underline">Delete</button>
                                     </div>
                                   )}
                                 </div>
 
                                 {editingReplyId === reply.id ? (
                                   <div className="flex gap-2">
-                                    <input
-                                      value={editMessage}
-                                      onChange={(e) => setEditMessage(e.target.value)}
-                                      className="flex-1 p-2 text-sm border rounded-lg"
-                                    />
-                                    <button
-                                      onClick={async () => {
-                                        await updateReply(reply.id, editMessage)
-                                        setThreadReplies((prev) =>
-                                          prev.map((r) =>
-                                            r.id === reply.id ? { ...r, message: editMessage } : r
-                                          )
-                                        )
-                                        setEditingReplyId(null)
-                                      }}
-                                      className="text-xs font-bold text-blue-600"
-                                    >
-                                      Save
-                                    </button>
+                                    <input value={editMessage} onChange={(e) => setEditMessage(e.target.value)} className="flex-1 p-2 text-sm border rounded-lg" />
+                                    <button onClick={async () => { await updateReply(reply.id, editMessage); setThreadReplies((prev) => prev.map((r) => r.id === reply.id ? { ...r, message: editMessage } : r)); setEditingReplyId(null) }} className="text-xs font-bold text-blue-600">Save</button>
                                   </div>
                                 ) : (
                                   <div className="bg-white p-3 rounded-2xl rounded-tl-none text-sm text-gray-800 border border-gray-200 shadow-sm">
@@ -540,14 +541,11 @@ export default function AnnotatePage({
                           ))}
                         </>
                       )}
-
-                      {/* Invisible element to scroll to bottom */}
                       <div ref={messagesEndRef} />
-
                     </div>
                   </div>
 
-                  {/* Phase 3: Chat Input Form */}
+                  {/* Input Form */}
                   <form onSubmit={handleSendReply} className="p-4 border-t border-gray-200 bg-gray-50/50">
                     <div className="flex gap-2">
                       <input
@@ -578,54 +576,22 @@ export default function AnnotatePage({
       {showCommentBox && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">
           <div className="bg-white w-[400px] rounded-2xl shadow-2xl p-6 space-y-4">
-            <div>
-              <h3 className="font-bold text-gray-900 text-lg">Add Feedback</h3>
-            </div>
-
+            <h3 className="font-bold text-gray-900 text-lg">Add Feedback</h3>
             <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
               <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Highlighted Text</p>
-              <p className="text-xs italic text-gray-600 line-clamp-3">
-                "{summarizeQuote(activeHighlight?.selectedText)}"
-              </p>
+              <p className="text-xs italic text-gray-600 line-clamp-3">"{summarizeQuote(activeHighlight?.selectedText)}"</p>
             </div>
-
             <textarea
               value={commentText}
               onChange={e => setCommentText(e.target.value)}
               placeholder="What needs to be revised here?"
               autoFocus
-              className="w-full border border-gray-300 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+              className="w-full border border-gray-300 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
               rows={4}
             />
-
             <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => {
-                  setShowCommentBox(false)
-                  setCommentText('')
-                  setActiveHighlight(null)
-                }}
-                className="text-sm px-4 py-2 rounded-xl font-semibold text-gray-600 hover:bg-gray-100 transition-colors"
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={async () => {
-                  if (!activeHighlight || !commentText.trim()) return
-
-                  await handleAddAnnotation(activeHighlight, commentText)
-
-                  setShowCommentBox(false)
-                  setCommentText('')
-                  setActiveHighlight(null)
-                  setFilter('unresolved')
-                }}
-                disabled={!commentText.trim()}
-                className="bg-blue-600 text-white text-sm px-6 py-2 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-lg shadow-blue-200"
-              >
-                Submit
-              </button>
+              <button onClick={() => { setShowCommentBox(false); setCommentText(''); setActiveHighlight(null) }} className="text-sm px-4 py-2 rounded-xl font-semibold text-gray-600 hover:bg-gray-100 transition-colors">Cancel</button>
+              <button onClick={async () => { if (!activeHighlight || !commentText.trim()) return; await handleAddAnnotation(activeHighlight, commentText); setShowCommentBox(false); setCommentText(''); setActiveHighlight(null); setFilter('unresolved') }} disabled={!commentText.trim()} className="bg-blue-600 text-white text-sm px-6 py-2 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-lg">Submit</button>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
+// Collection of research-related quotes displayed on the dashboard
 const quotes = [
 "Research is what I'm doing when I don't know what I'm doing. — Wernher von Braun",
 "The important thing is to never stop questioning. — Albert Einstein",
@@ -113,14 +114,19 @@ const quotes = [
 "Research builds the future."
 ]
 
+// Component that displays a random research quote on the dashboard
 export default function RotatingQuote() {
+
+  // Store the currently displayed quote
   const [quote, setQuote] = useState(quotes[0])
 
+  // Select a random quote when the component loads
   useEffect(() => {
     const randomQuote = quotes[Math.floor(Math.random() * quotes.length)]
     setQuote(randomQuote)
   }, [])
 
+  // Render the quote text
   return (
     <p className="text-gray-500 italic">
       "{quote}"

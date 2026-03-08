@@ -5,13 +5,19 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
 export default async function EditResearchPage({ params }: { params: Promise<{ id: string }> }) {
-  const resolvedParams = await params;
-  const researchId = resolvedParams.id;
   
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  // INITIALIZATION
 
+  const resolvedParams = await params
+  const researchId = resolvedParams.id
+  const supabase = await createClient()
+
+  // AUTHENTICATION
+
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  // DATA FETCHING: RESEARCH
 
   const { data: research } = await supabase
     .from('research')
@@ -21,56 +27,63 @@ export default async function EditResearchPage({ params }: { params: Promise<{ i
 
   if (!research) redirect('/dashboard')
 
+  // DATA FETCHING: SECTIONS & CLASSMATES
+
   const { data: myMemberships } = await supabase
     .from('section_members')
     .select('section_id')
-    .eq('user_id', user.id);
+    .eq('user_id', user.id)
   
-  const sectionIds = myMemberships?.map(m => m.section_id) || [];
+  const sectionIds = myMemberships?.map(m => m.section_id) || []
 
-  let classmatesList: { id: string, name: string, sectionName: string }[] = [];
-  let userSections: { id: string, name: string, course_code: string }[] = [];
+  let classmatesList: { id: string, name: string, sectionName: string }[] = []
+  let userSections: { id: string, name: string, course_code: string }[] = []
 
   if (sectionIds.length > 0) {
+    // Fetch section metadata
     const { data: sectionsData } = await supabase
       .from('sections')
       .select('id, name, course_code')
-      .in('id', sectionIds);
+      .in('id', sectionIds)
       
-    userSections = sectionsData || [];
+    userSections = sectionsData || []
 
-    // Fetch all members (including current user)
+    // Fetch all members in those sections
     const { data: sectionMembers } = await supabase
       .from('section_members')
       .select('user_id, section_id, sections(name)')
-      .in('section_id', sectionIds);
+      .in('section_id', sectionIds)
 
-    const classmateIds = [...new Set(sectionMembers?.map(m => m.user_id))];
+    const classmateIds = [...new Set(sectionMembers?.map(m => m.user_id))]
 
+    // Map profiles to classmates list
     if (classmateIds.length > 0) {
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, first_name, last_name')
-        .in('id', classmateIds as string[]);
+        .in('id', classmateIds as string[])
 
       classmatesList = (sectionMembers || []).map(m => {
-        const profile = profiles?.find(p => p.id === m.user_id);
-        const sectionData = m.sections as any;
-        const sectionName = Array.isArray(sectionData) ? sectionData[0]?.name : sectionData?.name;
+        const profile = profiles?.find(p => p.id === m.user_id)
+        const sectionData = m.sections as any
+        const sectionName = Array.isArray(sectionData) ? sectionData[0]?.name : sectionData?.name
         
-        // Add "(You)" to the user's own name
-        const isMe = m.user_id === user.id;
+        // Flag current user
+        const isMe = m.user_id === user.id
 
         return {
           id: m.user_id as string,
           name: profile ? `${profile.first_name} ${profile.last_name}${isMe ? ' (You)' : ''}` : 'Unknown Student',
           sectionName: sectionName || 'Unknown Section'
-        };
-      }).filter(c => c.name !== 'Unknown Student');
+        }
+      }).filter(c => c.name !== 'Unknown Student')
       
-      classmatesList = classmatesList.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
+      // Deduplicate entries
+      classmatesList = classmatesList.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i)
     }
   }
+
+  // RENDER
 
   return (
     <div className="max-w-4xl mx-auto pb-12">

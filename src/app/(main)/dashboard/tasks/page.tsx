@@ -22,14 +22,17 @@ export default async function TaskManagerPage({
 }: {
     searchParams: Promise<{ filter?: string }>
 }) {
+
+    // Resolve filter from URL query
     const resolvedParams = await searchParams
     const activeFilter = resolvedParams.filter || 'unresolved'
 
+    // Initialize Supabase and verify authentication
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) redirect('/login')
 
-    // Determine if user is a teacher
+    // Determine if the current user is a teacher
     const { data: profile } = await supabase
         .from('profiles')
         .select('role')
@@ -38,7 +41,7 @@ export default async function TaskManagerPage({
 
     const isTeacher = profile?.role === 'mentor'
 
-    // If teacher, fetch their sections for the dropdown
+    // Fetch sections managed by the teacher (used for task assignment dropdown)
     let managedSections: any[] = []
 
     if (isTeacher) {
@@ -50,13 +53,11 @@ export default async function TaskManagerPage({
         managedSections = data || []
     }
 
-    // ===============================
-    // TEACHER ANALYTICS FETCHING
-    // ===============================
-
+    // Fetch analytics data for teacher dashboards
     let analyticsData: any[] = []
 
     if (isTeacher && managedSections.length > 0) {
+
         const { data: stats } = await supabase
             .from('student_task_analytics')
             .select('*')
@@ -66,24 +67,28 @@ export default async function TaskManagerPage({
         analyticsData = stats || []
     }
 
-    // 1. Fetch Data (Personal & Annotations)
+    // Fetch personal tasks and research owned by the user
     const [personalRes, researchRes] = await Promise.all([
-        supabase.from('tasks').select('*').eq('created_by', user.id),
-        supabase.from('research').select('id, title').or(`user_id.eq.${user.id},members.cs.{${user.id}}`)
+        supabase
+            .from('tasks')
+            .select('*')
+            .eq('created_by', user.id),
+
+        supabase
+            .from('research')
+            .select('id, title')
+            .or(`user_id.eq.${user.id},members.cs.{${user.id}}`)
     ])
 
+    // Fetch annotations tied to the user's research
     const researchIds = researchRes.data?.map(r => r.id) || []
+
     const { data: annotations } = await supabase
         .from('annotations')
         .select('*, research:research_id(title)')
         .in('research_id', researchIds)
 
-    // 2. Normalize and Filter
-    // ===============================
-    // TEACHER TASK FETCHING
-    // ===============================
-
-    // 1. Fetch Student's active section IDs
+    // Fetch the student's active section memberships
     const { data: memberships } = await supabase
         .from('section_members')
         .select('section_id')
@@ -92,10 +97,11 @@ export default async function TaskManagerPage({
 
     const mySectionIds = memberships?.map(m => m.section_id) || []
 
-    // 2. Fetch Teacher Tasks for those sections
+    // Fetch teacher-created tasks assigned to the student's sections
     let teacherTasks: any[] = []
 
     if (!isTeacher && mySectionIds.length > 0) {
+
         const { data } = await supabase
             .from('tasks')
             .select('*, task_completions(is_completed)')
@@ -105,18 +111,16 @@ export default async function TaskManagerPage({
         teacherTasks = data || []
     }
 
-    // 3. Map Teacher Tasks
+    // Normalize teacher tasks to match the task UI structure
     const mappedTeacherTasks = (teacherTasks || []).map(t => ({
         ...t,
         source: 'teacher' as const,
         status: t.task_completions?.[0]?.is_completed ? 'resolved' : 'unresolved'
     }))
 
-    // ===============================
-    // NORMALIZE ALL TASKS
-    // ===============================
-
+    // Normalize and combine all task sources (teacher, personal, annotation)
     let allTasks = [
+
         ...mappedTeacherTasks,
 
         ...(personalRes.data || []).map(t => ({
@@ -136,30 +140,41 @@ export default async function TaskManagerPage({
         }))
     ]
 
+    // Apply status filter (all / unresolved / resolved)
     if (activeFilter !== 'all') {
         allTasks = allTasks.filter(t => t.status === activeFilter)
     }
 
+    // Define task priority ordering
     const priority: Record<'annotation' | 'teacher' | 'personal', number> = {
         annotation: 0,
         teacher: 1,
         personal: 2
     }
 
+    // Sort tasks by priority and then by newest creation date
     allTasks.sort((a, b) => {
-        if (priority[a.source as keyof typeof priority] !== priority[b.source as keyof typeof priority]) {
-            return priority[a.source as keyof typeof priority] - priority[b.source as keyof typeof priority]
+
+        if (
+            priority[a.source as keyof typeof priority] !==
+            priority[b.source as keyof typeof priority]
+        ) {
+            return (
+                priority[a.source as keyof typeof priority] -
+                priority[b.source as keyof typeof priority]
+            )
         }
 
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
 
-    // ===============================
-    // PROGRESS STATISTICS
-    // ===============================
-
+    // Calculate progress statistics for the dashboard
     const totalTasks = allTasks.length
-    const completedCount = allTasks.filter(t => t.status === 'resolved').length
+
+    const completedCount = allTasks.filter(
+        t => t.status === 'resolved'
+    ).length
+
     const progressPercentage = totalTasks > 0
         ? Math.round((completedCount / totalTasks) * 100)
         : 0

@@ -5,11 +5,16 @@ import { joinSection } from '@/app/(main)/dashboard/sections/actions'
 import { SubmitButton } from '@/components/auth/SubmitButton'
 import { GraduationCap, Hash, CheckCircle2, AlertCircle } from 'lucide-react'
 
+// Form component that allows students to join a teacher's section using a join code
 export function JoinSectionForm() {
+
+  // Connect the form to the server action and receive response state
   const [state, formAction] = useActionState(joinSection, null)
 
   return (
     <div className="bg-[var(--background)] p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm transition-colors">
+
+      {/* Section Header */}
       <div className="flex items-center gap-3 mb-6">
         <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
           <GraduationCap className="text-purple-600" size={24} />
@@ -20,6 +25,7 @@ export function JoinSectionForm() {
         </div>
       </div>
 
+      {/* Success Feedback */}
       {state?.success && (
         <div className="flex items-center gap-2 p-4 mb-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl animate-in fade-in slide-in-from-top-2">
           <CheckCircle2 size={18} />
@@ -27,6 +33,7 @@ export function JoinSectionForm() {
         </div>
       )}
 
+      {/* Error Feedback */}
       {state?.error && (
         <div className="flex items-center gap-2 p-4 mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl animate-in fade-in slide-in-from-top-2">
           <AlertCircle size={18} />
@@ -34,11 +41,18 @@ export function JoinSectionForm() {
         </div>
       )}
 
+      {/* Join Section Form */}
       <form action={formAction} className="space-y-4">
+
+        {/* Join Code Input */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-bold uppercase text-gray-500">Section Join Code</label>
           <div className="relative">
+
+            {/* Input Icon */}
             <Hash className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+
+            {/* Join Code Field */}
             <input 
               name="joinCode"
               required
@@ -49,9 +63,11 @@ export function JoinSectionForm() {
           </div>
         </div>
 
+        {/* Submit Button */}
         <SubmitButton className="w-full bg-blue-600 text-white rounded-lg py-3 font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none">
           Join Section
         </SubmitButton>
+
       </form>
     </div>
   )

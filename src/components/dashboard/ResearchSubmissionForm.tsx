@@ -16,9 +16,11 @@ function MemberComboBox({
 }: {
   index: number, classmates: any[], value: string, onChange: (val: string) => void, isDraftMode: boolean
 }) {
+  // Search and dropdown state
   const [search, setSearch] = useState('')
   const [isOpen, setIsOpen] = useState(false)
 
+  // Sync input value with external prop
   useEffect(() => {
     if (value) {
       const match = classmates.find(c => c.id === value)
@@ -26,6 +28,7 @@ function MemberComboBox({
     }
   }, [value, classmates])
 
+  // Filter logic for member search
   const filtered = classmates.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.sectionName.toLowerCase().includes(search.toLowerCase())
@@ -96,10 +99,11 @@ export function ResearchSubmissionForm({
   initialData?: any,
   editId?: string | null
 }) {
-
+  // Form mode and submission status
   const [currentId, setCurrentId] = useState(editId)
   const [isDraftMode, setIsDraftMode] = useState(false)
 
+  // Select appropriate action based on edit or new submission
   const actionToUse = async (prevState: FormState | null, formData: FormData) => {
     if (currentId) {
       return updateResearch(currentId, prevState, formData)
@@ -114,6 +118,7 @@ export function ResearchSubmissionForm({
 
   const formRef = useRef<HTMLFormElement>(null)
 
+  // Group members initialization
   const defaultMembers = initialData?.members?.length > 0 ? initialData.members : ['']
   const defaultRoles = initialData?.member_roles?.length > 0 ? initialData.member_roles : ['']
 
@@ -121,6 +126,7 @@ export function ResearchSubmissionForm({
   const [members, setMembers] = useState<string[]>(defaultMembers)
   const [roles, setRoles] = useState<string[]>(defaultRoles)
 
+  // Keyword list initialization
   const defaultKeywords = Array.isArray(initialData?.keywords)
     ? initialData.keywords
     : initialData?.keywords
@@ -129,40 +135,40 @@ export function ResearchSubmissionForm({
 
   const [keywordsList, setKeywordsList] = useState<string[]>(defaultKeywords)
 
+  // Dynamic keyword handlers
   const addKeyword = () => setKeywordsList([...keywordsList, ''])
   const removeKeyword = (index: number) => setKeywordsList(keywordsList.filter((_, i) => i !== index))
-
   const updateKeyword = (index: number, value: string) => {
     const newKeywords = [...keywordsList]
     newKeywords[index] = value
     setKeywordsList(newKeywords)
   }
 
+  // Dynamic member handlers
   const addMember = () => {
     setMembers([...members, ''])
     setRoles([...roles, ''])
   }
-
   const removeMember = (index: number) => {
     setMembers(members.filter((_, i) => i !== index))
     setRoles(roles.filter((_, i) => i !== index))
   }
-
   const handleMemberSelection = (index: number, newId: string) => {
     const newMembers = [...members]
     newMembers[index] = newId
     setMembers(newMembers)
   }
 
+  // Form reset logic
   const clearForm = () => {
     setMembers([''])
     setRoles([''])
     setKeywordsList([''])
     setIsGroup(false)
-
     formRef.current?.reset()
   }
 
+  // Lifecycle effects
   useEffect(() => {
     if (state && !state.error && !editId && !state?.id) {
       clearForm()
@@ -177,30 +183,22 @@ export function ResearchSubmissionForm({
 
   return (
     <form ref={formRef} action={formAction} className="space-y-8">
-
       <input type="hidden" name="isDraft" value={isDraftMode ? 'true' : 'false'} />
 
+      {/* Error notification */}
       {state?.error && (
         <div className="flex items-center justify-between gap-3 p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-2">
             <AlertCircle size={18} />
             <span>{state.error}</span>
           </div>
-
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="text-xs font-bold text-red-600 hover:underline"
-          >
+          <button type="button" onClick={() => window.location.reload()} className="text-xs font-bold text-red-600 hover:underline">
             Refresh
           </button>
         </div>
       )}
 
-
-
-
-      {/* --- Section 1: Identity --- */}
+      {/* Identity section */}
       <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
         <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-4">
           <FileText className="text-blue-600" size={20} />
@@ -215,14 +213,12 @@ export function ResearchSubmissionForm({
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-[var(--foreground)]">Research Type</label>
             <select name="type" defaultValue={initialData?.type || "capstone"} className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer">
-
               <option value="capstone">Capstone Project</option>
               <option value="case-study">Case Study</option>
               <option value="dissertation">Dissertation</option>
               <option value="research">General Research</option>
               <option value="proposal">Research Proposal</option>
               <option value="thesis">Thesis</option>
-
             </select>
           </div>
         </div>
@@ -232,7 +228,7 @@ export function ResearchSubmissionForm({
           <textarea name="abstract" defaultValue={initialData?.abstract} rows={4} required={!isDraftMode} placeholder="Summarize your research goals..." className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] focus:border-blue-600 outline-none resize-none transition-all" />
         </div>
 
-        {/* --- DYNAMIC KEYWORDS SECTION --- */}
+        {/* Dynamic keywords section */}
         <div className="flex flex-col gap-2 mt-6 p-4 bg-gray-50/50 dark:bg-gray-900/30 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
           <div className="flex items-center justify-between mb-2">
             <div>
@@ -265,7 +261,7 @@ export function ResearchSubmissionForm({
         </div>
       </div>
 
-      {/* --- Section 2: Academic --- */}
+      {/* Academic section */}
       <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
         <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-4">
           <GraduationCap className="text-blue-600" size={20} />
@@ -294,7 +290,7 @@ export function ResearchSubmissionForm({
         </div>
       </div>
 
-      {/* --- Section 3: Group --- */}
+      {/* Group members section */}
       <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
         <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
           <div className="flex items-center gap-2">
@@ -322,8 +318,6 @@ export function ResearchSubmissionForm({
             <div className="grid gap-4">
               {members.map((memberId, index) => (
                 <div key={index} className="flex flex-col sm:flex-row gap-3 group relative">
-
-                  {/* Custom Combobox replaces the select */}
                   <MemberComboBox
                     index={index}
                     classmates={classmates}
@@ -331,7 +325,6 @@ export function ResearchSubmissionForm({
                     onChange={(val) => handleMemberSelection(index, val)}
                     isDraftMode={isDraftMode}
                   />
-
                   <input
                     name={`role-${index}`}
                     required={!isDraftMode}
@@ -351,7 +344,7 @@ export function ResearchSubmissionForm({
         )}
       </div>
 
-      {/* --- Section 4: Timeline --- */}
+      {/* Timeline section */}
       <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
         <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-4">
           <Calendar className="text-blue-600" size={20} />
@@ -378,7 +371,7 @@ export function ResearchSubmissionForm({
         </div>
       </div>
 
-      {/* --- Section 5: Files --- */}
+      {/* Files section */}
       <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
         <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
           <div className="flex items-center gap-2">
@@ -405,8 +398,8 @@ export function ResearchSubmissionForm({
         </div>
       </div>
 
+      {/* Form actions */}
       <div className="flex flex-col md:flex-row justify-end gap-4 pt-4">
-
         <button
           type="submit"
           onClick={() => setIsDraftMode(true)}
@@ -414,17 +407,13 @@ export function ResearchSubmissionForm({
         >
           Save Draft
         </button>
-
         <SubmitButton
           onClick={() => setIsDraftMode(false)}
           className="w-full md:w-auto px-12 bg-blue-600 text-white rounded-xl py-4 font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none text-lg"
         >
           {currentId ? "Resubmit Research" : "Submit Research"}
         </SubmitButton>
-
       </div>
-
     </form>
   )
 }
-

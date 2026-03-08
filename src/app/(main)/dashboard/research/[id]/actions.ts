@@ -6,10 +6,13 @@ import { revalidatePath } from 'next/cache'
 export async function updateResearchStatus(researchId: string, formData: FormData) {
   const supabase = await createClient()
 
+  // AUTHENTICATION: Ensure a user is logged in before allowing any action
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
 
-  // Verify the user is actually a mentor before allowing the update
+  // AUTHORIZATION: Verify the user is a mentor before permitting status updates
+
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
@@ -20,10 +23,13 @@ export async function updateResearchStatus(researchId: string, formData: FormDat
     throw new Error('Only mentors can update research status.')
   }
 
+  // INPUT EXTRACTION: Retrieve status change and optional new file reference
+
   const status = formData.get('status') as string
   const fileUrl = formData.get('fileUrl') as string | null
 
-  // Update research status
+  // DATABASE UPDATE: Apply the new research status
+
   const { error } = await supabase
     .from('research')
     .update({ status })
@@ -34,10 +40,12 @@ export async function updateResearchStatus(researchId: string, formData: FormDat
     throw new Error('Failed to update status')
   }
 
-  // NEW: Log the version history if a new file is uploaded
+  // VERSION TRACKING: If a new document file was uploaded, create a new version entry
+
   if (fileUrl) {
 
-    // 1. Find highest version
+    // Determine the next version number by checking the latest existing version
+
     const { data: existingVersions } = await supabase
       .from('research_versions')
       .select('version_number')
@@ -45,19 +53,22 @@ export async function updateResearchStatus(researchId: string, formData: FormDat
       .order('version_number', { ascending: false })
       .limit(1)
 
-    // Determine next version
     const nextVersion =
       existingVersions && existingVersions.length > 0
         ? existingVersions[0].version_number + 1
         : 2
 
-    // 2. Insert version record
+    // Insert a new version record linked to the uploaded file
+
     await supabase.from('research_versions').insert({
       research_id: researchId,
       uploaded_by: user.id,
       file_url: fileUrl,
       version_number: nextVersion
     })
+
+    // ANNOTATION MANAGEMENT: Mark previous annotations as resolved after a new version upload
+
     await supabase
       .from('annotations')
       .update({ is_resolved: true })
@@ -65,7 +76,8 @@ export async function updateResearchStatus(researchId: string, formData: FormDat
       .eq('is_resolved', false)
   }
 
-  // Refresh pages
+  // CACHE REFRESH: Revalidate pages so the updated research status appears immediately
+
   revalidatePath(`/dashboard/research/${researchId}`)
   revalidatePath('/dashboard')
 }
