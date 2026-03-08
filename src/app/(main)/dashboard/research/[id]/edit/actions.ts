@@ -204,6 +204,12 @@ export async function updateResearch(editId: string, prevState: any, formData: F
     if (versionError) {
       console.error('Version Insert Error:', versionError)
     }
+
+    await supabase
+      .from('annotations')
+      .update({ is_resolved: true })
+      .eq('research_id', editId)
+      .eq('is_resolved', false)
   }
 
   /* ------------------ Redirect Logic ------------------ */

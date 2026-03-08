@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 
 export async function updateResearchStatus(researchId: string, formData: FormData) {
   const supabase = await createClient()
-  
+
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
 
@@ -58,6 +58,11 @@ export async function updateResearchStatus(researchId: string, formData: FormDat
       file_url: fileUrl,
       version_number: nextVersion
     })
+    await supabase
+      .from('annotations')
+      .update({ is_resolved: true })
+      .eq('research_id', researchId)
+      .eq('is_resolved', false)
   }
 
   // Refresh pages

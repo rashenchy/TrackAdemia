@@ -56,11 +56,28 @@ export async function getResearchFile(researchId: string) {
 export async function getAnnotations(researchId: string) {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  // 1. Get the exact upload time of the CURRENT active file version
+  const { data: latestVersion } = await supabase
+    .from('research_versions')
+    .select('created_at')
+    .eq('research_id', researchId)
+    .order('version_number', { ascending: false })
+    .limit(1)
+    .single()
+
+  // 2. Build the query
+  let query = supabase
     .from('annotations')
     .select('*')
     .eq('research_id', researchId)
     .order('created_at', { ascending: true })
+
+  // 3. VERSION FILTER: Only return annotations created on or AFTER the latest file was uploaded
+  if (latestVersion?.created_at) {
+    query = query.gte('created_at', latestVersion.created_at)
+  }
+
+  const { data, error } = await query
 
   if (error) {
     console.error(error)
