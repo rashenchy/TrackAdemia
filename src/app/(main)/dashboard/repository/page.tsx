@@ -150,7 +150,7 @@ export default async function RepositoryPage({
                   {/* Actions */}
                   <div className="flex items-center gap-3">
                     <Link
-                      href={`/dashboard/research/${paper.id}`}
+                      href={`/repository/${paper.id}`}
                       className="flex items-center gap-1.5 text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors"
                     >
                       Read Full Text <ChevronRight size={16} />
