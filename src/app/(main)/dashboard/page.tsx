@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { SubmissionsTable } from '@/components/dashboard/SubmissionsTable'
 import { CheckCircle2, LayoutGrid } from 'lucide-react'
 import Link from 'next/link'
+import RotatingQuote from '@/components/dashboard/RotatingQuote'
 
 export default async function DashboardPage({
   searchParams
@@ -137,7 +138,7 @@ export default async function DashboardPage({
         <h1 className="text-3xl font-bold tracking-tight">
           Welcome back, {profile?.first_name || user.user_metadata.first_name}!
         </h1>
-        <p className="text-gray-500 italic">"Research is what I'm doing when I don't know what I'm doing."</p>
+        <RotatingQuote />
       </div>
 
       {isTeacher && teacherSections.length > 0 && (
