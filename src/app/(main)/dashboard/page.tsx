@@ -4,10 +4,10 @@ import { SubmissionsTable } from '@/components/dashboard/SubmissionsTable'
 import { CheckCircle2, LayoutGrid } from 'lucide-react'
 import Link from 'next/link'
 
-export default async function DashboardPage({ 
-  searchParams 
-}: { 
-  searchParams: Promise<{ success?: string, section?: string }> 
+export default async function DashboardPage({
+  searchParams
+}: {
+  searchParams: Promise<{ success?: string, section?: string }>
 }) {
   const resolvedSearchParams = await searchParams;
   const successMessage = resolvedSearchParams.success;
@@ -107,7 +107,7 @@ export default async function DashboardPage({
   // NEW: Fetch annotation counts for the displayed submissions
   if (displaySubmissions.length > 0) {
     const submissionIds = displaySubmissions.map(s => s.id);
-    
+
     const { data: annotations } = await supabase
       .from('annotations')
       .select('research_id, is_resolved')
@@ -148,11 +148,10 @@ export default async function DashboardPage({
           <div className="flex flex-wrap gap-2">
             <Link
               href="/dashboard"
-              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${
-                !activeSectionId || activeSectionId === 'all'
+              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${!activeSectionId || activeSectionId === 'all'
                   ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200 dark:shadow-none'
                   : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20'
-              }`}
+                }`}
             >
               All Sections
             </Link>
@@ -160,11 +159,10 @@ export default async function DashboardPage({
               <Link
                 key={sec.id}
                 href={`/dashboard?section=${sec.id}`}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${
-                  activeSectionId === sec.id
+                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${activeSectionId === sec.id
                     ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200 dark:shadow-none'
                     : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20'
-                }`}
+                  }`}
               >
                 {sec.name}
               </Link>

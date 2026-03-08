@@ -1,16 +1,16 @@
 'use client'
 
-import { useState, useEffect, useActionState } from 'react'
+import { useState, useEffect, useActionState, useRef } from 'react'
 import { Plus, Trash2, FileText, GraduationCap, Users, Calendar, Paperclip, Info, AlertCircle, Search } from 'lucide-react'
 import { SubmitButton } from '@/components/auth/SubmitButton'
 import { submitResearch } from '@/app/(main)/dashboard/submit/actions'
 import { updateResearch } from '@/app/(main)/dashboard/research/[id]/edit/actions'
 
 // --- Custom Searchable Combobox Component ---
-function MemberComboBox({ 
-  index, classmates, value, onChange 
-}: { 
-  index: number, classmates: any[], value: string, onChange: (val: string) => void 
+function MemberComboBox({
+  index, classmates, value, onChange
+}: {
+  index: number, classmates: any[], value: string, onChange: (val: string) => void
 }) {
   const [search, setSearch] = useState('')
   const [isOpen, setIsOpen] = useState(false)
@@ -24,8 +24,8 @@ function MemberComboBox({
   }, [value, classmates])
 
   // Filter based on input
-  const filtered = classmates.filter(c => 
-    c.name.toLowerCase().includes(search.toLowerCase()) || 
+  const filtered = classmates.filter(c =>
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.sectionName.toLowerCase().includes(search.toLowerCase())
   )
 
@@ -33,7 +33,7 @@ function MemberComboBox({
     <div className="relative flex-1">
       <input type="hidden" name={`member-${index}`} value={value} required />
       <div className="relative">
-        <input 
+        <input
           type="text"
           value={search}
           placeholder="Type to search classmates..."
@@ -54,7 +54,7 @@ function MemberComboBox({
         <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-56 overflow-y-auto overflow-x-hidden">
           {filtered.length > 0 ? (
             filtered.map(c => (
-              <div 
+              <div
                 key={c.id}
                 onClick={() => {
                   onChange(c.id)
@@ -95,13 +95,31 @@ export function ResearchSubmissionForm({
 }) {
   const actionToUse = editId ? updateResearch.bind(null, editId) : submitResearch;
   const [state, formAction] = useActionState(actionToUse, null)
-  
+
+  const formRef = useRef<HTMLFormElement>(null)
+
   const defaultMembers = initialData?.members?.length > 0 ? initialData.members : ['']
   const defaultRoles = initialData?.member_roles?.length > 0 ? initialData.member_roles : ['']
-  
+
   const [isGroup, setIsGroup] = useState(initialData?.members?.length > 0 || false)
   const [members, setMembers] = useState<string[]>(defaultMembers)
   const [roles, setRoles] = useState<string[]>(defaultRoles)
+
+  const defaultKeywords = Array.isArray(initialData?.keywords)
+    ? initialData.keywords
+    : initialData?.keywords
+      ? initialData.keywords.split(',').map((k: string) => k.trim())
+      : ['']
+      
+  const [keywordsList, setKeywordsList] = useState<string[]>(defaultKeywords)
+
+  const addKeyword = () => setKeywordsList([...keywordsList, ''])
+  const removeKeyword = (index: number) => setKeywordsList(keywordsList.filter((_, i) => i !== index))
+  const updateKeyword = (index: number, value: string) => {
+    const newKeywords = [...keywordsList]
+    newKeywords[index] = value
+    setKeywordsList(newKeywords)
+  }
 
   const addMember = () => {
     setMembers([...members, ''])
@@ -119,12 +137,38 @@ export function ResearchSubmissionForm({
     setMembers(newMembers)
   }
 
+  const clearForm = () => {
+    setMembers([''])
+    setRoles([''])
+    setKeywordsList([''])
+    setIsGroup(false)
+
+    formRef.current?.reset()
+  }
+
+  useEffect(() => {
+    if (state && !state.error && !editId) {
+      clearForm()
+    }
+  }, [state, editId])
+
+
   return (
-    <form action={formAction} className="space-y-8">
+    <form ref={formRef} action={formAction} className="space-y-8">
       {state?.error && (
-        <div className="flex items-center gap-2 p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl animate-in fade-in slide-in-from-top-2">
-          <AlertCircle size={18} />
-          {state.error}
+        <div className="flex items-center justify-between gap-3 p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2">
+            <AlertCircle size={18} />
+            <span>{state.error}</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="text-xs font-bold text-red-600 hover:underline"
+          >
+            Refresh
+          </button>
         </div>
       )}
 
@@ -143,17 +187,53 @@ export function ResearchSubmissionForm({
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-[var(--foreground)]">Research Type</label>
             <select name="type" defaultValue={initialData?.type || "capstone"} className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer">
+
               <option value="capstone">Capstone Project</option>
-              <option value="thesis">Thesis</option>
-              <option value="proposal">Research Proposal</option>
+              <option value="case-study">Case Study</option>
               <option value="dissertation">Dissertation</option>
+              <option value="research">General Research</option>
+              <option value="proposal">Research Proposal</option>
+              <option value="thesis">Thesis</option>
+
             </select>
           </div>
         </div>
 
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5 mt-2">
           <label className="text-sm font-semibold text-[var(--foreground)]">Abstract / Description</label>
           <textarea name="abstract" defaultValue={initialData?.abstract} rows={4} required placeholder="Summarize your research goals..." className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] focus:border-blue-600 outline-none resize-none transition-all" />
+        </div>
+
+        {/* --- DYNAMIC KEYWORDS SECTION --- */}
+        <div className="flex flex-col gap-2 mt-6 p-4 bg-gray-50/50 dark:bg-gray-900/30 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <label className="text-sm font-semibold text-[var(--foreground)]">Keywords / Tags</label>
+              <p className="text-[10px] text-gray-500">Add individual keywords to help others find your research.</p>
+            </div>
+            <button type="button" onClick={addKeyword} className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 font-semibold transition-colors">
+              <Plus size={14} /> Add Keyword
+            </button>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            {keywordsList.map((kw, index) => (
+              <div key={index} className="flex items-center gap-1 relative bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-700 focus-within:border-blue-500 transition-all">
+                <input
+                  name="keywords"
+                  value={kw}
+                  onChange={(e) => updateKeyword(index, e.target.value)}
+                  placeholder="e.g. AI"
+                  className="p-2 w-28 sm:w-32 text-sm bg-transparent text-[var(--foreground)] outline-none"
+                />
+                {keywordsList.length > 1 && (
+                  <button type="button" onClick={() => removeKeyword(index)} className="text-red-400 hover:text-red-600 transition-colors p-2 border-l border-gray-100 dark:border-gray-700">
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -214,9 +294,9 @@ export function ResearchSubmissionForm({
             <div className="grid gap-4">
               {members.map((memberId, index) => (
                 <div key={index} className="flex flex-col sm:flex-row gap-3 group relative">
-                  
+
                   {/* Custom Combobox replaces the select */}
-                  <MemberComboBox 
+                  <MemberComboBox
                     index={index}
                     classmates={classmates}
                     value={memberId}

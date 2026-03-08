@@ -75,8 +75,19 @@ export function SubmissionsTable({ submissions }: { submissions: any[] }) {
                 </td>
                 <td className="px-6 py-4">
                   <span className={`inline-flex items-center gap-1.5 text-xs font-medium 
-                    ${item.status === 'Approved' ? 'text-green-600' : 'text-amber-600'}`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${item.status === 'Approved' ? 'bg-green-600' : 'bg-amber-600'}`} />
+                    ${item.status === 'Published' ? 'text-purple-600 font-bold' : 
+                      item.status === 'Approved' ? 'text-green-600' : 
+                      item.status === 'Revision Requested' ? 'text-amber-600 font-bold' : 
+                      item.status === 'Rejected' ? 'text-red-600' : 
+                      'text-blue-600'}`}>
+                    
+                    <span className={`h-1.5 w-1.5 rounded-full 
+                      ${item.status === 'Published' ? 'bg-purple-600' : 
+                        item.status === 'Approved' ? 'bg-green-600' : 
+                        item.status === 'Revision Requested' ? 'bg-amber-600 animate-pulse' : 
+                        item.status === 'Rejected' ? 'bg-red-600' : 
+                        'bg-blue-600'}`} 
+                    />
                     {item.status}
                   </span>
                 </td>

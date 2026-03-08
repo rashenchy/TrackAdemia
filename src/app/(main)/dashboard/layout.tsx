@@ -19,7 +19,8 @@ import {
   X,
   RefreshCw,
   Loader2,
-  CheckSquare
+  CheckSquare,
+  BookOpen
 } from 'lucide-react'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -175,8 +176,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Sidebar navigation items
   const navItems = [
     { name: 'Home', href: '/dashboard', icon: Home },
-    { name: 'Task Manager', href: '/dashboard/tasks', icon: CheckSquare },
     { name: 'Submit Research', href: '/dashboard/submit', icon: FilePlus },
+    { name: 'Task Manager', href: '/dashboard/tasks', icon: CheckSquare },
     ...((isTeacher && isVerified) || isStudent
       ? [{
         name: isTeacher ? 'Manage Sections' : 'My Sections',
@@ -184,6 +185,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         icon: GraduationCap
       }]
       : []),
+    { name: 'Repository', href: '/dashboard/repository', icon: BookOpen },  
     { name: 'Settings', href: '/dashboard/settings', icon: Settings }
   ]
 

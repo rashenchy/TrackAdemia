@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Calendar, GraduationCap, Edit3, FileText, Users, User } from 'lucide-react'
-import { DocumentDownloadButton } from './DocumentDownloadButton'
+import { DocumentDownloadButton } from '@/components/dashboard/DocumentDownloadButton'
 import { updateResearchStatus } from './actions'
 
 export default async function ViewResearchPage({ params }: { params: Promise<{ id: string }> }) {
@@ -33,6 +33,13 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
   if (!research) {
     return <div className="p-8">Research not found or you don't have access.</div>
   }
+
+  // --- NEW ACCESS LOGIC ---
+  const isAuthor = research.user_id === user.id || (research.members || []).includes(user.id)
+  
+  // If you are not the author and the paper is published, you are just viewing from the repository
+  const isViewerOnly = !isAuthor && research.status === 'Published'
+  // ------------------------
 
   // Fetch team member profiles
   let teamMembers: any[] = []
@@ -86,7 +93,7 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-4">
           <Link
-            href="/dashboard"
+            href={isViewerOnly ? '/dashboard/repository' : '/dashboard'}
             className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
           >
             <ArrowLeft size={20} />
@@ -97,7 +104,8 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
           </h1>
         </div>
 
-        {isTeacher ? (
+        {/* Hide status update forms from repository viewers */}
+        {!isViewerOnly && isTeacher ? (
           <form
             action={updateStatusAction}
             className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900/50 p-1.5 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm w-fit"
@@ -108,8 +116,9 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
               className="text-sm font-semibold bg-transparent border-none outline-none cursor-pointer pl-2"
             >
               <option value="Pending Review">Pending Review</option>
-              <option value="Revision Required">Revision Required</option>
-              <option value="Approved">Approved</option>
+              <option value="Revision Requested">Revision Requested</option>
+              <option value="Approved">Approved (Internal)</option>
+              <option value="Published">Published (Public Repository)</option>
               <option value="Rejected">Rejected</option>
             </select>
 
@@ -123,9 +132,11 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
         ) : (
           <span
             className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase w-fit
-            ${research.status === 'Approved'
+            ${research.status === 'Published'
+              ? 'bg-purple-100 text-purple-700 border border-purple-200'
+              : research.status === 'Approved'
               ? 'bg-green-100 text-green-700'
-              : research.status === 'Revision Required'
+              : research.status === 'Revision Requested'
               ? 'bg-amber-100 text-amber-700'
               : research.status === 'Rejected'
               ? 'bg-red-100 text-red-700'
@@ -136,7 +147,7 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
         )}
       </div>
 
-      {/* Identity Section (RESTORED) */}
+      {/* Identity Section */}
       <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
         <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-4">
           <FileText className="text-blue-600" size={20} />
@@ -156,7 +167,7 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
         </div>
       </div>
 
-      {/* Group Members Section (NEW) */}
+      {/* Group Members Section */}
       {teamMembers.length > 0 && (
         <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
           <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-4">
@@ -224,68 +235,96 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
         </div>
       </div>
 
-      {/* Manuscript Versions */}
+      {/* --- CHANGED: Manuscript Versions / Document Read Section --- */}
       <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
         <div>
-          <h2 className="text-lg font-bold text-[var(--foreground)]">Manuscript Versions</h2>
-          <p className="text-xs text-gray-500">Download the current or previous versions of the manuscript.</p>
+          <h2 className="text-lg font-bold text-[var(--foreground)]">
+            {isViewerOnly ? 'Research Document' : 'Manuscript Versions'}
+          </h2>
+          <p className="text-xs text-gray-500">
+            {isViewerOnly 
+              ? 'Read or download the full text of this research.' 
+              : 'Download the current or previous versions of the manuscript.'}
+          </p>
         </div>
 
         {displayVersions.length > 0 ? (
           <div className="space-y-3 mt-4">
-            {displayVersions.map((v: any, index: number) => {
-              const isLatest = index === 0
+            {isViewerOnly ? (
+              
+              /* VIEWER MODE: Clean, single document view. No annotations, no old versions. */
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-xl border border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/20">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <FileText className="text-blue-600" size={20} />
+                    <h3 className="font-bold text-gray-700 dark:text-gray-300">Full Text PDF</h3>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Published on {new Date(displayVersions[0].created_at).toLocaleString()}
+                  </p>
+                </div>
+                <div className="w-full md:w-auto">
+                  <DocumentDownloadButton fileUrl={displayVersions[0].file_url} />
+                </div>
+              </div>
 
-              return (
-                <div
-                  key={v.id}
-                  className={`flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-xl border
-                  ${
-                    isLatest
-                      ? 'border-purple-200 bg-purple-50/50 dark:border-purple-900/30 dark:bg-purple-900/10'
-                      : 'border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/20'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3
-                        className={`font-bold
-                        ${
-                          isLatest
-                            ? 'text-purple-700 dark:text-purple-400'
-                            : 'text-gray-700 dark:text-gray-300'
-                        }`}
-                      >
-                        Version {v.version_number}
-                      </h3>
+            ) : (
 
-                      {isLatest && (
-                        <span className="bg-purple-600 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded">
-                          Latest
-                        </span>
-                      )}
+              /* AUTHOR/TEACHER MODE: Full versions list with Annotate */
+              displayVersions.map((v: any, index: number) => {
+                const isLatest = index === 0
+
+                return (
+                  <div
+                    key={v.id}
+                    className={`flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-xl border
+                    ${
+                      isLatest
+                        ? 'border-purple-200 bg-purple-50/50 dark:border-purple-900/30 dark:bg-purple-900/10'
+                        : 'border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/20'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3
+                          className={`font-bold
+                          ${
+                            isLatest
+                              ? 'text-purple-700 dark:text-purple-400'
+                              : 'text-gray-700 dark:text-gray-300'
+                          }`}
+                        >
+                          Version {v.version_number}
+                        </h3>
+
+                        {isLatest && (
+                          <span className="bg-purple-600 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded">
+                            Latest
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-gray-500 mt-1">
+                        Uploaded on {new Date(v.created_at).toLocaleString()}
+                      </p>
                     </div>
 
-                    <p className="text-xs text-gray-500 mt-1">
-                      Uploaded on {new Date(v.created_at).toLocaleString()}
-                    </p>
+                    <div className="flex items-center gap-2 w-full md:w-auto">
+                      {isLatest && (
+                        <Link
+                          href={`/dashboard/research/${research.id}/annotate`}
+                          className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 rounded-lg font-semibold transition-colors text-sm flex-1"
+                        >
+                          <Edit3 size={16} />
+                          Annotate
+                        </Link>
+                      )}
+                      <DocumentDownloadButton fileUrl={v.file_url} />
+                    </div>
                   </div>
-
-                  <div className="flex items-center gap-2 w-full md:w-auto">
-                    {isLatest && (
-                      <Link
-                        href={`/dashboard/research/${research.id}/annotate`}
-                        className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 rounded-lg font-semibold transition-colors text-sm flex-1"
-                      >
-                        <Edit3 size={16} />
-                        Annotate
-                      </Link>
-                    )}
-                    <DocumentDownloadButton fileUrl={v.file_url} />
-                  </div>
-                </div>
-              )
-            })}
+                )
+              })
+            )}
           </div>
         ) : (
           <div className="p-8 text-center border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-xl text-gray-400">

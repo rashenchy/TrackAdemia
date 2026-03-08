@@ -1,6 +1,7 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
+import { useSearchParams } from 'next/navigation'
 import React, { useState, useEffect, use, useRef, useMemo } from 'react'
 import { Viewer, Worker } from '@react-pdf-viewer/core'
 import {
@@ -40,6 +41,9 @@ export default function AnnotatePage({
 }) {
   const resolvedParams = use(params)
   const researchId = resolvedParams.id
+
+  const searchParams = useSearchParams()
+  const targetAnnotationId = searchParams.get('annotationId')
 
   const [fileUrl, setFileUrl] = useState<string | null>(null)
   const [annotations, setAnnotations] = useState<any[]>([])
@@ -267,6 +271,18 @@ export default function AnnotatePage({
       </div>
     ),
   })
+
+  useEffect(() => {
+    if (targetAnnotationId && annotations.length > 0) {
+      const target = annotations.find(a => a.id === targetAnnotationId)
+
+      if (target && selectedAnnotation?.id !== target.id) {
+        setTimeout(() => {
+          openThread(target)
+        }, 500)
+      }
+    }
+  }, [targetAnnotationId, annotations])
 
   useEffect(() => {
     async function loadData() {
