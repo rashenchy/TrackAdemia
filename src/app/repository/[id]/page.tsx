@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { ArrowLeft, BookOpen, Calendar, GraduationCap, Users, FileText, Hash } from 'lucide-react'
+import { ArrowLeft, BookOpen, Calendar, GraduationCap, Users, FileText, Hash, Eye, Download } from 'lucide-react'
 import { PublicDownloadButton } from '@/components/public/PublicDownloadButton'
 
 export default async function PublicResearchPage({ params }: { params: Promise<{ id: string }> }) {
@@ -37,7 +37,7 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
       .from('profiles')
       .select('first_name, last_name')
       .in('id', research.members)
-    
+
     if (profiles) {
       authorNames = profiles.map(p => `${p.first_name} ${p.last_name}`).join(', ')
     }
@@ -57,10 +57,10 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-[var(--foreground)] py-12 px-4 sm:px-6">
       <div className="max-w-4xl mx-auto space-y-8">
-        
+
         {/* Navigation */}
-        <Link 
-          href="/dashboard/repository" 
+        <Link
+          href="/dashboard/repository"
           className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-blue-600 transition-colors"
         >
           <ArrowLeft size={16} /> Back to Repository Search
@@ -77,7 +77,7 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
                 {research.research_area || 'General'}
               </span>
             </div>
-            
+
             <h1 className="text-3xl md:text-4xl font-black leading-tight text-gray-900 dark:text-gray-100">
               {research.title}
             </h1>
@@ -88,6 +88,13 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
               {research.subject_code && (
                 <span className="flex items-center gap-2"><GraduationCap size={16} /> {research.subject_code}</span>
               )}
+
+              {/* NEW: Views & Downloads Metrics */}
+              <div className="flex items-center gap-4 sm:ml-auto bg-gray-50 dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-100 dark:border-gray-700">
+                <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400"><Eye size={16} /> {research.views_count || 0} Views</span>
+                <div className="w-px h-3 bg-gray-300 dark:bg-gray-600"></div>
+                <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400"><Download size={16} /> {research.downloads_count || 0} Downloads</span>
+              </div>
             </div>
           </div>
 
@@ -119,16 +126,23 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
         {/* Download Section */}
         <div className="bg-blue-50 dark:bg-blue-900/10 p-8 rounded-3xl border border-blue-100 dark:border-blue-900/30 flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
           <div>
-            <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100">Read the full research</h3>
+            <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100">
+              Read the full research
+            </h3>
             <p className="text-sm text-blue-700/80 dark:text-blue-300/80 mt-1">
               Download the latest published manuscript.
             </p>
           </div>
-          
+
           {fileUrlToDownload ? (
-            <PublicDownloadButton fileUrl={fileUrlToDownload} />
+            <PublicDownloadButton
+              fileUrl={fileUrlToDownload}
+              researchId={research.id}   // ✅ REQUIRED for download tracking
+            />
           ) : (
-            <span className="text-sm text-gray-500 italic">No manuscript available</span>
+            <span className="text-sm text-gray-500 italic">
+              No manuscript available
+            </span>
           )}
         </div>
 

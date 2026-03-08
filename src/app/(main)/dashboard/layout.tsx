@@ -1,5 +1,3 @@
-/* src/app/(main)/dashboard/layout.tsx */
-
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
@@ -39,11 +37,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
+  /*Profile Dropdown States*/
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [userName, setUserName] = useState('')
+  const [userRole, setUserRole] = useState('')
+
   // Task & Resubmission badge counts
   const [unresolvedCount, setUnresolvedCount] = useState(0)
   const [resubmittedCount, setResubmittedCount] = useState(0)
-  
+
   // Use a ref for the real-time closure
+  const profileRef = useRef<HTMLDivElement | null>(null)
   const isTeacherRef = useRef(false)
 
   const supabase = createBrowserClient(
@@ -62,6 +66,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.refresh()
     setTimeout(() => setIsRefreshing(false), 700)
   }
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setIsProfileOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   useEffect(() => {
     setPendingRoute(null)
@@ -79,9 +96,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       const { data: profile } = await supabase
         .from('profiles')
-        .select('role, is_verified')
+        .select('role, is_verified, first_name, last_name')
         .eq('id', user.id)
         .single()
+
+      if (profile) {
+        setUserName(
+          `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() || 'User'
+        )
+        setUserRole(profile.role)
+      }
 
       if (profile?.role === 'mentor') {
         setIsTeacher(true)
@@ -141,7 +165,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           .from('research')
           .select('*', { count: 'exact', head: true })
           .eq('status', 'Resubmitted') // RLS ensures they only see their students' papers
-        
+
         setResubmittedCount(resubCount || 0)
       }
     }
@@ -213,7 +237,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         icon: GraduationCap
       }]
       : []),
-    { name: 'Repository', href: '/dashboard/repository', icon: BookOpen },  
+    { name: 'Repository', href: '/dashboard/repository', icon: BookOpen },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings }
   ]
 
@@ -238,7 +262,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {navItems.map((item) => {
             const isActive = (pendingRoute || pathname) === item.href
             const isCurrentlyLoading = pendingRoute === item.href
-            
+
             // Badge calculation
             const isTaskBadge = item.name === 'Task Manager' && unresolvedCount > 0
             const isHomeBadge = item.name === 'Home' && resubmittedCount > 0
@@ -289,14 +313,65 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex-1 flex flex-col overflow-hidden bg-[var(--background)]">
         <header className="h-16 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 bg-[var(--background)]">
           <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">TrackAdemia</h1>
+
           <div className="flex items-center gap-4">
-            <button onClick={handleRefresh} disabled={isRefreshing} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500">
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500"
+            >
               <RefreshCw size={20} className={isRefreshing ? 'animate-spin text-blue-600' : ''} />
             </button>
-            <button onClick={toggleTheme} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500">
+
+            <button
+              onClick={toggleTheme}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500"
+            >
               {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
-            <UserCircle size={28} className="text-gray-500 cursor-pointer" />
+
+            <div ref={profileRef} className="relative">
+              <button
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className="flex items-center justify-center p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <UserCircle size={28} className="text-gray-500" />
+              </button>
+
+              {isProfileOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setIsProfileOpen(false)}
+                  />
+
+                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 z-50">
+                    <div className="p-4 border-b border-gray-100 dark:border-gray-800">
+                      <p className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
+                        {userName || 'Loading...'}
+                      </p>
+
+                      <p className="text-xs text-gray-500 capitalize mt-0.5">
+                        {userRole === 'mentor' ? 'Teacher / Adviser' : userRole || 'User'}
+                      </p>
+                    </div>
+
+                    <div className="p-2">
+                      <button
+                        onClick={() => {
+                          setIsProfileOpen(false)
+                          setShowLogoutConfirm(true)
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-colors text-left font-medium"
+                      >
+                        <LogOut size={16} />
+                        Logout
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </header>
 

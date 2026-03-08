@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { RepositorySearch } from '@/components/dashboard/RepositorySearch'
-import { BookOpen, Calendar, Users, Hash, FileText, ChevronRight, Search } from 'lucide-react'
+import { BookOpen, Calendar, Users, Hash, FileText, ChevronRight, Search, Eye, Download } from 'lucide-react'
 
 export default async function RepositoryPage({
   searchParams
@@ -134,12 +134,16 @@ export default async function RepositoryPage({
                 </p>
 
                 <div className="flex flex-wrap items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+
                   {/* Keywords */}
                   <div className="flex flex-wrap items-center gap-2">
                     <Hash size={14} className="text-gray-400" />
                     {Array.isArray(paper.keywords) && paper.keywords.length > 0 ?
                       paper.keywords.map((kw: string, i: number) => (
-                        <span key={i} className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-md">
+                        <span
+                          key={i}
+                          className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-md"
+                        >
                           {kw.trim()}
                         </span>
                       )) : (
@@ -147,8 +151,20 @@ export default async function RepositoryPage({
                       )}
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-3">
+                  {/* Actions + Metrics */}
+                  <div className="flex items-center gap-5">
+                    <div className="flex items-center gap-3 text-xs text-gray-400 font-semibold">
+                      <span className="flex items-center gap-1.5" title="Views">
+                        <Eye size={14} /> {paper.views_count || 0}
+                      </span>
+
+                      <span className="flex items-center gap-1.5" title="Downloads">
+                        <Download size={14} /> {paper.downloads_count || 0}
+                      </span>
+                    </div>
+
+                    <div className="w-px h-4 bg-gray-200 dark:bg-gray-700 hidden sm:block"></div>
+
                     <Link
                       href={`/repository/${paper.id}`}
                       className="flex items-center gap-1.5 text-sm font-bold text-blue-600 hover:text-blue-800 transition-colors"
@@ -156,6 +172,7 @@ export default async function RepositoryPage({
                       Read Full Text <ChevronRight size={16} />
                     </Link>
                   </div>
+
                 </div>
               </div>
             )

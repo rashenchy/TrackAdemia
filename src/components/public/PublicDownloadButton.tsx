@@ -1,16 +1,27 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Download, Eye, Loader2 } from 'lucide-react'
-import { getPublicSignedUrl } from '@/app/repository/[id]/actions'
+import { getPublicSignedUrl, recordResearchView } from '@/app/repository/[id]/actions'
 
-export function PublicDownloadButton({ fileUrl }: { fileUrl: string }) {
+export function PublicDownloadButton({ fileUrl, researchId }: { fileUrl: string, researchId: string }) {
   const [isDownloading, setIsDownloading] = useState(false)
   const [isViewing, setIsViewing] = useState(false)
+  
+  // Use a ref to ensure we only count 1 view per page load in React Strict Mode
+  const hasViewed = useRef(false)
+
+  // NEW: Record view on mount
+  useEffect(() => {
+    if (researchId && !hasViewed.current) {
+      hasViewed.current = true
+      recordResearchView(researchId)
+    }
+  }, [researchId])
 
   const handleDownload = async () => {
     setIsDownloading(true)
-    const result = await getPublicSignedUrl(fileUrl, true) // Pass true for download
+    const result = await getPublicSignedUrl(fileUrl, true, researchId) // Pass researchId
     setIsDownloading(false)
 
     if (result?.error) {
@@ -29,7 +40,7 @@ export function PublicDownloadButton({ fileUrl }: { fileUrl: string }) {
 
   const handleView = async () => {
     setIsViewing(true)
-    const result = await getPublicSignedUrl(fileUrl, false) // Pass false for view
+    const result = await getPublicSignedUrl(fileUrl, false)
     setIsViewing(false)
 
     if (result?.error) {
@@ -38,7 +49,6 @@ export function PublicDownloadButton({ fileUrl }: { fileUrl: string }) {
     }
 
     if (result?.url) {
-      // Open the PDF in a new browser tab
       window.open(result.url, '_blank', 'noopener,noreferrer')
     }
   }
