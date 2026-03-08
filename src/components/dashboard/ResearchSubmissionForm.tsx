@@ -6,16 +6,19 @@ import { SubmitButton } from '@/components/auth/SubmitButton'
 import { submitResearch } from '@/app/(main)/dashboard/submit/actions'
 import { updateResearch } from '@/app/(main)/dashboard/research/[id]/edit/actions'
 
-// --- Custom Searchable Combobox Component ---
+type FormState = {
+  id?: string
+  error?: string
+}
+
 function MemberComboBox({
-  index, classmates, value, onChange
+  index, classmates, value, onChange, isDraftMode
 }: {
-  index: number, classmates: any[], value: string, onChange: (val: string) => void
+  index: number, classmates: any[], value: string, onChange: (val: string) => void, isDraftMode: boolean
 }) {
   const [search, setSearch] = useState('')
   const [isOpen, setIsOpen] = useState(false)
 
-  // Initialize search term to the selected user's name on load
   useEffect(() => {
     if (value) {
       const match = classmates.find(c => c.id === value)
@@ -23,7 +26,6 @@ function MemberComboBox({
     }
   }, [value, classmates])
 
-  // Filter based on input
   const filtered = classmates.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.sectionName.toLowerCase().includes(search.toLowerCase())
@@ -31,20 +33,21 @@ function MemberComboBox({
 
   return (
     <div className="relative flex-1">
-      <input type="hidden" name={`member-${index}`} value={value} required />
+      <input type="hidden" name={`member-${index}`} value={value} />
+
       <div className="relative">
         <input
           type="text"
           value={search}
           placeholder="Type to search classmates..."
           onFocus={() => setIsOpen(true)}
-          onBlur={() => setTimeout(() => setIsOpen(false), 200)} // Delay so clicks register
+          onBlur={() => setTimeout(() => setIsOpen(false), 200)}
           onChange={(e) => {
             setSearch(e.target.value)
             setIsOpen(true)
-            onChange('') // Clear actual hidden value until a new choice is clicked
+            onChange('')
           }}
-          required={!value} // HTML5 validation will trigger if hidden input is empty
+          required={!value && !isDraftMode}
           className="w-full rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 text-sm bg-white dark:bg-gray-800 text-[var(--foreground)] outline-none focus:border-blue-600 transition-all"
         />
         <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
@@ -93,8 +96,21 @@ export function ResearchSubmissionForm({
   initialData?: any,
   editId?: string | null
 }) {
-  const actionToUse = editId ? updateResearch.bind(null, editId) : submitResearch;
-  const [state, formAction] = useActionState(actionToUse, null)
+
+  const [currentId, setCurrentId] = useState(editId)
+  const [isDraftMode, setIsDraftMode] = useState(false)
+
+  const actionToUse = async (prevState: FormState | null, formData: FormData) => {
+    if (currentId) {
+      return updateResearch(currentId, prevState, formData)
+    }
+    return submitResearch(prevState, formData)
+  }
+
+  const [state, formAction] = useActionState<FormState | null, FormData>(
+    actionToUse,
+    null
+  )
 
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -110,11 +126,12 @@ export function ResearchSubmissionForm({
     : initialData?.keywords
       ? initialData.keywords.split(',').map((k: string) => k.trim())
       : ['']
-      
+
   const [keywordsList, setKeywordsList] = useState<string[]>(defaultKeywords)
 
   const addKeyword = () => setKeywordsList([...keywordsList, ''])
   const removeKeyword = (index: number) => setKeywordsList(keywordsList.filter((_, i) => i !== index))
+
   const updateKeyword = (index: number, value: string) => {
     const newKeywords = [...keywordsList]
     newKeywords[index] = value
@@ -147,14 +164,22 @@ export function ResearchSubmissionForm({
   }
 
   useEffect(() => {
-    if (state && !state.error && !editId) {
+    if (state && !state.error && !editId && !state?.id) {
       clearForm()
     }
   }, [state, editId])
 
+  useEffect(() => {
+    if (state?.id) {
+      setCurrentId(state.id)
+    }
+  }, [state])
 
   return (
     <form ref={formRef} action={formAction} className="space-y-8">
+
+      <input type="hidden" name="isDraft" value={isDraftMode ? 'true' : 'false'} />
+
       {state?.error && (
         <div className="flex items-center justify-between gap-3 p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-2">
@@ -172,6 +197,9 @@ export function ResearchSubmissionForm({
         </div>
       )}
 
+
+
+
       {/* --- Section 1: Identity --- */}
       <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
         <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-4">
@@ -182,7 +210,7 @@ export function ResearchSubmissionForm({
         <div className="grid gap-6 md:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-[var(--foreground)]">Research Title</label>
-            <input name="title" defaultValue={initialData?.title} required placeholder="Enter full research title" className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] focus:border-blue-600 outline-none transition-all" />
+            <input name="title" defaultValue={initialData?.title} required={!isDraftMode} placeholder="Enter full research title" className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] focus:border-blue-600 outline-none transition-all" />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-[var(--foreground)]">Research Type</label>
@@ -201,7 +229,7 @@ export function ResearchSubmissionForm({
 
         <div className="flex flex-col gap-1.5 mt-2">
           <label className="text-sm font-semibold text-[var(--foreground)]">Abstract / Description</label>
-          <textarea name="abstract" defaultValue={initialData?.abstract} rows={4} required placeholder="Summarize your research goals..." className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] focus:border-blue-600 outline-none resize-none transition-all" />
+          <textarea name="abstract" defaultValue={initialData?.abstract} rows={4} required={!isDraftMode} placeholder="Summarize your research goals..." className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] focus:border-blue-600 outline-none resize-none transition-all" />
         </div>
 
         {/* --- DYNAMIC KEYWORDS SECTION --- */}
@@ -247,7 +275,7 @@ export function ResearchSubmissionForm({
         <div className="grid gap-6 md:grid-cols-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-[var(--foreground)]">Subject Code</label>
-            <select name="subjectCode" defaultValue={initialData?.subject_code || ""} required className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer">
+            <select name="subjectCode" defaultValue={initialData?.subject_code || ""} required={!isDraftMode} className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer">
               <option value="" disabled>Select subject code...</option>
               {sections.length === 0 && <option value="" disabled>No sections joined</option>}
               {sections.map(s => (
@@ -301,11 +329,12 @@ export function ResearchSubmissionForm({
                     classmates={classmates}
                     value={memberId}
                     onChange={(val) => handleMemberSelection(index, val)}
+                    isDraftMode={isDraftMode}
                   />
 
                   <input
                     name={`role-${index}`}
-                    required
+                    required={!isDraftMode}
                     defaultValue={roles[index] || ""}
                     placeholder="Role (e.g. Lead Programmer)"
                     className="flex-1 rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 text-sm bg-white dark:bg-gray-800 text-[var(--foreground)] outline-none focus:border-blue-600 transition-all"
@@ -332,7 +361,7 @@ export function ResearchSubmissionForm({
         <div className="grid gap-6 md:grid-cols-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-[var(--foreground)]">Start Date</label>
-            <input type="date" name="startDate" defaultValue={initialData?.start_date || ""} required className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-text" />
+            <input type="date" name="startDate" defaultValue={initialData?.start_date || ""} required={!isDraftMode} className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-text" />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-[var(--foreground)]">Target Defense Date</label>
@@ -376,11 +405,26 @@ export function ResearchSubmissionForm({
         </div>
       </div>
 
-      <div className="flex justify-end pt-4">
-        <SubmitButton className="w-full md:w-auto px-12 bg-blue-600 text-white rounded-xl py-4 font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none text-lg">
-          {editId ? "Save Changes" : "Submit Research Entry"}
+      <div className="flex flex-col md:flex-row justify-end gap-4 pt-4">
+
+        <button
+          type="submit"
+          onClick={() => setIsDraftMode(true)}
+          className="px-8 py-4 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 rounded-xl font-bold hover:bg-gray-200 transition-all"
+        >
+          Save Draft
+        </button>
+
+        <SubmitButton
+          onClick={() => setIsDraftMode(false)}
+          className="w-full md:w-auto px-12 bg-blue-600 text-white rounded-xl py-4 font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none text-lg"
+        >
+          {currentId ? "Resubmit Research" : "Submit Research"}
         </SubmitButton>
+
       </div>
+
     </form>
   )
 }
+

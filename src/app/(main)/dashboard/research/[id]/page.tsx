@@ -35,10 +35,13 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
   }
 
   // --- NEW ACCESS LOGIC ---
-  const isAuthor = research.user_id === user.id || (research.members || []).includes(user.id)
-  
+  const isAuthor =
+  research.user_id === user.id ||
+  (Array.isArray(research.members) && research.members.includes(user.id))
+
   // If you are not the author and the paper is published, you are just viewing from the repository
-  const isViewerOnly = !isAuthor && research.status === 'Published'
+  const isViewerOnly =
+  !isAuthor && !isTeacher && research.status === 'Published'
   // ------------------------
 
   // Fetch team member profiles
@@ -48,7 +51,7 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
       .from('profiles')
       .select('id, first_name, last_name, course_program')
       .in('id', research.members)
-    
+
     if (profiles) {
       teamMembers = research.members.map((memberId: string, index: number) => {
         const p = profiles.find(prof => prof.id === memberId)
@@ -74,7 +77,7 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
     versions && versions.length > 0
       ? versions
       : research.file_url
-      ? [
+        ? [
           {
             id: 'legacy',
             file_url: research.file_url,
@@ -82,7 +85,7 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
             created_at: research.created_at
           }
         ]
-      : []
+        : []
 
   const updateStatusAction = updateResearchStatus.bind(null, researchId)
 
@@ -116,6 +119,7 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
               className="text-sm font-semibold bg-transparent border-none outline-none cursor-pointer pl-2"
             >
               <option value="Pending Review">Pending Review</option>
+              <option value="Resubmitted">Resubmitted</option>
               <option value="Revision Requested">Revision Requested</option>
               <option value="Approved">Approved (Internal)</option>
               <option value="Published">Published (Public Repository)</option>
@@ -132,15 +136,17 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
         ) : (
           <span
             className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase w-fit
-            ${research.status === 'Published'
-              ? 'bg-purple-100 text-purple-700 border border-purple-200'
-              : research.status === 'Approved'
-              ? 'bg-green-100 text-green-700'
-              : research.status === 'Revision Requested'
-              ? 'bg-amber-100 text-amber-700'
-              : research.status === 'Rejected'
-              ? 'bg-red-100 text-red-700'
-              : 'bg-blue-100 text-blue-700'}`}
+  ${research.status === 'Published'
+                ? 'bg-purple-100 text-purple-700 border border-purple-200'
+                : research.status === 'Resubmitted'
+                  ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                  : research.status === 'Approved'
+                    ? 'bg-green-100 text-green-700'
+                    : research.status === 'Revision Requested'
+                      ? 'bg-amber-100 text-amber-700'
+                      : research.status === 'Rejected'
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-blue-100 text-blue-700'}`}
           >
             {research.status}
           </span>
@@ -165,6 +171,22 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
           <label className="text-xs font-bold uppercase text-gray-500">Abstract</label>
           <p className="text-sm text-gray-700 dark:text-gray-300 mt-1 whitespace-pre-wrap">{research.abstract}</p>
         </div>
+
+        {research.keywords && research.keywords.length > 0 && (
+          <div>
+            <label className="text-xs font-bold uppercase text-gray-500">Keywords</label>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {research.keywords.map((kw: string, i: number) => (
+                <span
+                  key={i}
+                  className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-3 py-1.5 rounded-lg font-medium"
+                >
+                  {kw}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Group Members Section */}
@@ -242,8 +264,8 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
             {isViewerOnly ? 'Research Document' : 'Manuscript Versions'}
           </h2>
           <p className="text-xs text-gray-500">
-            {isViewerOnly 
-              ? 'Read or download the full text of this research.' 
+            {isViewerOnly
+              ? 'Read or download the full text of this research.'
               : 'Download the current or previous versions of the manuscript.'}
           </p>
         </div>
@@ -251,7 +273,7 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
         {displayVersions.length > 0 ? (
           <div className="space-y-3 mt-4">
             {isViewerOnly ? (
-              
+
               /* VIEWER MODE: Clean, single document view. No annotations, no old versions. */
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-xl border border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/20">
                 <div>
@@ -278,21 +300,19 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
                   <div
                     key={v.id}
                     className={`flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-xl border
-                    ${
-                      isLatest
+                    ${isLatest
                         ? 'border-purple-200 bg-purple-50/50 dark:border-purple-900/30 dark:bg-purple-900/10'
                         : 'border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/20'
-                    }`}
+                      }`}
                   >
                     <div>
                       <div className="flex items-center gap-2">
                         <h3
                           className={`font-bold
-                          ${
-                            isLatest
+                          ${isLatest
                               ? 'text-purple-700 dark:text-purple-400'
                               : 'text-gray-700 dark:text-gray-300'
-                          }`}
+                            }`}
                         >
                           Version {v.version_number}
                         </h3>

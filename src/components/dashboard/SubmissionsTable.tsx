@@ -44,7 +44,7 @@ export function SubmissionsTable({ submissions }: { submissions: any[] }) {
                       <Clock size={10} />
                       Submitted {new Date(item.created_at).toLocaleDateString()}
                     </span>
-                    
+
                     {/* NEW: Feedback Notification Badge */}
                     {item.unresolved_feedback_count > 0 && (
                       <span className="w-fit inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-800">
@@ -54,7 +54,7 @@ export function SubmissionsTable({ submissions }: { submissions: any[] }) {
                     )}
                   </div>
                 </td>
-                
+
                 {isTeacherView && (
                   <td className="px-6 py-4">
                     <div className="flex flex-col gap-0.5">
@@ -75,26 +75,30 @@ export function SubmissionsTable({ submissions }: { submissions: any[] }) {
                 </td>
                 <td className="px-6 py-4">
                   <span className={`inline-flex items-center gap-1.5 text-xs font-medium 
-                    ${item.status === 'Published' ? 'text-purple-600 font-bold' : 
-                      item.status === 'Approved' ? 'text-green-600' : 
-                      item.status === 'Revision Requested' ? 'text-amber-600 font-bold' : 
-                      item.status === 'Rejected' ? 'text-red-600' : 
-                      'text-blue-600'}`}>
-                    
+                       ${item.status === 'Published' ? 'text-purple-600 font-bold' :
+                      item.status === 'Resubmitted' ? 'text-blue-600 font-black' :
+                        item.status === 'Draft' ? 'text-gray-500' :
+                          item.status === 'Approved' ? 'text-green-600' :
+                            item.status === 'Revision Requested' ? 'text-amber-600 font-bold' :
+                              item.status === 'Rejected' ? 'text-red-600' :
+                                'text-blue-600'}`}>
+
                     <span className={`h-1.5 w-1.5 rounded-full 
-                      ${item.status === 'Published' ? 'bg-purple-600' : 
-                        item.status === 'Approved' ? 'bg-green-600' : 
-                        item.status === 'Revision Requested' ? 'bg-amber-600 animate-pulse' : 
-                        item.status === 'Rejected' ? 'bg-red-600' : 
-                        'bg-blue-600'}`} 
+                        ${item.status === 'Published' ? 'bg-purple-600' :
+                        item.status === 'Resubmitted' ? 'bg-blue-600 animate-pulse' :
+                        item.status === 'Draft' ? 'bg-gray-400' :
+                        item.status === 'Approved' ? 'bg-green-600' :
+                        item.status === 'Revision Requested' ? 'bg-amber-600' :
+                        item.status === 'Rejected' ? 'bg-red-600' :
+                        'bg-blue-600'}`}
                     />
                     {item.status}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex items-center justify-end gap-1">
-                    
-                    <Link 
+
+                    <Link
                       href={`/dashboard/research/${item.id}`}
                       title="View Details"
                       className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-400 hover:text-green-600 transition-all"
@@ -104,7 +108,7 @@ export function SubmissionsTable({ submissions }: { submissions: any[] }) {
 
                     {/* NEW: Hide the edit button from teachers */}
                     {!isTeacherView && (
-                      <Link 
+                      <Link
                         href={`/dashboard/research/${item.id}/edit`}
                         title="Edit Submission"
                         className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-400 hover:text-amber-600 transition-all"

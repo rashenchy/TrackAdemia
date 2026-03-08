@@ -9,6 +9,10 @@ export async function submitResearch(prevState: any, formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  /* ------------------ Draft Detection ------------------ */
+
+  const isDraft = formData.get('isDraft') === 'true'
+
   /* ------------------ Fetch Role ------------------ */
 
   const { data: profile } = await supabase
@@ -18,14 +22,27 @@ export async function submitResearch(prevState: any, formData: FormData) {
     .single()
 
   const isTeacher = profile?.role === 'mentor'
-  const initialStatus = isTeacher ? 'Published' : 'Pending Review'
+
+  const status = isDraft
+    ? 'Draft'
+    : (isTeacher ? 'Published' : 'Pending Review')
 
   /* ------------------ Identity ------------------ */
 
   const title = (formData.get('title') as string)?.trim()
   const type = (formData.get('type') as string)?.trim()
   const abstract = (formData.get('abstract') as string)?.trim()
-  const keywords = formData.getAll('keywords').map(k => (k as string).trim()).filter(k => k !== '')
+
+  const keywords = formData
+    .getAll('keywords')
+    .map(k => (k as string).trim())
+    .filter(k => k !== '')
+
+  /* Draft validation: only enforce for real submission */
+
+  if (!isDraft && (!title || title.length < 5)) {
+    return { error: 'A valid title is required for submission.' }
+  }
 
   /* ------------------ Academic ------------------ */
 
@@ -103,7 +120,7 @@ export async function submitResearch(prevState: any, formData: FormData) {
       start_date: startDate,
       target_defense_date: targetDefenseDate,
       current_stage: currentStage,
-      status: initialStatus, // Role-based status
+      status,
       members,
       member_roles: memberRoles,
       file_url: fileUrl
@@ -113,12 +130,12 @@ export async function submitResearch(prevState: any, formData: FormData) {
 
   if (error) {
     console.error('Database Error:', error)
-    return { error: 'Failed to submit research entry.' }
+    return { error: error.message }
   }
 
-  /* ------------------ Save Version 1 ------------------ */
+  /* ------------------ Save Version 1 (only if file exists AND not draft) ------------------ */
 
-  if (fileUrl && newResearch) {
+  if (!isDraft && fileUrl && newResearch) {
 
     const { error: versionError } = await supabase
       .from('research_versions')
@@ -134,5 +151,14 @@ export async function submitResearch(prevState: any, formData: FormData) {
     }
   }
 
-  redirect('/dashboard?success=Research submitted successfully')
+  /* ------------------ Response Handling ------------------ */
+
+  if (!isDraft) {
+    redirect('/dashboard?success=Research submitted for review')
+  }
+
+  return {
+    success: 'Draft saved successfully',
+    id: newResearch.id
+  }
 }

@@ -9,6 +9,25 @@ export async function updateResearch(editId: string, prevState: any, formData: F
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const isDraft = formData.get('isDraft') === 'true'
+
+  /* ------------------ Fetch Current Research (Security) ------------------ */
+
+  const { data: current } = await supabase
+    .from('research')
+    .select('status, user_id, members')
+    .eq('id', editId)
+    .single()
+
+  // Allow owner OR listed members
+  const isAuthor =
+    current?.user_id === user.id ||
+    (current?.members || []).includes(user.id)
+
+  if (!current || !isAuthor) {
+    return { error: 'Unauthorized' }
+  }
+
   /* ------------------ Fetch Role ------------------ */
 
   const { data: profile } = await supabase
@@ -18,14 +37,50 @@ export async function updateResearch(editId: string, prevState: any, formData: F
     .single()
 
   const isTeacher = profile?.role === 'mentor'
-  const initialStatus = isTeacher ? 'Published' : 'Pending Review'
+
+  /* ------------------ Workflow Logic ------------------ */
+
+
+  let nextStatus = current.status
+
+  // Save Draft → always Draft
+  if (isDraft) {
+    nextStatus = 'Draft'
+  }
+
+  // Submit
+  if (!isDraft) {
+
+    // Teacher submissions publish immediately
+    if (isTeacher) {
+      nextStatus = 'Published'
+    }
+
+    // Student submissions
+    else {
+
+      // If teacher requested revision → mark as Resubmitted
+      if (current.status === 'Revision Requested') {
+        nextStatus = 'Resubmitted'
+      }
+
+      // Otherwise normal submission
+      else {
+        nextStatus = 'Pending Review'
+      }
+    }
+  }
 
   /* ------------------ Identity ------------------ */
 
   const title = (formData.get('title') as string)?.trim()
   const type = (formData.get('type') as string)?.trim()
   const abstract = (formData.get('abstract') as string)?.trim()
-  const keywords = formData.getAll('keywords').map(k => (k as string).trim()).filter(k => k !== '')
+
+  const keywords = formData
+    .getAll('keywords')
+    .map(k => (k as string).trim())
+    .filter(k => k !== '')
 
   /* ------------------ Academic ------------------ */
 
@@ -100,7 +155,7 @@ export async function updateResearch(editId: string, prevState: any, formData: F
     start_date: startDate,
     target_defense_date: targetDefenseDate,
     current_stage: currentStage,
-    status: initialStatus,
+    status: nextStatus,
     members: members.filter(id => id !== ''),
     member_roles: memberRoles
   }
@@ -125,7 +180,7 @@ export async function updateResearch(editId: string, prevState: any, formData: F
 
   /* ------------------ Save New Version if File Changed ------------------ */
 
-  if (fileUrl && updatedResearch) {
+  if (fileUrl && updatedResearch && !isDraft) {
 
     const { data: latestVersion } = await supabase
       .from('research_versions')
@@ -151,5 +206,11 @@ export async function updateResearch(editId: string, prevState: any, formData: F
     }
   }
 
-  redirect(`/dashboard/research/${editId}?success=Research updated successfully`)
+  /* ------------------ Redirect Logic ------------------ */
+
+  if (!isDraft) {
+    redirect(`/dashboard/research/${editId}?success=Resubmitted for review`)
+  }
+
+  return { success: 'Draft updated successfully' }
 }
