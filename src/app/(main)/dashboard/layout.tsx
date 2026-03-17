@@ -20,7 +20,8 @@ import {
   RefreshCw,
   Loader2,
   CheckSquare,
-  BookOpen
+  BookOpen,
+  Sparkles
 } from 'lucide-react'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -223,6 +224,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         icon: GraduationCap
       }]
       : []),
+    { name: 'Grammar Checker', href: '/dashboard/grammar', icon: Sparkles },
     { name: 'Repository', href: '/dashboard/repository', icon: BookOpen },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings }
   ]

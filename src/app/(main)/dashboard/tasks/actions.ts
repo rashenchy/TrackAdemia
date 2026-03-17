@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 
 // Create a personal task for the current user
 export async function createTask(formData: FormData) {
@@ -29,6 +30,33 @@ export async function createTask(formData: FormData) {
     revalidatePath('/dashboard/tasks')
 }
 
+// Edit a personal task
+export async function editTask(formData: FormData) {
+
+    // Initialize Supabase and verify the user
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
+
+    // Extract task data
+    const taskId = formData.get('taskId') as string
+    const title = formData.get('title') as string
+    const description = formData.get('description') as string
+
+    // Update the task (ensuring it belongs to the user)
+    const { error } = await supabase
+        .from('tasks')
+        .update({ title, description })
+        .eq('id', taskId)
+        .eq('created_by', user.id)
+
+    if (error) throw error
+
+    // Refresh and redirect to clear the edit query param
+    revalidatePath('/dashboard/tasks')
+    redirect('/dashboard/tasks')
+}
+
 // Delete a task by ID
 export async function deleteTask(taskId: string) {
 
@@ -51,11 +79,13 @@ export async function deleteTask(taskId: string) {
 export async function toggleTaskStatus(
     taskId: string,
     currentStatus: string,
-    source: 'personal' | 'annotation'
+    source: 'personal' | 'annotation' | 'teacher'
 ) {
 
     // Initialize Supabase
     const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) throw new Error('Unauthorized')
 
     // Determine the new status
     const isResolved = currentStatus === 'resolved'
@@ -68,6 +98,18 @@ export async function toggleTaskStatus(
             .from('tasks')
             .update({ status: newStatus as any })
             .eq('id', taskId)
+
+    } else if (source === 'teacher') {
+        
+        // Update the student's completion record for a teacher-assigned task
+        await supabase
+            .from('task_completions')
+            .update({ 
+                is_completed: !isResolved,
+                completed_at: !isResolved ? new Date().toISOString() : null
+            })
+            .eq('task_id', taskId)
+            .eq('student_id', user.id)
 
     } else {
 
@@ -105,7 +147,8 @@ export async function createSectionTask(formData: FormData) {
             description,
             section_id: sectionId,
             created_by: user.id,
-            type: 'teacher'
+            type: 'teacher',
+            due_date: dueDate || null
         })
         .select()
         .single()
