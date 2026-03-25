@@ -1,4 +1,3 @@
-// src/app/api/grammar-check/route.ts
 import { NextResponse } from 'next/server';
 
 // Type definition for the expected request body

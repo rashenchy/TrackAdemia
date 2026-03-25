@@ -1,4 +1,3 @@
-// src/app/(main)/dashboard/grammar/page.tsx
 'use client';
 
 import { useState } from 'react';
