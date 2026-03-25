@@ -31,6 +31,11 @@ export default async function DashboardPage({
     .eq('id', user.id)
     .single()
 
+  // Redirect admins to the admin dashboard
+  if (profile?.role === 'admin') {
+    redirect('/admin')
+  }
+
   let displaySubmissions: any[] = []
   let teacherSections: any[] = []
 

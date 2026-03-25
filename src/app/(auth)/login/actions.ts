@@ -29,9 +29,27 @@ export async function login(formData: FormData) {
   }
 
 
-  // Refresh cached layout data and redirect user to the dashboard
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  let redirectPath = '/dashboard'
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (profile?.role === 'admin') {
+      redirectPath = '/admin'
+    }
+  }
+
+  // Refresh cached layout data and redirect user to the correct dashboard
   revalidatePath('/', 'layout')
-  redirect('/dashboard')
+  redirect(redirectPath)
 }
 
 
