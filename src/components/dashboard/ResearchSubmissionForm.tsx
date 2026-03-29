@@ -11,10 +11,26 @@ type FormState = {
   error?: string
 }
 
+type ClassmateOption = {
+  id: string
+  name: string
+  sectionName: string
+}
+
+type AdviserOption = {
+  id: string
+  name: string
+}
+
+type SectionAdviserOption = {
+  id: string
+  name: string
+}
+
 function MemberComboBox({
   index, classmates, value, onChange, isDraftMode
 }: {
-  index: number, classmates: any[], value: string, onChange: (val: string) => void, isDraftMode: boolean
+  index: number, classmates: ClassmateOption[], value: string, onChange: (val: string) => void, isDraftMode: boolean
 }) {
   // Search and dropdown state
   const [search, setSearch] = useState('')
@@ -91,12 +107,30 @@ function MemberComboBox({
 export function ResearchSubmissionForm({
   classmates = [],
   sections = [],
+  adviserOptions = [],
+  sectionAdvisers = {},
   initialData = null,
   editId = null
 }: {
-  classmates?: any[],
-  sections?: any[],
-  initialData?: any,
+  classmates?: ClassmateOption[],
+  sections?: { id: string, name: string, course_code: string }[],
+  adviserOptions?: AdviserOption[],
+  sectionAdvisers?: Record<string, SectionAdviserOption>,
+  initialData?: {
+    title?: string
+    type?: string
+    abstract?: string
+    keywords?: string[] | string
+    members?: string[]
+    member_roles?: string[]
+    subject_code?: string
+    adviser_id?: string | null
+    research_area?: string | null
+    start_date?: string | null
+    target_defense_date?: string | null
+    current_stage?: string | null
+    file_url?: string | null
+  } | null,
   editId?: string | null
 }) {
   // Form mode and submission status
@@ -119,12 +153,15 @@ export function ResearchSubmissionForm({
   const formRef = useRef<HTMLFormElement>(null)
 
   // Group members initialization
-  const defaultMembers = initialData?.members?.length > 0 ? initialData.members : ['']
-  const defaultRoles = initialData?.member_roles?.length > 0 ? initialData.member_roles : ['']
+  const defaultMembers = initialData?.members?.length ? initialData.members ?? [''] : ['']
+  const defaultRoles = initialData?.member_roles?.length ? initialData.member_roles ?? [''] : ['']
 
-  const [isGroup, setIsGroup] = useState(initialData?.members?.length > 0 || false)
+  const [isGroup, setIsGroup] = useState(Boolean(initialData?.members?.length))
   const [members, setMembers] = useState<string[]>(defaultMembers)
   const [roles, setRoles] = useState<string[]>(defaultRoles)
+  const [selectedResearchType, setSelectedResearchType] = useState(
+    initialData?.type || 'capstone'
+  )
 
   // Keyword list initialization
   const defaultKeywords = Array.isArray(initialData?.keywords)
@@ -134,6 +171,25 @@ export function ResearchSubmissionForm({
       : ['']
 
   const [keywordsList, setKeywordsList] = useState<string[]>(defaultKeywords)
+  const [selectedSubjectCode, setSelectedSubjectCode] = useState(initialData?.subject_code || '')
+  const [selectedAdviserId, setSelectedAdviserId] = useState(initialData?.adviser_id || '')
+  const [useExternalAdviser, setUseExternalAdviser] = useState(
+    Boolean(initialData?.adviser_id)
+  )
+
+  const adviserSelectOptions = adviserOptions.some(
+    (adviser) => adviser.id === selectedAdviserId
+  )
+    ? adviserOptions
+    : selectedAdviserId
+      ? [
+        ...adviserOptions,
+        {
+          id: selectedAdviserId,
+          name: `Saved adviser (${selectedAdviserId})`,
+        },
+      ]
+      : adviserOptions
 
   // Dynamic keyword handlers
   const addKeyword = () => setKeywordsList([...keywordsList, ''])
@@ -165,6 +221,10 @@ export function ResearchSubmissionForm({
     setRoles([''])
     setKeywordsList([''])
     setIsGroup(false)
+    setSelectedResearchType('capstone')
+    setSelectedSubjectCode('')
+    setSelectedAdviserId('')
+    setUseExternalAdviser(false)
     formRef.current?.reset()
   }
 
@@ -212,7 +272,20 @@ export function ResearchSubmissionForm({
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-[var(--foreground)]">Research Type</label>
-            <select name="type" defaultValue={initialData?.type || "capstone"} className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer">
+            <select
+              name="type"
+              value={selectedResearchType}
+              onChange={(e) => {
+                const nextType = e.target.value
+                setSelectedResearchType(nextType)
+
+                if (nextType !== 'capstone') {
+                  setUseExternalAdviser(false)
+                  setSelectedAdviserId('')
+                }
+              }}
+              className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer"
+            >
               <option value="capstone">Capstone Project</option>
               <option value="case-study">Case Study</option>
               <option value="dissertation">Dissertation</option>
@@ -271,7 +344,16 @@ export function ResearchSubmissionForm({
         <div className="grid gap-6 md:grid-cols-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-[var(--foreground)]">Subject Code</label>
-            <select name="subjectCode" defaultValue={initialData?.subject_code || ""} required={!isDraftMode} className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer">
+            <select
+              name="subjectCode"
+              value={selectedSubjectCode}
+              onChange={(e) => {
+                const nextSubjectCode = e.target.value
+                setSelectedSubjectCode(nextSubjectCode)
+              }}
+              required={!isDraftMode}
+              className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer"
+            >
               <option value="" disabled>Select subject code...</option>
               {sections.length === 0 && <option value="" disabled>No sections joined</option>}
               {sections.map(s => (
@@ -279,9 +361,60 @@ export function ResearchSubmissionForm({
               ))}
             </select>
           </div>
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             <label className="text-sm font-semibold text-[var(--foreground)]">Adviser</label>
-            <input name="adviser" defaultValue={initialData?.adviser_id || ""} placeholder="e.g. Dr. Juan Dela Cruz" className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all" />
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm dark:border-gray-800 dark:bg-gray-900/40">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                Section Adviser
+              </p>
+              <p className="mt-1 text-[var(--foreground)]">
+                {sectionAdvisers[selectedSubjectCode]?.name || 'No section adviser found for the selected subject code.'}
+              </p>
+            </div>
+            {selectedResearchType === 'capstone' ? (
+              <>
+                <label className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-300">
+                  <input
+                    type="checkbox"
+                    checked={useExternalAdviser}
+                    onChange={(e) => {
+                      const shouldUseExternalAdviser = e.target.checked
+                      setUseExternalAdviser(shouldUseExternalAdviser)
+
+                      if (!shouldUseExternalAdviser) {
+                        setSelectedAdviserId('')
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
+                  />
+                  Add external adviser
+                </label>
+                <select
+                  name="adviser"
+                  value={selectedAdviserId}
+                  onChange={(e) => setSelectedAdviserId(e.target.value)}
+                  disabled={!useExternalAdviser}
+                  className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-gray-800"
+                >
+                  <option value="">Select external adviser...</option>
+                  {adviserSelectOptions.map((adviser) => (
+                    <option key={adviser.id} value={adviser.id}>
+                      {adviser.name}
+                    </option>
+                  ))}
+                </select>
+                {!useExternalAdviser && (
+                  <p className="text-[11px] text-gray-500">
+                    The section adviser is the default adviser and already has access to this research.
+                  </p>
+                )}
+                {useExternalAdviser && (
+                  <p className="text-[11px] text-gray-500">
+                    Use this only when your capstone project has an additional external adviser.
+                  </p>
+                )}
+              </>
+            ) : null}
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-[var(--foreground)]">Research Area</label>
@@ -376,7 +509,7 @@ export function ResearchSubmissionForm({
         <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
           <div className="flex items-center gap-2">
             <Paperclip className="text-blue-600" size={20} />
-            <h2 className="text-lg font-bold text-[var(--foreground)]">Files</h2>
+            <h2 className="text-lg font-bold text-[var(--foreground)]">Files (PDF Only)</h2>
           </div>
           {initialData?.file_url && (
             <span className="text-xs bg-green-50 text-green-700 px-3 py-1 rounded-full border border-green-200 font-medium">

@@ -33,20 +33,32 @@ export default async function EditResearchPage({ params }: { params: Promise<{ i
     .from('section_members')
     .select('section_id')
     .eq('user_id', user.id)
+
+  const { data: currentProfile } = await supabase
+    .from('profiles')
+    .select('course_program')
+    .eq('id', user.id)
+    .single()
   
   const sectionIds = myMemberships?.map(m => m.section_id) || []
 
   let classmatesList: { id: string, name: string, sectionName: string }[] = []
   let userSections: { id: string, name: string, course_code: string }[] = []
+  let adviserOptions: { id: string, name: string }[] = []
+  let sectionAdvisers: Record<string, { id: string, name: string }> = {}
 
   if (sectionIds.length > 0) {
     // Fetch section metadata
     const { data: sectionsData } = await supabase
       .from('sections')
-      .select('id, name, course_code')
+      .select('id, name, course_code, teacher_id')
       .in('id', sectionIds)
       
-    userSections = sectionsData || []
+    userSections = (sectionsData || []).map(({ id, name, course_code }) => ({
+      id,
+      name,
+      course_code,
+    }))
 
     // Fetch all members in those sections
     const { data: sectionMembers } = await supabase
@@ -81,6 +93,74 @@ export default async function EditResearchPage({ params }: { params: Promise<{ i
       // Deduplicate entries
       classmatesList = classmatesList.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i)
     }
+
+    const sectionTeacherIds = [
+      ...new Set((sectionsData || []).map((section) => section.teacher_id))
+    ]
+
+    let mentorQuery = supabase
+      .from('profiles')
+      .select('id, first_name, last_name, role, is_verified, course_program')
+      .eq('role', 'mentor')
+      .eq('is_verified', true)
+
+    if (currentProfile?.course_program) {
+      mentorQuery = mentorQuery.eq('course_program', currentProfile.course_program)
+    }
+
+    const { data: mentorProfiles } = await mentorQuery
+
+    const mergedTeacherIds = [
+      ...new Set([
+        ...sectionTeacherIds,
+        ...((mentorProfiles || []).map((mentor) => mentor.id)),
+      ]),
+    ]
+
+    const teacherProfilesById = new Map(
+      (mentorProfiles || []).map((mentor) => [
+        mentor.id,
+        `${mentor.first_name} ${mentor.last_name}`,
+      ])
+    )
+
+    if (mergedTeacherIds.length > 0) {
+      const missingTeacherIds = mergedTeacherIds.filter(
+        (teacherId) => !teacherProfilesById.has(teacherId)
+      )
+
+      if (missingTeacherIds.length > 0) {
+        const { data: extraTeacherProfiles } = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name')
+          .in('id', missingTeacherIds)
+
+        extraTeacherProfiles?.forEach((teacher) => {
+          teacherProfilesById.set(teacher.id, `${teacher.first_name} ${teacher.last_name}`)
+        })
+      }
+
+      adviserOptions = mergedTeacherIds
+        .map((teacherId) => ({
+          id: teacherId,
+          name: teacherProfilesById.get(teacherId) || 'Unknown Adviser',
+        }))
+        .sort((first, second) => first.name.localeCompare(second.name))
+
+      sectionAdvisers = (sectionsData || []).reduce<Record<string, { id: string, name: string }>>(
+        (accumulator, section) => {
+          if (!accumulator[section.course_code]) {
+            accumulator[section.course_code] = {
+              id: section.teacher_id,
+              name: teacherProfilesById.get(section.teacher_id) || 'Unknown Adviser',
+            }
+          }
+
+          return accumulator
+        },
+        {}
+      )
+    }
   }
 
   // RENDER
@@ -100,6 +180,8 @@ export default async function EditResearchPage({ params }: { params: Promise<{ i
       <ResearchSubmissionForm 
         classmates={classmatesList} 
         sections={userSections} 
+        adviserOptions={adviserOptions}
+        sectionAdvisers={sectionAdvisers}
         initialData={research}
         editId={researchId}
       />

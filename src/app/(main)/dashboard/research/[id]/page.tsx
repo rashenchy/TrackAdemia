@@ -43,6 +43,41 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
   // Determine if the user is a viewer-only (Repository access)
   const isViewerOnly = !isAuthor && !isTeacher && research.status === 'Published'
 
+  let sectionAdviserName = 'N/A'
+  if (research.subject_code) {
+    const { data: sectionAdviserSection } = await supabase
+      .from('sections')
+      .select('teacher_id')
+      .eq('course_code', research.subject_code)
+      .limit(1)
+      .maybeSingle()
+
+    if (sectionAdviserSection?.teacher_id) {
+      const { data: sectionAdviserProfile } = await supabase
+        .from('profiles')
+        .select('first_name, last_name')
+        .eq('id', sectionAdviserSection.teacher_id)
+        .single()
+
+      if (sectionAdviserProfile) {
+        sectionAdviserName = `${sectionAdviserProfile.first_name} ${sectionAdviserProfile.last_name}`
+      }
+    }
+  }
+
+  let externalAdviserName = 'None'
+  if (research.adviser_id) {
+    const { data: adviserProfile } = await supabase
+      .from('profiles')
+      .select('first_name, last_name')
+      .eq('id', research.adviser_id)
+      .single()
+
+    if (adviserProfile) {
+      externalAdviserName = `${adviserProfile.first_name} ${adviserProfile.last_name}`
+    }
+  }
+
   // Fetch team member profiles
   let teamMembers: any[] = []
   if (research.members && research.members.length > 0) {
@@ -209,8 +244,12 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
             <p className="text-md">{research.subject_code || 'N/A'}</p>
           </div>
           <div>
-            <label className="text-xs font-bold uppercase text-gray-500">Adviser</label>
-            <p className="text-md">{research.adviser_id || 'N/A'}</p>
+            <label className="text-xs font-bold uppercase text-gray-500">Section Adviser</label>
+            <p className="text-md">{sectionAdviserName}</p>
+          </div>
+          <div>
+            <label className="text-xs font-bold uppercase text-gray-500">External Adviser</label>
+            <p className="text-md">{externalAdviserName}</p>
           </div>
           <div>
             <label className="text-xs font-bold uppercase text-gray-500">Research Area</label>

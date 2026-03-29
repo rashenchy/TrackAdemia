@@ -138,6 +138,46 @@ export default async function DashboardPage({
       }
     }
 
+    const { data: adviseeResearch } = await supabase
+      .from('research')
+      .select('*')
+      .eq('adviser_id', user.id)
+      .order('created_at', { ascending: false })
+
+    if (adviseeResearch && adviseeResearch.length > 0) {
+      const adviseeIds = [...new Set(adviseeResearch.map((item) => item.user_id))]
+
+      const { data: adviseeProfiles } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name')
+        .in('id', adviseeIds)
+
+      const mappedAdviseeResearch = adviseeResearch.map((item) => {
+        const author = adviseeProfiles?.find((profile) => profile.id === item.user_id)
+
+        return {
+          ...item,
+          section_id: 'adviser-access',
+          section_name: 'Adviser Access',
+          author_name: author
+            ? `${author.first_name} ${author.last_name}`
+            : 'Unknown Student'
+        }
+      })
+
+      const mergedSubmissions = [
+        ...displaySubmissions,
+        ...mappedAdviseeResearch.filter(
+          (item) => !displaySubmissions.some((existing) => existing.id === item.id)
+        )
+      ]
+
+      displaySubmissions =
+        activeSectionId && activeSectionId !== 'all'
+          ? mergedSubmissions.filter(s => s.section_id === activeSectionId)
+          : mergedSubmissions
+    }
+
   } else {
 
     // Student dashboard logic: fetch their own research submissions
