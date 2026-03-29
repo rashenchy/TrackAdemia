@@ -9,9 +9,7 @@ import {
   ExternalLink,
   FileText,
   Highlighter,
-  Link2,
   Loader2,
-  Search,
   ShieldAlert,
 } from 'lucide-react'
 
@@ -51,6 +49,16 @@ interface PlagiarismResponse {
   candidates: CandidateResult[]
   highlights: HighlightRange[]
   summary: RiskSummary
+}
+
+interface DisplayMatch {
+  suspiciousText: string
+  matchingText: string
+  title: string
+  link: string
+  source?: string
+  matchedTerms: string[]
+  score: number
 }
 
 function escapeRegExp(value: string) {
@@ -140,6 +148,20 @@ function renderTextWithHighlights(text: string, highlights: HighlightRange[]) {
   )
 }
 
+function buildDisplayMatches(result: PlagiarismResponse): DisplayMatch[] {
+  return result.candidates.flatMap((candidate) =>
+    candidate.matches.map((match) => ({
+      suspiciousText: candidate.text,
+      matchingText: match.snippet || match.title,
+      title: match.title,
+      link: match.link,
+      source: match.source,
+      matchedTerms: match.matchedTerms,
+      score: match.matchScore,
+    }))
+  )
+}
+
 export default function PlagiarismCheckerPage() {
   const [inputText, setInputText] = useState('')
   const [result, setResult] = useState<PlagiarismResponse | null>(null)
@@ -148,7 +170,7 @@ export default function PlagiarismCheckerPage() {
 
   const handleAnalyze = async () => {
     if (!inputText.trim()) {
-      setError('Please enter some text to analyze.')
+      setError('Please enter some text to check.')
       return
     }
 
@@ -168,12 +190,12 @@ export default function PlagiarismCheckerPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to analyze plagiarism.')
+        throw new Error(data.error || 'Failed to check plagiarism.')
       }
 
       setResult(data)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to analyze plagiarism.')
+      setError(err instanceof Error ? err.message : 'Failed to check plagiarism.')
     } finally {
       setIsLoading(false)
     }
@@ -191,15 +213,15 @@ export default function PlagiarismCheckerPage() {
 
     if (isLoading) {
       return (
-        <div className="flex min-h-[320px] flex-col items-center justify-center gap-4 rounded-3xl border border-dashed border-blue-200 bg-blue-50/60 p-8 text-center dark:border-blue-900 dark:bg-blue-950/20">
+        <div className="flex min-h-[280px] flex-col items-center justify-center gap-4 rounded-3xl border border-dashed border-blue-200 bg-blue-50/60 p-8 text-center dark:border-blue-900 dark:bg-blue-950/20">
           <Loader2 size={32} className="animate-spin text-blue-600" />
           <div className="space-y-1">
             <p className="font-semibold text-[var(--foreground)]">
-              Analyzing distinctive fragments...
+              Checking plagiarism...
             </p>
             <p className="text-sm text-gray-500">
-              Filtering the text, ranking sentence uniqueness, and checking only
-              the strongest candidate fragments.
+              Reviewing your text and comparing suspicious sections against
+              possible matches.
             </p>
           </div>
         </div>
@@ -208,279 +230,162 @@ export default function PlagiarismCheckerPage() {
 
     if (!result) {
       return (
-        <div className="flex min-h-[320px] flex-col items-center justify-center gap-4 rounded-3xl border border-dashed border-gray-200 bg-gray-50/80 p-8 text-center text-gray-500 dark:border-gray-800 dark:bg-gray-900/30">
+        <div className="flex min-h-[280px] flex-col items-center justify-center gap-4 rounded-3xl border border-dashed border-gray-200 bg-gray-50/80 p-8 text-center text-gray-500 dark:border-gray-800 dark:bg-gray-900/30">
           <ShieldAlert size={40} className="opacity-30" />
           <div className="space-y-1">
             <p className="font-medium text-[var(--foreground)]">
-              No plagiarism analysis yet
+              No plagiarism check yet
             </p>
             <p className="text-sm">
-              Paste long-form text above and the checker will inspect only the
-              most distinctive fragments for possible matches.
+              Add text above, then run a plagiarism check to see whether any
+              suspicious matches are found.
             </p>
           </div>
         </div>
       )
     }
 
-    const riskTone =
-      result.summary.level === 'High'
-        ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/20 dark:text-red-300'
-        : result.summary.level === 'Medium'
-          ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-300'
-          : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-300'
+    const matches = buildDisplayMatches(result)
+
+    if (matches.length === 0) {
+      return (
+        <div className="space-y-6">
+          <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-300">
+            <p className="text-sm font-semibold uppercase tracking-[0.18em]">
+              Result
+            </p>
+            <h2 className="mt-2 text-2xl font-bold">No matches found</h2>
+            <p className="mt-2 text-sm">
+              The checker did not find suspicious matches in the submitted text.
+            </p>
+          </div>
+
+          <details className="group rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-950/40">
+            <summary className="flex cursor-pointer items-center justify-between gap-3 p-6">
+              <div className="flex items-center gap-2">
+                <FileText className="text-emerald-600" size={20} />
+                <h3 className="text-lg font-bold text-[var(--foreground)]">
+                  Checked Text
+                </h3>
+              </div>
+
+              <ChevronDown
+                size={20}
+                className="transition-transform group-open:rotate-180"
+              />
+            </summary>
+
+            <div className="border-t border-gray-200 px-6 pb-6 dark:border-gray-800">
+              <p className="whitespace-pre-wrap leading-7 text-gray-700 dark:text-gray-300">
+                {result.processedText}
+              </p>
+            </div>
+          </details>
+        </div>
+      )
+    }
 
     return (
       <div className="space-y-6">
-        <div className={`rounded-3xl border p-6 ${riskTone}`}>
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em]">
-                Overall Plagiarism Risk
-              </p>
-              <h2 className="mt-1 text-2xl font-bold">{result.summary.level}</h2>
-              <p className="mt-2 text-sm">{result.summary.message}</p>
-            </div>
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-2xl bg-white/60 p-3 dark:bg-black/20">
-                <p className="text-xs uppercase tracking-wide">Score</p>
-                <p className="mt-1 text-xl font-bold">
-                  {Math.round(result.summary.score * 100)}%
-                </p>
-              </div>
-              <div className="rounded-2xl bg-white/60 p-3 dark:bg-black/20">
-                <p className="text-xs uppercase tracking-wide">Queries</p>
-                <p className="mt-1 text-xl font-bold">
-                  {result.summary.searchedCandidates}
-                </p>
-              </div>
-              <div className="rounded-2xl bg-white/60 p-3 dark:bg-black/20">
-                <p className="text-xs uppercase tracking-wide">Matches</p>
-                <p className="mt-1 text-xl font-bold">
-                  {result.summary.matchedCandidates}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-          <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-950/40">
-            <div className="mb-4 flex items-center gap-2 border-b border-gray-100 pb-4 dark:border-gray-800">
-              <Highlighter className="text-red-500" size={20} />
-              <h3 className="text-lg font-bold text-[var(--foreground)]">
-                Matched / Suspected Text Highlights
-              </h3>
-            </div>
-            {renderTextWithHighlights(result.processedText, result.highlights)}
-          </section>
-
-          <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-950/40">
-            <div className="mb-4 flex items-center gap-2 border-b border-gray-100 pb-4 dark:border-gray-800">
-              <Search className="text-blue-600" size={20} />
-              <h3 className="text-lg font-bold text-[var(--foreground)]">
-                Checked Fragments
-              </h3>
-            </div>
-            <div className="space-y-4">
-              {result.candidates.map((candidate, index) => (
-                <details
-                  key={`${candidate.searchFragment}-${index}`}
-                  className="group rounded-2xl border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/40"
-                >
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-500">
-                        Fragment {index + 1}
-                      </p>
-                      <p className="mt-1 line-clamp-2 text-sm leading-6 text-[var(--foreground)]">
-                        {candidate.searchFragment}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          candidate.matches.length > 0
-                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
-                            : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                        }`}
-                      >
-                        {candidate.matches.length > 0 ? 'Match found' : 'No match'}
-                      </span>
-                      <ChevronDown
-                        size={18}
-                        className="shrink-0 text-gray-400 transition-transform group-open:rotate-180"
-                      />
-                    </div>
-                  </summary>
-                  <div className="border-t border-gray-200 p-4 pt-4 dark:border-gray-800">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-[var(--foreground)]">
-                        Candidate details
-                      </p>
-                      <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
-                        Specificity {candidate.score.toFixed(2)}
-                      </span>
-                    </div>
-                    <p className="mt-3 text-sm font-semibold text-[var(--foreground)]">
-                      Checked fragment
-                    </p>
-                    <p className="mt-1 text-sm leading-6 text-gray-700 dark:text-gray-300">
-                      {candidate.searchFragment}
-                    </p>
-                    <p className="mt-3 text-sm font-semibold text-[var(--foreground)]">
-                      Suspected text
-                    </p>
-                    <p className="mt-1 rounded-xl bg-white px-3 py-2 text-sm leading-6 text-gray-700 dark:bg-gray-950/60 dark:text-gray-300">
-                      {candidate.text}
-                    </p>
-                    <p className="mt-3 text-xs text-gray-500">
-                      {candidate.matches.length > 0
-                        ? `${candidate.matches.length} possible source match(es) found`
-                        : 'No strong match found for this fragment'}
-                    </p>
-                  </div>
-                </details>
-              ))}
-            </div>
-          </section>
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-amber-700 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-300">
+          <p className="text-sm font-semibold uppercase tracking-[0.18em]">
+            Result
+          </p>
+          <h2 className="mt-2 text-2xl font-bold">Possible matches found</h2>
+          <p className="mt-2 text-sm">
+            Suspicious text and its closest matching passages are shown below.
+          </p>
         </div>
 
         <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-950/40">
           <div className="mb-4 flex items-center gap-2 border-b border-gray-100 pb-4 dark:border-gray-800">
-            <Link2 className="text-violet-600" size={20} />
+            <Highlighter className="text-red-500" size={20} />
             <h3 className="text-lg font-bold text-[var(--foreground)]">
-              Matched Sources
+              Suspicious Text Highlights
+            </h3>
+          </div>
+          {renderTextWithHighlights(result.processedText, result.highlights)}
+        </section>
+
+        <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-950/40">
+          <div className="mb-4 flex items-center gap-2 border-b border-gray-100 pb-4 dark:border-gray-800">
+            <ShieldAlert className="text-amber-600" size={20} />
+            <h3 className="text-lg font-bold text-[var(--foreground)]">
+              Match Details
             </h3>
           </div>
 
-          <div className="space-y-5">
-            {result.candidates.map((candidate, candidateIndex) => (
-              <div key={`matches-${candidateIndex}`} className="space-y-3">
-                <details
-                  open={candidate.matches.length > 0}
-                  className="group rounded-2xl bg-gray-50 dark:bg-gray-900/40"
-                >
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                        Fragment {candidateIndex + 1}
-                      </p>
-                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--foreground)]">
-                        {candidate.searchFragment}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                          candidate.matches.length > 0
-                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
-                            : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                        }`}
-                      >
-                        {candidate.matches.length > 0 ? 'Match found' : 'No match'}
-                      </span>
-                      <ChevronDown
-                        size={18}
-                        className="shrink-0 text-gray-400 transition-transform group-open:rotate-180"
-                      />
-                    </div>
-                  </summary>
-
-                  <div className="space-y-3 border-t border-gray-200 p-4 dark:border-gray-800">
-                    {candidate.matches.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-gray-200 p-4 text-sm text-gray-500 dark:border-gray-800">
-                        No matching results cleared the overlap threshold for this
-                        fragment.
-                      </div>
-                    ) : (
-                      candidate.matches.map((match, matchIndex) => (
-                        <details
-                          key={`${match.link}-${matchIndex}`}
-                          className="group rounded-2xl border border-gray-200 dark:border-gray-800"
-                        >
-                          <summary className="flex cursor-pointer list-none items-start justify-between gap-3 p-5">
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                                Source title
-                              </p>
-                              <h4 className="mt-2 line-clamp-2 text-lg font-bold text-[var(--foreground)]">
-                                {match.title}
-                              </h4>
-                              <p className="mt-2 text-sm text-gray-500">
-                                {Math.round(match.matchScore * 100)}% match confidence
-                              </p>
-                            </div>
-                            <ChevronDown
-                              size={18}
-                              className="mt-1 shrink-0 text-gray-400 transition-transform group-open:rotate-180"
-                            />
-                          </summary>
-
-                          <div className="border-t border-gray-200 p-5 pt-4 dark:border-gray-800">
-                            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                              <div className="space-y-2">
-                                <h4 className="text-lg font-bold text-[var(--foreground)]">
-                                  {match.title}
-                                </h4>
-                                <a
-                                  href={match.link}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700"
-                                >
-                                  <ExternalLink size={16} />
-                                  {match.link}
-                                </a>
-                              </div>
-                              <div className="rounded-2xl bg-amber-50 px-4 py-2 text-right text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
-                                <p className="text-xs uppercase tracking-wide">
-                                  Match score
-                                </p>
-                                <p className="text-lg font-bold">
-                                  {Math.round(match.matchScore * 100)}%
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                              <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900/40">
-                                <p className="text-sm font-semibold text-[var(--foreground)]">
-                                  Preview / snippet
-                                </p>
-                                <p className="mt-2 text-sm leading-6 text-gray-700 dark:text-gray-300">
-                                  {renderHighlightedTerms(
-                                    match.snippet || 'No preview text was returned.',
-                                    match.matchedTerms
-                                  )}
-                                </p>
-                              </div>
-
-                              <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900/40">
-                                <p className="text-sm font-semibold text-[var(--foreground)]">
-                                  Matched text highlight
-                                </p>
-                                <p className="mt-2 text-sm leading-6 text-gray-700 dark:text-gray-300">
-                                  {renderHighlightedTerms(
-                                    match.suspectedText,
-                                    match.matchedTerms
-                                  )}
-                                </p>
-                              </div>
-                            </div>
-
-                            {match.source && (
-                              <p className="mt-3 text-xs text-gray-500">
-                                Source: {match.source}
-                              </p>
-                            )}
-                          </div>
-                        </details>
-                      ))
-                    )}
+          <div className="space-y-4">
+            {matches.map((match, index) => (
+              <details
+                key={`${match.link}-${index}`}
+                open={index === 0}
+                className="group rounded-2xl border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/40"
+              >
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-500">
+                      Match {index + 1}
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-sm leading-6 text-[var(--foreground)]">
+                      {match.suspiciousText}
+                    </p>
                   </div>
-                </details>
-              </div>
+                  <div className="flex items-center gap-3">
+                    <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                      {Math.round(match.score * 100)}% match
+                    </span>
+                    <ChevronDown
+                      size={18}
+                      className="shrink-0 text-gray-400 transition-transform group-open:rotate-180"
+                    />
+                  </div>
+                </summary>
+
+                <div className="border-t border-gray-200 p-4 dark:border-gray-800">
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="rounded-2xl bg-white p-4 dark:bg-gray-950/60">
+                      <p className="text-sm font-semibold text-[var(--foreground)]">
+                        Suspicious text
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-gray-700 dark:text-gray-300">
+                        {renderHighlightedTerms(
+                          match.suspiciousText,
+                          match.matchedTerms
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl bg-white p-4 dark:bg-gray-950/60">
+                      <p className="text-sm font-semibold text-[var(--foreground)]">
+                        Matching text
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-gray-700 dark:text-gray-300">
+                        {renderHighlightedTerms(
+                          match.matchingText || 'No matching text preview available.',
+                          match.matchedTerms
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-col gap-2 text-sm text-gray-500">
+                    <p className="font-semibold text-[var(--foreground)]">
+                      {match.title}
+                    </p>
+                    <a
+                      href={match.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
+                    >
+                      <ExternalLink size={16} />
+                      {match.link}
+                    </a>
+                    {match.source && <p>Source: {match.source}</p>}
+                  </div>
+                </div>
+              </details>
             ))}
           </div>
         </section>
@@ -489,15 +394,14 @@ export default function PlagiarismCheckerPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 pb-12">
+    <div className="mx-auto max-w-6xl space-y-8 pb-12">
       <div>
         <h1 className="flex items-center gap-3 text-3xl font-bold tracking-tight text-[var(--foreground)]">
           <ShieldAlert className="text-red-500" size={32} />
           Plagiarism Checker
         </h1>
         <p className="mt-1 text-gray-500">
-          Upload long-form writing, rank only the most distinctive fragments,
-          and check whether those parts match existing online content.
+          Add text below and check for possible plagiarism matches.
         </p>
       </div>
 
@@ -505,22 +409,18 @@ export default function PlagiarismCheckerPage() {
         <div className="mb-4 flex items-center gap-2 border-b border-gray-100 pb-4 dark:border-gray-800">
           <FileText className="text-blue-600" size={20} />
           <h2 className="text-lg font-bold text-[var(--foreground)]">
-            Text for Analysis
+            Add text here
           </h2>
         </div>
 
         <textarea
           value={inputText}
           onChange={(event) => setInputText(event.target.value)}
-          placeholder="Paste your essay, report, or chapter here. The checker will preprocess it, ignore generic content, and search only up to three high-signal fragments."
+          placeholder="Paste your text here to check plagiarism..."
           className="min-h-[340px] w-full resize-y rounded-2xl border border-gray-300 bg-transparent p-4 leading-7 text-[var(--foreground)] outline-none transition-all focus:border-blue-600 focus:ring-1 focus:ring-blue-600 dark:border-gray-700"
         />
 
-        <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <p className="text-sm text-gray-500">
-            No strict word limit. The checker filters common language and
-            focuses only on the strongest candidate fragments.
-          </p>
+        <div className="mt-4 flex justify-end">
           <button
             onClick={handleAnalyze}
             disabled={isLoading || !inputText.trim()}
@@ -529,12 +429,12 @@ export default function PlagiarismCheckerPage() {
             {isLoading ? (
               <>
                 <Loader2 size={18} className="animate-spin" />
-                Analyzing...
+                Checking...
               </>
             ) : (
               <>
                 <CheckCircle2 size={18} />
-                Analyze Plagiarism
+                Check Plagiarism
               </>
             )}
           </button>

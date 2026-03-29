@@ -45,8 +45,7 @@ export async function POST(req: Request) {
           score: 0,
           searchedCandidates: 0,
           matchedCandidates: 0,
-          message:
-            'The text did not contain enough distinctive sentences to check for meaningful matches.',
+          message: 'No matches found.',
         },
       })
     }
