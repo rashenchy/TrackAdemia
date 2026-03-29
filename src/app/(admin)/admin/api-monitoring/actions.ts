@@ -60,6 +60,7 @@ export interface MonitoringDashboardData {
   dailyActivity: Array<{
     date: string
     gemini: number
+    groq: number
     serpapi: number
   }>
 }
@@ -85,6 +86,7 @@ function toNumber(value: unknown) {
 
 function formatProviderLabel(provider: MonitoredProvider) {
   if (provider === 'gemini') return 'Gemini'
+  if (provider === 'groq') return 'Groq'
   if (provider === 'serpapi') return 'SerpAPI'
   return 'Supabase'
 }
@@ -93,7 +95,7 @@ function getProviderExtraMetrics(
   provider: MonitoredProvider,
   logs: ApiRequestLogRow[]
 ): Array<{ label: string; value: string }> {
-  if (provider === 'gemini') {
+  if (provider === 'gemini' || provider === 'groq') {
     const totalCorrections = logs.reduce(
       (sum, log) => sum + toNumber(log.output_units),
       0
@@ -181,7 +183,7 @@ async function getRequestLogs(limit = 100) {
 }
 
 async function getProviderMetrics(logs: ApiRequestLogRow[]): Promise<ProviderMetrics[]> {
-  const providers: MonitoredProvider[] = ['gemini', 'serpapi']
+  const providers: MonitoredProvider[] = ['groq', 'serpapi']
 
   return providers.map((provider) => {
     const providerLogs = logs.filter((log) => log.provider === provider)
@@ -285,14 +287,14 @@ async function getSupabaseMetrics(): Promise<SupabaseMonitoringMetrics> {
 }
 
 function buildDailyActivity(logs: ApiRequestLogRow[]) {
-  const dailyMap = new Map<string, { date: string; gemini: number; serpapi: number }>()
+  const dailyMap = new Map<string, { date: string; groq: number; serpapi: number }>()
 
   for (const log of logs) {
     const date = new Date(log.created_at).toISOString().split('T')[0]
-    const current = dailyMap.get(date) || { date, gemini: 0, serpapi: 0 }
+    const current = dailyMap.get(date) || { date, groq: 0, serpapi: 0 }
 
-    if (log.provider === 'gemini') {
-      current.gemini += 1
+    if (log.provider === 'groq') {
+      current.groq += 1
     }
 
     if (log.provider === 'serpapi') {

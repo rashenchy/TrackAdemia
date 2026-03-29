@@ -32,8 +32,8 @@ interface APIMonitoringClientProps {
   initialData: MonitoringDashboardData
 }
 
-function ProviderIcon({ provider }: { provider: 'gemini' | 'serpapi' | 'supabase' }) {
-  if (provider === 'gemini') {
+function ProviderIcon({ provider }: { provider: 'gemini' | 'groq' | 'serpapi' | 'supabase' }) {
+  if (provider === 'gemini' || provider === 'groq') {
     return <Sparkles size={22} className="text-indigo-600 dark:text-indigo-400" />
   }
 
@@ -109,8 +109,8 @@ export default function APIMonitoringClient({
     }
   }
 
-  const geminiMetrics = data.providerMetrics.find(
-    (item) => item.provider === 'gemini'
+  const groqMetrics = data.providerMetrics.find(
+    (item) => item.provider === 'groq'
   )
   const serpapiMetrics = data.providerMetrics.find(
     (item) => item.provider === 'serpapi'
@@ -124,10 +124,10 @@ export default function APIMonitoringClient({
       icon: 'supabase' as const,
     },
     {
-      label: 'Gemini Requests',
-      value: (geminiMetrics?.totalRequests || 0).toLocaleString(),
+      label: 'Groq Requests',
+      value: (groqMetrics?.totalRequests || 0).toLocaleString(),
       tone: 'from-indigo-50 to-indigo-100 border-indigo-200 dark:from-indigo-900/20 dark:to-indigo-900/10 dark:border-indigo-800',
-      icon: 'gemini' as const,
+      icon: 'groq' as const,
     },
     {
       label: 'SerpAPI Requests',
@@ -155,7 +155,7 @@ export default function APIMonitoringClient({
               API Monitoring
             </h1>
             <p className="text-gray-600 dark:text-gray-400">
-              Monitor Supabase platform activity and app-level Gemini and
+              Monitor Supabase platform activity and app-level Groq and
               SerpAPI usage from one admin dashboard.
             </p>
           </div>
@@ -249,10 +249,10 @@ export default function APIMonitoringClient({
               />
               <Line
                 type="monotone"
-                dataKey="gemini"
+                dataKey="groq"
                 stroke="#6366f1"
                 strokeWidth={2.5}
-                name="Gemini"
+                name="Groq"
               />
               <Line
                 type="monotone"
@@ -319,8 +319,8 @@ export default function APIMonitoringClient({
                   {provider.label}
                 </h2>
                 <p className="text-sm text-gray-500">
-                  Last activity: {provider.provider === 'gemini'
-                    ? formatLastActivity(geminiMetrics?.lastActivity || null)
+                  Last activity: {provider.provider === 'groq'
+                    ? formatLastActivity(groqMetrics?.lastActivity || null)
                     : formatLastActivity(serpapiMetrics?.lastActivity || null)}
                 </p>
               </div>

@@ -6,6 +6,19 @@ interface GrammarCheckRequest {
   text: string
 }
 
+function extractJsonBlock(value: string) {
+  const trimmed = value.trim()
+
+  if (trimmed.startsWith('```')) {
+    return trimmed
+      .replace(/^```(?:json)?\s*/i, '')
+      .replace(/\s*```$/, '')
+      .trim()
+  }
+
+  return trimmed
+}
+
 export async function POST(req: Request) {
   const startedAt = Date.now()
   const supabase = await createClient()
@@ -20,7 +33,7 @@ export async function POST(req: Request) {
     errorMessage?: string
   ) => {
     await logApiRequest({
-      provider: 'gemini',
+      provider: 'groq',
       apiName: 'grammar_check',
       endpoint: '/api/grammar-check',
       userId: user?.id ?? null,
@@ -61,16 +74,16 @@ export async function POST(req: Request) {
       )
     }
 
-    const apiKey = process.env.GEMINI_API_KEY
+    const apiKey = process.env.GROQ_API_KEY
     if (!apiKey) {
       await logRequest(
         'failed',
         trimmedText.length,
         0,
-        'Gemini API key is not configured on the server.'
+        'Groq API key is not configured on the server.'
       )
       return NextResponse.json(
-        { error: 'Gemini API key is not configured on the server.' },
+        { error: 'Groq API key is not configured on the server.' },
         { status: 500 }
       )
     }
@@ -102,54 +115,33 @@ export async function POST(req: Request) {
     """${trimmedText}"""
     `
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.2,
-            maxOutputTokens: 800,
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: 'object',
-              properties: {
-                corrections: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      original_sentence: { type: 'string' },
-                      corrected_sentence: { type: 'string' },
-                      explanation: { type: 'string' },
-                    },
-                    required: [
-                      'original_sentence',
-                      'corrected_sentence',
-                      'explanation',
-                    ],
-                  },
-                },
-              },
-              required: ['corrections'],
-            },
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a grammar checker. Return only valid JSON.',
           },
-        }),
-      }
-    )
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+        temperature: 0.2,
+        response_format: { type: 'json_object' },
+      }),
+    })
 
     if (!response.ok) {
-      const errorData = await response.json()
+      const errorData = await response.json().catch(() => null)
       const message =
-        errorData.error?.message || 'Failed to communicate with Gemini API'
+        errorData?.error?.message || 'Failed to communicate with Groq API'
       await logRequest('failed', trimmedText.length, 0, message)
       throw new Error(message)
     }
@@ -157,8 +149,7 @@ export async function POST(req: Request) {
     const data = await response.json()
 
     const resultText =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text ??
-      data?.candidates?.[0]?.output?.text
+      data?.choices?.[0]?.message?.content
 
     if (!resultText) {
       await logRequest(
@@ -179,7 +170,7 @@ export async function POST(req: Request) {
     }
 
     try {
-      parsed = JSON.parse(resultText)
+      parsed = JSON.parse(extractJsonBlock(resultText))
     } catch {
       parsed = { corrections: [] }
     }

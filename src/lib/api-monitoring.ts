@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 
-export type MonitoredProvider = 'gemini' | 'serpapi' | 'supabase'
+export type MonitoredProvider = 'gemini' | 'groq' | 'serpapi' | 'supabase'
 export type MonitoredStatus = 'success' | 'failed' | 'validation_error'
 
 export interface ApiRequestLogInput {
