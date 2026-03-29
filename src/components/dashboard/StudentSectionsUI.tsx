@@ -25,11 +25,6 @@ export default function StudentSectionsUI({
   currentUserId: string
 }) {
 
-  // Debug logs to inspect incoming data from the server
-  console.log('>>> SECTIONS PROP:', sections);
-  console.log('>>> CLASSMATES PROP:', classmates);
-  console.log('>>> currentUserId:', currentUserId);
-
   // Track which section is currently expanded
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
 

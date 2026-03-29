@@ -168,13 +168,37 @@ export default function AnnouncementsClient({
             <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Enter announcement title" className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
             <textarea value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Enter announcement message" rows={5} className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 resize-none" />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <select value={type} onChange={(e) => setType(e.target.value as Announcement['type'])} className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100">
-                <option value="info">Info</option>
-                <option value="warning">Warning</option>
-                <option value="success">Success</option>
-                <option value="urgent">Urgent</option>
-              </select>
-              <input type="datetime-local" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+
+              {/* Announcement Type */}
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Announcement Type
+                </label>
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value as Announcement['type'])}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                >
+                  <option value="info">Info</option>
+                  <option value="warning">Warning</option>
+                  <option value="success">Success</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
+
+              {/* Expiration */}
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Display Until
+                </label>
+                <input
+                  type="datetime-local"
+                  value={expiresAt}
+                  onChange={(e) => setExpiresAt(e.target.value)}
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                />
+              </div>
+
             </div>
             <div className="flex gap-3 pt-4">
               <button type="submit" disabled={submitting} className="flex-1 px-6 py-2 rounded-lg bg-purple-600 text-white font-semibold hover:bg-purple-700 transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-2">

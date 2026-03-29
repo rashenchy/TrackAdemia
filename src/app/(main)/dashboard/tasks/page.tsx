@@ -83,9 +83,6 @@ const { data: profile } = await supabase
     .eq('id', user.id)
     .single()
 
-// DEBUG LOG
-console.log("Profile:", profile)
-console.log("User role:", profile?.role)
 
 
     const isTeacher = profile?.role === 'mentor'

@@ -126,9 +126,6 @@ export default async function SectionsPage({
     )
   }
 
-  console.log('DEBUG memberships:', memberships)
-  console.log('DEBUG sectionIds:', sectionIds)
-
   // Fetch sections
   const { data: sections } = await supabase
     .from('sections')
