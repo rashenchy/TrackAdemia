@@ -1,12 +1,27 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
+import { syncResearchReviewStatus } from '@/lib/research-review-status'
+
+type HighlightArea = {
+  pageIndex: number
+  top: number
+  left: number
+  width: number
+  height: number
+}
+
+type AnnotationHighlightData = {
+  selectedText: string
+  highlightAreas: HighlightArea[]
+}
 
 
 // Creates a new annotation linked to a highlighted portion of the research document
 export async function addAnnotation(
   researchId: string,
-  highlightData: any,
+  highlightData: AnnotationHighlightData,
   commentText: string
 ) {
 
@@ -40,6 +55,11 @@ export async function addAnnotation(
     console.error('Insert annotation error:', error)
     throw error
   }
+
+  await syncResearchReviewStatus(supabase, researchId)
+  revalidatePath('/dashboard')
+  revalidatePath(`/dashboard/research/${researchId}`)
+  revalidatePath('/dashboard/tasks')
 
   return data
 }
@@ -133,6 +153,11 @@ export async function toggleAnnotationResolved(
     .single()
 
   if (error) throw error
+
+  await syncResearchReviewStatus(supabase, data.research_id)
+  revalidatePath('/dashboard')
+  revalidatePath(`/dashboard/research/${data.research_id}`)
+  revalidatePath('/dashboard/tasks')
 
   return data
 }

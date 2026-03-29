@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { syncResearchReviewStatus } from '@/lib/research-review-status'
 
 // Create a personal task for the current user
 export async function createTask(formData: FormData) {
@@ -96,7 +97,7 @@ export async function toggleTaskStatus(
 
         await supabase
             .from('tasks')
-            .update({ status: newStatus as any })
+            .update({ status: newStatus })
             .eq('id', taskId)
 
     } else if (source === 'teacher') {
@@ -114,14 +115,21 @@ export async function toggleTaskStatus(
     } else {
 
         // Update the linked annotation status instead
-        await supabase
+        const { data: annotation, error } = await supabase
             .from('annotations')
             .update({ is_resolved: !isResolved })
             .eq('id', taskId)
+            .select('research_id')
+            .single()
+
+        if (error) throw error
+
+        await syncResearchReviewStatus(supabase, annotation.research_id)
     }
 
     // Refresh the tasks page
     revalidatePath('/dashboard/tasks')
+    revalidatePath('/dashboard')
 }
 
 

@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import {
-    Plus,
     Clock,
     GraduationCap,
     Trash2,
@@ -9,7 +8,6 @@ import {
     Circle,
     ArrowRight,
     AlertCircle,
-    MessageSquare,
     ExternalLink,
     ClipboardList,
     Edit,
@@ -19,6 +17,45 @@ import { createTask, toggleTaskStatus, deleteTask, createSectionTask, editTask }
 import { SubmitButton } from '@/components/auth/SubmitButton'
 import Link from 'next/link'
 import { TeacherAnalytics } from '@/components/dashboard/TeacherAnalytics'
+
+type TaskSource = 'teacher' | 'personal' | 'annotation'
+
+type TaskCompletion = {
+    is_completed: boolean
+    student_id?: string
+}
+
+type TeacherAssignedTask = {
+    id: string
+    title: string
+    description: string | null
+    created_at: string
+    due_date: string | null
+    task_completions?: TaskCompletion[]
+    sections?: { name?: string | null } | null
+}
+
+type AnnotationTaskRecord = {
+    id: string
+    research_id: string
+    comment_text: string
+    quote: string | null
+    created_at: string
+    is_resolved: boolean
+}
+
+type StudentTaskItem = {
+    id: string
+    title: string
+    description: string | null
+    created_at: string
+    status: string
+    source: TaskSource
+    due_date?: string | null
+    research_id?: string
+    research_title?: string
+    quote?: string | null
+}
 
 export default async function TaskManagerPage({
     searchParams
@@ -67,7 +104,7 @@ console.log("User role:", profile?.role)
         const courseCodes = managedSections.map(s => s.course_code).filter(Boolean)
 
         // Fetch analytics data
-        let analyticsData: any[] = []
+        let analyticsData: Array<Record<string, unknown>> = []
         if (sectionIds.length > 0) {
             const { data: stats } = await supabase
                 .from('student_task_analytics')
@@ -188,7 +225,7 @@ console.log("User role:", profile?.role)
                 <div className="space-y-4 pt-6">
                     <h2 className="text-xl font-bold flex items-center gap-2 text-[var(--foreground)]">
                         <ClipboardList size={22} className="text-gray-400" />
-                        Tasks You've Assigned
+                        Tasks You&apos;ve Assigned
                     </h2>
 
                     {teacherAssignedTasks.length === 0 ? (
@@ -199,9 +236,9 @@ console.log("User role:", profile?.role)
                         </div>
                     ) : (
                         <div className="grid gap-4 sm:grid-cols-2">
-                            {teacherAssignedTasks.map(task => {
+                            {teacherAssignedTasks.map((task: TeacherAssignedTask) => {
                                 const total = task.task_completions?.length || 0;
-                                const completed = task.task_completions?.filter((c: any) => c.is_completed).length || 0;
+                                const completed = task.task_completions?.filter((c: TaskCompletion) => c.is_completed).length || 0;
 
                                 return (
                                     <div key={task.id} className="bg-white dark:bg-gray-900 p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm flex flex-col justify-between group">
@@ -263,7 +300,18 @@ console.log("User role:", profile?.role)
 
     const mySectionIds = memberships?.map(m => m.section_id) || []
 
-    let teacherTasksData: any[] = []
+    // Fetch research records owned by or shared with the student
+    const { data: myResearch } = await supabase
+        .from('research')
+        .select('id, title')
+        .or(`user_id.eq.${user.id},members.cs.{${user.id}}`)
+
+    const myResearchIds = myResearch?.map((item) => item.id) || []
+    const researchTitleMap = Object.fromEntries(
+        (myResearch || []).map((item) => [item.id, item.title || 'Research Paper'])
+    )
+
+    let teacherTasksData: TeacherAssignedTask[] = []
     if (mySectionIds.length > 0) {
         const { data } = await supabase
             .from('tasks')
@@ -273,12 +321,32 @@ console.log("User role:", profile?.role)
         teacherTasksData = data || []
     }
 
-    // Normalize and combine task sources ONLY
-    let allTasks = [
+    let annotationTasksData: AnnotationTaskRecord[] = []
+    if (myResearchIds.length > 0) {
+        const { data } = await supabase
+            .from('annotations')
+            .select('id, research_id, comment_text, quote, created_at, is_resolved')
+            .in('research_id', myResearchIds)
+            .order('created_at', { ascending: false })
+
+        annotationTasksData = data || []
+    }
+
+    // Normalize and combine task sources
+    let allTasks: StudentTaskItem[] = [
         ...(teacherTasksData || []).map(t => ({
             ...t,
             source: 'teacher' as const,
-            status: t.task_completions?.find((c: any) => c.student_id === user.id)?.is_completed ? 'resolved' : 'unresolved'
+            status: t.task_completions?.find((c: TaskCompletion) => c.student_id === user.id)?.is_completed ? 'resolved' : 'unresolved'
+        })),
+
+        ...(annotationTasksData || []).map((annotation) => ({
+            ...annotation,
+            source: 'annotation' as const,
+            title: 'Teacher Feedback',
+            description: annotation.comment_text,
+            status: annotation.is_resolved ? 'resolved' : 'unresolved',
+            research_title: researchTitleMap[annotation.research_id] || 'Research Paper'
         })),
 
         ...(personalTasksData || []).map(t => ({
@@ -294,9 +362,10 @@ console.log("User role:", profile?.role)
     }
 
     // Priority ordering
-    const priority: Record<'teacher' | 'personal', number> = {
+    const priority: Record<TaskSource, number> = {
         teacher: 0,
-        personal: 1
+        annotation: 1,
+        personal: 2
     }
 
     allTasks.sort((a, b) => {
@@ -310,7 +379,7 @@ console.log("User role:", profile?.role)
     const totalTasks = allTasks.length
     const completedCount = allTasks.filter(t => t.status === 'resolved').length
     const progressPercentage = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0
-    const teacherTasksCount = allTasks.filter(t => t.source === 'teacher').length
+    const teacherTasksCount = allTasks.filter(t => t.source === 'teacher' || t.source === 'annotation').length
 
     return (
         <div className="max-w-4xl mx-auto space-y-8">
@@ -396,7 +465,7 @@ console.log("User role:", profile?.role)
                         <p className="text-sm">Everything looks organized!</p>
                     </div>
                 ) : (
-                    allTasks.map((task) => {
+                    allTasks.map((task: StudentTaskItem) => {
 
                         // Render inline edit form if this task is being edited
                         if (task.id === editTaskId && task.source === 'personal') {
@@ -441,7 +510,7 @@ console.log("User role:", profile?.role)
                                     }`}
                             >
                                 {/* Checkbox Toggle */}
-                                <form action={toggleTaskStatus.bind(null, task.id, task.status, task.source as any)}>
+                                <form action={toggleTaskStatus.bind(null, task.id, task.status, task.source)}>
                                     <button
                                         type="submit"
                                         className={`mt-1 p-1 rounded-full transition-all ${task.status === 'resolved'
@@ -458,6 +527,8 @@ console.log("User role:", profile?.role)
                                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                                         <span className={`text-[9px] uppercase font-black px-2 py-0.5 rounded ${task.source === 'personal'
                                             ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                            : task.source === 'annotation'
+                                                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
                                             : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
                                             }`}>
                                             {task.source}
@@ -487,6 +558,24 @@ console.log("User role:", profile?.role)
 
                                     {/* Description */}
                                     <p className="text-sm text-gray-500 mt-1 line-clamp-1">{task.description}</p>
+
+                                    {task.source === 'annotation' && (
+                                        <>
+                                            <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mt-3">
+                                                {task.research_title}
+                                            </p>
+                                            <p className="text-xs text-gray-400 mt-1 line-clamp-2 italic">
+                                                &quot;{task.quote}&quot;
+                                            </p>
+                                            <Link
+                                                href={`/dashboard/research/${task.research_id}/annotate?annotationId=${task.id}`}
+                                                className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 px-3 py-2 rounded-xl transition-colors w-fit"
+                                            >
+                                                Open Feedback Thread
+                                                <ExternalLink size={14} />
+                                            </Link>
+                                        </>
+                                    )}
                                 </div>
 
                                 {/* Manage Personal Task Controls (Edit/Delete) */}

@@ -24,6 +24,7 @@ import {
   CheckSquare,
   BookOpen,
   Sparkles,
+  ShieldAlert,
 } from 'lucide-react'
 
 export default function DashboardLayoutClient({
@@ -243,6 +244,7 @@ export default function DashboardLayoutClient({
         ]
       : []),
     { name: 'Grammar Checker', href: '/dashboard/grammar', icon: Sparkles },
+    { name: 'Plagiarism Checker', href: '/dashboard/plagiarism', icon: ShieldAlert },
     { name: 'Repository', href: '/dashboard/repository', icon: BookOpen },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },
   ]
