@@ -1,9 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { SubmissionsTable } from '@/components/dashboard/SubmissionsTable'
-import { CheckCircle2, LayoutGrid } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Info, LayoutGrid, Megaphone, TriangleAlert } from 'lucide-react'
 import Link from 'next/link'
 import RotatingQuote from '@/components/dashboard/RotatingQuote'
+import { getActiveAnnouncements } from '@/app/(admin)/admin/announcements/actions'
 
 export default async function DashboardPage({
   searchParams
@@ -35,6 +36,8 @@ export default async function DashboardPage({
   if (profile?.role === 'admin') {
     redirect('/admin')
   }
+
+  const activeAnnouncements = await getActiveAnnouncements()
 
   let displaySubmissions: any[] = []
   let teacherSections: any[] = []
@@ -233,6 +236,86 @@ export default async function DashboardPage({
         </h1>
         <RotatingQuote />
       </div>
+
+      {activeAnnouncements.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-gray-500">
+            <Megaphone size={16} />
+            Announcements
+          </div>
+
+          <div className="space-y-3">
+            {activeAnnouncements.map((announcement) => {
+              const announcementStyles = {
+                info: {
+                  wrapper:
+                    'border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-100',
+                  badge:
+                    'bg-blue-100 text-blue-700 dark:bg-blue-900/70 dark:text-blue-200',
+                  icon: <Info size={18} className="text-blue-600 dark:text-blue-300" />,
+                },
+                warning: {
+                  wrapper:
+                    'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100',
+                  badge:
+                    'bg-amber-100 text-amber-700 dark:bg-amber-900/70 dark:text-amber-200',
+                  icon: <TriangleAlert size={18} className="text-amber-600 dark:text-amber-300" />,
+                },
+                success: {
+                  wrapper:
+                    'border-green-200 bg-green-50 text-green-900 dark:border-green-900/60 dark:bg-green-950/40 dark:text-green-100',
+                  badge:
+                    'bg-green-100 text-green-700 dark:bg-green-900/70 dark:text-green-200',
+                  icon: <CheckCircle2 size={18} className="text-green-600 dark:text-green-300" />,
+                },
+                urgent: {
+                  wrapper:
+                    'border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100',
+                  badge:
+                    'bg-red-100 text-red-700 dark:bg-red-900/70 dark:text-red-200',
+                  icon: <AlertCircle size={18} className="text-red-600 dark:text-red-300" />,
+                },
+              }[announcement.type]
+
+              return (
+                <div
+                  key={announcement.id}
+                  className={`rounded-2xl border p-5 shadow-sm ${announcementStyles.wrapper}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5">{announcementStyles.icon}</div>
+
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${announcementStyles.badge}`}
+                        >
+                          {announcement.type}
+                        </span>
+                        <span className="text-xs opacity-70">
+                          {new Date(announcement.created_at).toLocaleDateString()}
+                        </span>
+                        {announcement.expires_at && (
+                          <span className="text-xs opacity-70">
+                            Expires {new Date(announcement.expires_at).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        <h2 className="text-lg font-bold">{announcement.title}</h2>
+                        <p className="mt-1 whitespace-pre-wrap text-sm leading-6 opacity-90">
+                          {announcement.message}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {isTeacher && teacherSections.length > 0 && (
         <div className="space-y-3">

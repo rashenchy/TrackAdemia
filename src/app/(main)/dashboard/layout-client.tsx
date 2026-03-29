@@ -56,11 +56,14 @@ export default function DashboardLayoutClient({
     if (isLoggingOut) return
 
     setIsLoggingOut(true)
+    setShowLogoutConfirm(true)
+    setIsProfileOpen(false)
 
     try {
       await supabase.auth.signOut()
       window.location.replace('/login')
-    } finally {
+    } catch (error) {
+      console.error('Logout failed:', error)
       setIsLoggingOut(false)
     }
   }
@@ -318,11 +321,26 @@ export default function DashboardLayoutClient({
 
         <div className="p-4 border-t border-gray-200 dark:border-gray-800">
           <button
-            onClick={() => setShowLogoutConfirm(true)}
-            className={`w-full flex items-center ${isCollapsed ? 'justify-center' : ''} p-3 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors`}
+            onClick={() => {
+              if (!isLoggingOut) setShowLogoutConfirm(true)
+            }}
+            disabled={isLoggingOut}
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center' : ''} p-3 rounded-lg text-red-600 transition-all ${
+              isLoggingOut
+                ? 'cursor-not-allowed opacity-60 bg-red-50 dark:bg-red-900/10'
+                : 'hover:bg-red-50 dark:hover:bg-red-900/10'
+            }`}
           >
-            <LogOut size={22} className="min-w-[22px]" />
-            {!isCollapsed && <span className="ml-4 font-medium">Logout</span>}
+            {isLoggingOut ? (
+              <Loader2 size={22} className="min-w-[22px] animate-spin" />
+            ) : (
+              <LogOut size={22} className="min-w-[22px]" />
+            )}
+            {!isCollapsed && (
+              <span className="ml-4 font-medium">
+                {isLoggingOut ? 'Logging out...' : 'Logout'}
+              </span>
+            )}
           </button>
         </div>
       </aside>
@@ -375,12 +393,23 @@ export default function DashboardLayoutClient({
                     <div className="p-2">
                       <button
                         onClick={() => {
+                          if (isLoggingOut) return
                           setIsProfileOpen(false)
                           setShowLogoutConfirm(true)
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-lg transition-colors text-left font-medium"
+                        disabled={isLoggingOut}
+                        className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left font-medium rounded-lg transition-all ${
+                          isLoggingOut
+                            ? 'cursor-not-allowed text-red-500 opacity-60 bg-red-50 dark:bg-red-900/10'
+                            : 'text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10'
+                        }`}
                       >
-                        <LogOut size={16} /> Logout
+                        {isLoggingOut ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <LogOut size={16} />
+                        )}{' '}
+                        {isLoggingOut ? 'Logging out...' : 'Logout'}
                       </button>
                     </div>
                   </div>
@@ -402,35 +431,63 @@ export default function DashboardLayoutClient({
 
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-800">
+          <div
+            className={`bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-800 transition-all duration-200 ${
+              isLoggingOut ? 'scale-[0.985] opacity-95' : 'scale-100 opacity-100'
+            }`}
+          >
             <div className="flex items-center justify-between mb-4">
-              <div className="p-2 bg-red-50 dark:bg-red-900/20 rounded-lg text-red-600">
-                <LogOut size={24} />
+              <div
+                className={`p-2 rounded-lg text-red-600 transition-all ${
+                  isLoggingOut
+                    ? 'bg-red-100 dark:bg-red-900/30 animate-pulse'
+                    : 'bg-red-50 dark:bg-red-900/20'
+                }`}
+              >
+                {isLoggingOut ? <Loader2 size={24} className="animate-spin" /> : <LogOut size={24} />}
               </div>
               <button
-                onClick={() => setShowLogoutConfirm(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:bg-gray-800 rounded-full"
+                onClick={() => {
+                  if (!isLoggingOut) setShowLogoutConfirm(false)
+                }}
+                disabled={isLoggingOut}
+                className={`rounded-full transition-colors ${
+                  isLoggingOut
+                    ? 'cursor-not-allowed text-gray-300 dark:text-gray-700'
+                    : 'text-gray-400 hover:text-gray-600 dark:hover:bg-gray-800'
+                }`}
               >
                 <X size={20} />
               </button>
             </div>
             <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-              Confirm Logout
+              {isLoggingOut ? 'Signing You Out' : 'Confirm Logout'}
             </h3>
             <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
-              Are you sure you want to log out of your account?
+              {isLoggingOut
+                ? 'Your logout request is being processed. You will be redirected shortly.'
+                : 'Are you sure you want to log out of your account?'}
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold"
+                disabled={isLoggingOut}
+                className={`flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold transition-all ${
+                  isLoggingOut ? 'cursor-not-allowed opacity-50' : ''
+                }`}
               >
                 Cancel
               </button>
               <button
                 onClick={handleLogout}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700"
+                disabled={isLoggingOut}
+                className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all inline-flex items-center justify-center gap-2 ${
+                  isLoggingOut
+                    ? 'bg-red-500 opacity-85 cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
               >
+                {isLoggingOut && <Loader2 size={16} className="animate-spin" />}
                 {isLoggingOut ? 'Logging out...' : 'Logout'}
               </button>
             </div>
