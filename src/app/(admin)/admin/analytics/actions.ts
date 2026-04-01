@@ -7,6 +7,7 @@ import type {
   ResearchTypeDistribution,
   TopResearch,
 } from './types'
+import { RESEARCH_TYPE_OPTIONS, getResearchTypeLabel } from '@/lib/research-types'
 
 export async function getAnalyticsMetrics(): Promise<AnalyticsMetrics> {
   const supabase = await createClient()
@@ -91,19 +92,17 @@ export async function getResearchTypeDistribution(): Promise<ResearchTypeDistrib
       .from('research')
       .select('*', { count: 'exact', head: true })
 
-    const types = ['thesis', 'capstone', 'dissertation']
-
     const distribution = await Promise.all(
-      types.map(async (type) => {
+      RESEARCH_TYPE_OPTIONS.map(async ({ value }) => {
         const { count } = await supabase
           .from('research')
           .select('*', { count: 'exact', head: true })
-          .eq('type', type)
+          .eq('type', value)
 
         const countValue = count || 0
 
         return {
-          type: type.charAt(0).toUpperCase() + type.slice(1),
+          type: getResearchTypeLabel(value),
           count: countValue,
           percentage: totalCount
             ? Math.round((countValue / totalCount) * 100)
@@ -112,7 +111,7 @@ export async function getResearchTypeDistribution(): Promise<ResearchTypeDistrib
       })
     )
 
-    return distribution.sort((a, b) => b.count - a.count)
+    return distribution.sort((a, b) => b.count - a.count || a.type.localeCompare(b.type))
   } catch (error) {
     console.error('Error fetching research type distribution:', error)
     return []

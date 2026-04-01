@@ -10,6 +10,9 @@ import {
   Menu,
   Shield,
   Users,
+  Eye,
+  UserCheck,
+  BadgeCheck,
   Database,
   BarChart,
   LogOut,
@@ -29,7 +32,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
 
   // State initialization
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isCollapsed, setIsCollapsed] = useState(true)
   const [theme, setTheme] = useState(() => {
     if (typeof window === 'undefined') {
       return 'light'
@@ -117,9 +120,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Admin navigation items
   const navItems = [
     { name: 'Overview', href: '/admin', icon: Shield },
-    { name: 'View as User', href: '/admin/view-as-user', icon: Users },
-    { name: 'Faculty Approval', href: '/admin/faculty-approval', icon: Users },
-    { name: 'Student Verification', href: '/admin/student-verification', icon: Users },
+    { name: 'View as User', href: '/admin/view-as-user', icon: Eye },
+    { name: 'Faculty Approval', href: '/admin/faculty-approval', icon: UserCheck },
+    { name: 'Student Verification', href: '/admin/student-verification', icon: BadgeCheck },
     { name: 'User Management', href: '/admin/users', icon: Users },
     { name: 'Master Records', href: '/admin/master-records', icon: Database },
     { name: 'Reports', href: '/admin/reports', icon: BarChart },
@@ -131,13 +134,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="flex h-screen transition-colors duration-300">
       
       {/* Sidebar navigation */}
-      <aside className={`${isCollapsed ? 'w-20' : 'w-64'} flex flex-col transition-all duration-300 border-r border-gray-200 dark:border-gray-800 bg-[var(--sidebar-bg)]`}>
+      <aside
+        onMouseEnter={() => setIsCollapsed(false)}
+        onMouseLeave={() => setIsCollapsed(true)}
+        className={`${isCollapsed ? 'w-20' : 'w-64'} flex h-screen flex-col overflow-hidden transition-all duration-300 border-r border-gray-200 dark:border-gray-800 bg-[var(--sidebar-bg)]`}
+      >
         <div className={`p-4 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}>
-          {!isCollapsed && (
-            <div className="flex items-center ml-2 w-10 h-10 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white flex justify-center items-center">
+          <div
+            className={`overflow-hidden transition-all duration-300 ${
+              isCollapsed ? 'w-0 opacity-0 -translate-x-3' : 'ml-2 w-10 opacity-100 translate-x-0'
+            }`}
+          >
+            <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700">
               <img src="/logo.png" alt="Logo" className="w-full h-full object-cover scale-125" />
             </div>
-          )}
+          </div>
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             className={`p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors ${!isCollapsed ? 'ml-auto' : ''}`}
@@ -146,7 +157,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
         </div>
 
-        <nav className="flex-1 mt-4 px-3 space-y-2">
+        <nav
+          className={`mt-4 flex-1 px-3 pb-4 space-y-2 ${
+            isCollapsed ? 'overflow-y-hidden' : 'sidebar-scrollbar overflow-y-auto'
+          }`}
+        >
           {navItems.map((item) => {
             const isActive = (pendingRoute || pathname) === item.href
             const isCurrentlyLoading = pendingRoute === item.href
@@ -158,15 +173,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 onClick={() => {
                   if (pathname !== item.href) setPendingRoute(item.href)
                 }}
-                className={`flex items-center ${isCollapsed ? 'justify-center' : ''} p-3 rounded-lg transition-colors group relative ${isActive
-                  ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 font-bold'
-                  : 'hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400'
-                  }`}
+                className={`group relative flex items-center overflow-hidden p-3 transition-colors ${
+                  isCollapsed ? 'justify-center' : ''
+                } rounded-lg ${
+                  isActive
+                    ? 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 font-bold'
+                    : 'text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-700'
+                }`}
               >
-                <div className="relative">
+                <div
+                  className={`relative min-w-[22px] transition-transform duration-300 ${
+                    isCollapsed ? 'translate-x-0' : 'translate-x-1'
+                  }`}
+                >
                   <item.icon size={22} className={`min-w-[22px] ${isActive ? 'text-purple-600' : ''}`} />
                 </div>
-                {!isCollapsed && <span className="ml-4 font-medium">{item.name}</span>}
+                <div
+                  className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${
+                    isCollapsed ? 'ml-0 max-w-0 opacity-0 -translate-x-3' : 'ml-4 max-w-[11rem] opacity-100 translate-x-0'
+                  }`}
+                >
+                  <span className="block font-medium">{item.name}</span>
+                </div>
                 {!isCollapsed && isCurrentlyLoading && (
                   <Loader2 size={16} className="absolute right-3 animate-spin text-purple-500" />
                 )}
@@ -192,11 +220,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             ) : (
               <LogOut size={22} className="min-w-[22px]" />
             )}
-            {!isCollapsed && (
-              <span className="ml-4 font-medium">
+            <div
+              className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${
+                isCollapsed ? 'ml-0 max-w-0 opacity-0 -translate-x-3' : 'ml-4 max-w-[10rem] opacity-100 translate-x-0'
+              }`}
+            >
+              <span className="block font-medium">
                 {isLoggingOut ? 'Logging out...' : 'Logout'}
               </span>
-            )}
+            </div>
           </button>
         </div>
       </aside>

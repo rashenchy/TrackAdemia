@@ -5,6 +5,7 @@ import { Plus, Trash2, FileText, GraduationCap, Users, Calendar, Paperclip, Info
 import { SubmitButton } from '@/components/auth/SubmitButton'
 import { submitResearch } from '@/app/(main)/dashboard/submit/actions'
 import { updateResearch } from '@/app/(main)/dashboard/research/[id]/edit/actions'
+import { RESEARCH_TYPE_OPTIONS } from '@/lib/research-types'
 
 type FormState = {
   id?: string
@@ -286,12 +287,11 @@ export function ResearchSubmissionForm({
               }}
               className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer"
             >
-              <option value="capstone">Capstone Project</option>
-              <option value="case-study">Case Study</option>
-              <option value="dissertation">Dissertation</option>
-              <option value="research">General Research</option>
-              <option value="proposal">Research Proposal</option>
-              <option value="thesis">Thesis</option>
+              {RESEARCH_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
         </div>

@@ -29,6 +29,7 @@ import type {
 } from './types'
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899']
+const MIN_LABEL_PERCENT = 0.08
 
 interface AdminDashboardClientProps {
   metrics: AnalyticsMetrics
@@ -45,6 +46,8 @@ export default function AdminDashboardClient({
   topResearch,
   error,
 }: AdminDashboardClientProps) {
+  const pieChartData = typeData.filter((item) => item.count > 0)
+
   if (error) {
     return (
       <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-800 dark:text-red-300 flex items-center gap-3">
@@ -162,24 +165,34 @@ export default function AdminDashboardClient({
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
                   <Pie
-                    data={typeData}
+                    data={pieChartData}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
                     label={(props: { percent?: number; payload?: { type?: string } }) => {
                       const percent = props.percent ?? 0
+
+                      if (percent < MIN_LABEL_PERCENT) {
+                        return null
+                      }
+
                       const type = props.payload?.type ?? 'Unknown'
                       return `${type}: ${(percent * 100).toFixed(0)}%`
                     }}
+                    paddingAngle={pieChartData.length > 1 ? 2 : 0}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey="count"
                   >
-                    {typeData.map((entry, index) => (
+                    {pieChartData.map((entry, index) => (
                       <Cell key={`${entry.type}-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip
+                    formatter={(value: number, _name, entry: { payload?: ResearchTypeDistribution }) => [
+                      `${value} submission${value === 1 ? '' : 's'}`,
+                      entry.payload?.type ?? 'Type',
+                    ]}
                     contentStyle={{
                       backgroundColor: '#1f2937',
                       border: '1px solid #374151',
