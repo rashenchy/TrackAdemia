@@ -14,6 +14,7 @@ import {
   Sun,
   Moon,
   UserCircle,
+  IdCard,
   FilePlus,
   GraduationCap,
   AlertCircle,
@@ -35,7 +36,13 @@ export default function DashboardLayoutClient({
   const router = useRouter()
   const pathname = usePathname()
   const [isCollapsed, setIsCollapsed] = useState(false)
-  const [theme, setTheme] = useState('light')
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === 'undefined') {
+      return 'light'
+    }
+
+    return localStorage.getItem('theme') || 'light'
+  })
   const [isTeacher, setIsTeacher] = useState(false)
   const [isVerified, setIsVerified] = useState(false)
   const [isStudent, setIsStudent] = useState(false)
@@ -47,10 +54,18 @@ export default function DashboardLayoutClient({
   const [userRole, setUserRole] = useState('')
   const [unresolvedCount, setUnresolvedCount] = useState(0)
   const [resubmittedCount, setResubmittedCount] = useState(0)
+  const [notificationCount, setNotificationCount] = useState(0)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const profileRef = useRef<HTMLDivElement | null>(null)
   const isTeacherRef = useRef(false)
   const [supabase] = useState(() => createClient())
+  const studentAllowedPaths = ['/dashboard/repository', '/dashboard/profile', '/dashboard/settings']
+  const isStudentPendingApproval = isStudent && !isVerified
+  const isStudentAccessLocked =
+    isStudentPendingApproval &&
+    !studentAllowedPaths.some(
+      (allowedPath) => pathname === allowedPath || pathname.startsWith(`${allowedPath}/`)
+    )
 
   const handleLogout = async () => {
     if (isLoggingOut) return
@@ -85,13 +100,7 @@ export default function DashboardLayoutClient({
   }, [])
 
   useEffect(() => {
-    setPendingRoute(null)
-  }, [pathname])
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') || 'light'
-    setTheme(savedTheme)
-    document.documentElement.setAttribute('data-theme', savedTheme)
+    document.documentElement.setAttribute('data-theme', theme)
 
     const checkUserRole = async () => {
       const {
@@ -118,12 +127,12 @@ export default function DashboardLayoutClient({
         setIsVerified(profile.is_verified || false)
       } else if (profile?.role === 'student') {
         setIsStudent(true)
-        setIsVerified(true)
+        setIsVerified(profile.is_verified || false)
       }
     }
 
     checkUserRole()
-  }, [supabase])
+  }, [supabase, theme])
 
   useEffect(() => {
     const fetchCounts = async () => {
@@ -167,6 +176,16 @@ export default function DashboardLayoutClient({
           .eq('status', 'Resubmitted')
 
         setResubmittedCount(resubCount || 0)
+        setNotificationCount(0)
+      } else {
+        const { count: noticeCount } = await supabase
+          .from('user_notifications')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id)
+          .eq('is_read', false)
+          .eq('notification_type', 'section_removal')
+
+        setNotificationCount(noticeCount || 0)
       }
     }
 
@@ -217,6 +236,11 @@ export default function DashboardLayoutClient({
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'task_completions' },
+        fetchCounts
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'user_notifications' },
         fetchCounts
       )
       .subscribe()
@@ -286,9 +310,10 @@ export default function DashboardLayoutClient({
             const isActive = (pendingRoute || pathname) === item.href
             const isCurrentlyLoading = pendingRoute === item.href
             const isTaskBadge = item.name === 'Task Manager' && unresolvedCount > 0
-            const isHomeBadge = item.name === 'Home' && resubmittedCount > 0
+            const homeBadgeValue = isTeacher ? resubmittedCount : notificationCount
+            const isHomeBadge = item.name === 'Home' && homeBadgeValue > 0
             const hasBadge = isTaskBadge || isHomeBadge
-            const badgeValue = item.name === 'Home' ? resubmittedCount : unresolvedCount
+            const badgeValue = item.name === 'Home' ? homeBadgeValue : unresolvedCount
 
             return (
               <Link
@@ -391,6 +416,14 @@ export default function DashboardLayoutClient({
                       </p>
                     </div>
                     <div className="p-2">
+                      <Link
+                        href="/dashboard/profile"
+                        onClick={() => setIsProfileOpen(false)}
+                        className="mb-1 flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 transition-all hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                      >
+                        <IdCard size={16} />
+                        View Profile
+                      </Link>
                       <button
                         onClick={() => {
                           if (isLoggingOut) return
@@ -426,7 +459,46 @@ export default function DashboardLayoutClient({
           </div>
         )}
 
-        <main className="flex-1 overflow-y-auto p-8 relative">{children}</main>
+        {isStudentPendingApproval && (
+          <div className="flex items-center justify-center gap-2 border-b border-blue-200 bg-blue-50 p-3 text-center text-sm font-medium text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
+            <AlertCircle size={16} />
+            Your student account is awaiting admin approval. Repository access stays available while the rest of the academic workspace is on hold.
+          </div>
+        )}
+
+        <main className="flex-1 overflow-y-auto p-8 relative">
+          {children}
+
+          {isStudentAccessLocked && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-[color:color-mix(in_srgb,var(--background)_84%,white_16%)]/95 p-6 backdrop-blur-sm">
+              <div className="w-full max-w-2xl rounded-[1.75rem] border border-blue-200 bg-white p-8 text-center shadow-xl dark:border-blue-900/40 dark:bg-gray-950">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                  <AlertCircle size={28} />
+                </div>
+                <h2 className="mt-5 text-2xl font-black tracking-tight text-slate-950 dark:text-white">
+                  Approval Pending
+                </h2>
+                <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
+                  Your student account is still being reviewed by an administrator. You can explore the repository now, and the rest of the workspace will unlock automatically after approval.
+                </p>
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+                  <Link
+                    href="/dashboard/repository"
+                    className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-700"
+                  >
+                    Open Repository
+                  </Link>
+                  <Link
+                    href="/dashboard/profile"
+                    className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
+                  >
+                    View Profile
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
       </div>
 
       {showLogoutConfirm && (

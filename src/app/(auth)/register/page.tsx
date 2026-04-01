@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { CheckCircle2, GraduationCap, Sparkles, Users } from 'lucide-react'
 import { signup } from '../login/actions'
 import { PasswordField } from '@/components/auth/PasswordField'
+import { RegistrationIdentityFields } from '@/components/auth/RegistrationIdentityFields'
 import { SubmitButton } from '@/components/auth/SubmitButton'
 
 export default async function RegisterPage({
@@ -128,17 +129,7 @@ export default async function RegisterPage({
             )}
 
             <div className="grid gap-5">
-              <div className="flex flex-col gap-2">
-                <label className="text-sm font-semibold text-slate-700">I am a</label>
-                <select
-                  name="role"
-                  required
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-slate-900 outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                >
-                  <option value="student">Student</option>
-                  <option value="mentor">Teacher / Adviser</option>
-                </select>
-              </div>
+              <RegistrationIdentityFields />
 
               <div className="grid gap-5 md:grid-cols-3">
                 <div className="flex flex-col gap-2">

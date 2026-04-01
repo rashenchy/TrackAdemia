@@ -1,28 +1,223 @@
-'use client'
+import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import type { ReactNode } from 'react'
+import {
+  BellRing,
+  BookOpen,
+  CircleHelp,
+  FolderKanban,
+  IdCard,
+  LifeBuoy,
+  LogIn,
+  Mail,
+  ShieldCheck,
+} from 'lucide-react'
+import { createClient } from '@/lib/supabase/server'
 
-import { Sun, Moon } from 'lucide-react'
+export default async function SettingsPage() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-export default function SettingsPage() {
+  if (!user) {
+    redirect('/login')
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('first_name, last_name, course_program, role, is_verified, student_number')
+    .eq('id', user.id)
+    .single()
+
+  const roleLabel =
+    profile?.role === 'mentor'
+      ? 'Teacher / Adviser'
+      : profile?.role === 'admin'
+        ? 'Administrator'
+        : 'Student'
+
   return (
-    <div className="max-w-2xl">
-      <h1 className="text-2xl font-bold mb-6">Settings</h1>
-      
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-6 shadow-sm">
-        <h2 className="text-lg font-semibold mb-4">Appearance</h2>
-        <div className="flex items-center justify-between py-4 border-b border-gray-100 dark:border-gray-800">
-          <div>
-            <p className="font-medium">Theme Mode</p>
-            <p className="text-sm text-gray-500">Switch between light and dark display</p>
-          </div>
-          <div className="flex gap-2">
-            <button className="flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
-              <Sun size={18} /> Light
-            </button>
-            <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white">
-              <Moon size={18} /> Dark
-            </button>
+    <div className="mx-auto max-w-5xl space-y-6">
+      <section className="rounded-[1.75rem] border border-slate-200 bg-[linear-gradient(135deg,#ffffff_0%,#eff6ff_55%,#fff8dc_100%)] p-6 shadow-sm">
+        <p className="text-sm font-bold uppercase tracking-[0.24em] text-blue-700">Settings</p>
+        <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950">
+          Account tools and helpful shortcuts
+        </h1>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+          This area now focuses on useful account information and quick actions instead of the duplicate theme switch.
+        </p>
+      </section>
+
+      <section className="grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
+        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-slate-950">Account Snapshot</h2>
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <InfoTile
+              icon={<Mail size={18} className="text-blue-600" />}
+              label="Email"
+              value={user.email || 'No email available'}
+            />
+            <InfoTile
+              icon={<ShieldCheck size={18} className="text-emerald-600" />}
+              label="Role"
+              value={roleLabel}
+            />
+            <InfoTile
+              icon={<BookOpen size={18} className="text-amber-600" />}
+              label="Course / Program"
+              value={profile?.course_program || 'Not set'}
+            />
+            <InfoTile
+              icon={<IdCard size={18} className="text-violet-600" />}
+              label="Student Number"
+              value={profile?.student_number || 'Not assigned'}
+            />
           </div>
         </div>
+
+        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-slate-950">Quick Links</h2>
+          <div className="mt-5 space-y-3">
+            <ShortcutLink
+              href="/dashboard/profile"
+              icon={<IdCard size={18} className="text-blue-600" />}
+              title="View profile"
+              description="See your full account details and academic identity."
+            />
+            <ShortcutLink
+              href="/dashboard/tasks"
+              icon={<FolderKanban size={18} className="text-emerald-600" />}
+              title="Open task manager"
+              description="Catch unresolved work and deadlines faster."
+            />
+            <ShortcutLink
+              href="/dashboard/submit"
+              icon={<LogIn size={18} className="text-amber-600" />}
+              title="Go to submissions"
+              description="Start or continue your research workflow."
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-6 md:grid-cols-2">
+        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-slate-950">Helpful Reminders</h2>
+          <div className="mt-5 space-y-4">
+            <HelpRow
+              icon={<BellRing size={18} className="text-blue-600" />}
+              title="Keep task notifications enabled"
+              description="Your top bar already surfaces updates, so checking tasks regularly helps you catch revisions and new assignments quickly."
+            />
+            <HelpRow
+              icon={<ShieldCheck size={18} className="text-emerald-600" />}
+              title="Verification matters for faculty"
+              description={
+                profile?.role === 'mentor' && !profile?.is_verified
+                  ? 'Your account is still pending verification. An administrator needs to approve it before full faculty tools unlock.'
+                  : 'Your current account status looks good and your access is active.'
+              }
+            />
+            <HelpRow
+              icon={<CircleHelp size={18} className="text-amber-600" />}
+              title="Profile details stay important"
+              description="Accurate names, course information, and student number formatting help keep sections, submissions, and records consistent."
+            />
+          </div>
+        </div>
+
+        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-bold text-slate-950">Need Support?</h2>
+          <div className="mt-5 space-y-4">
+            <HelpRow
+              icon={<LifeBuoy size={18} className="text-blue-600" />}
+              title="Start with your profile"
+              description="If something looks wrong in your account information, review it in the profile page before continuing with submissions or section work."
+            />
+            <HelpRow
+              icon={<Mail size={18} className="text-emerald-600" />}
+              title="Use your account email consistently"
+              description="Sticking to one institutional email helps avoid confusion during verification, task assignment, and document tracking."
+            />
+            <HelpRow
+              icon={<BookOpen size={18} className="text-amber-600" />}
+              title="Check repository and tasks often"
+              description="Those pages give the clearest view of active work, follow-ups, and published outputs tied to your account."
+            />
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function InfoTile({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode
+  label: string
+  value: string
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50/85 p-4">
+      <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+        {icon}
+        {label}
+      </div>
+      <p className="mt-2 break-words text-base font-bold text-slate-950">{value}</p>
+    </div>
+  )
+}
+
+function ShortcutLink({
+  href,
+  icon,
+  title,
+  description,
+}: {
+  href: string
+  icon: ReactNode
+  title: string
+  description: string
+}) {
+  return (
+    <Link
+      href={href}
+      className="block rounded-2xl border border-slate-200 bg-slate-50/80 p-4 transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white"
+    >
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm">
+          {icon}
+        </div>
+        <div>
+          <p className="font-semibold text-slate-950">{title}</p>
+          <p className="text-sm leading-6 text-slate-600">{description}</p>
+        </div>
+      </div>
+    </Link>
+  )
+}
+
+function HelpRow({
+  icon,
+  title,
+  description,
+}: {
+  icon: ReactNode
+  title: string
+  description: string
+}) {
+  return (
+    <div className="flex gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+      <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
+        {icon}
+      </div>
+      <div>
+        <p className="font-semibold text-slate-950">{title}</p>
+        <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
       </div>
     </div>
   )

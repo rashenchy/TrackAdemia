@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { isValidStudentNumber, normalizeStudentNumber } from '@/lib/student-number'
 
 
 export async function login(formData: FormData) {
@@ -68,11 +69,21 @@ export async function signup(formData: FormData) {
   const lastName = formData.get('lastName') as string
   const course = formData.get('course') as string
   const role = formData.get('role') as string || 'student'
+  const rawStudentNumber = (formData.get('studentNumber') as string | null) ?? ''
+  const studentNumber = normalizeStudentNumber(rawStudentNumber)
 
 
-  // Determine if the account should start as verified
-  // Students are verified immediately while mentors require admin approval
-  const isVerified = role === 'student'
+  // All non-admin accounts require admin approval before full access
+  const isVerified = false
+
+  if (role === 'student' && !isValidStudentNumber(studentNumber)) {
+    redirect(
+      '/register?error=' +
+        encodeURIComponent(
+          'Student number must follow the format ATC2023-00014.'
+        )
+    )
+  }
 
 
   // Create a new Supabase authentication account and store additional profile metadata
@@ -86,7 +97,8 @@ export async function signup(formData: FormData) {
         last_name: lastName,
         course_program: course,
         role: role,
-        is_verified: isVerified
+        is_verified: isVerified,
+        student_number: role === 'student' ? studentNumber : null,
       }
     }
   })
@@ -102,7 +114,7 @@ export async function signup(formData: FormData) {
   const successMsg =
     role === 'mentor'
       ? 'Account created! Faculty accounts require admin verification before full access.'
-      : 'Account created! You can now sign in.'
+      : 'Account created! Student accounts require admin approval before full access. You can still sign in and use the repository while approval is pending.'
 
 
   // Redirect user to login page with success confirmation message

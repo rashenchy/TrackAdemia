@@ -6,7 +6,10 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 
 // Create a new class section (Teacher)
-export async function createSection(prevState: any, formData: FormData) {
+export async function createSection(
+  _prevState: { error?: string } | null,
+  formData: FormData
+) {
   const supabase = await createClient()
 
   // Ensure user is authenticated
@@ -37,7 +40,13 @@ export async function createSection(prevState: any, formData: FormData) {
 
 
 // Join an existing section using a join code
-export async function joinSection(prevState: any, formData: FormData) {
+export async function joinSection(
+  _prevState: {
+    error?: string
+    previewSection?: { id: string; name: string; is_frozen: boolean }
+  } | null,
+  formData: FormData
+) {
   const supabase = await createClient()
 
   // Ensure user is authenticated
@@ -174,43 +183,59 @@ export async function toggleSectionFreeze(sectionId: string, currentStatus: bool
 }
 
 
-// Ban or unban a student in the section
-export async function updateStudentStatus(
-  sectionId: string,
-  studentId: string,
-  status: 'banned' | 'active'
-) {
+// Permanently remove a student from the section
+export async function removeStudent(sectionId: string, studentId: string, reason: string) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const { error } = await supabase
-    .from('section_members')
-    .update({ status: status })
-    .eq('section_id', sectionId)
-    .eq('user_id', studentId)
-
-  if (error) {
-    return { error: `Failed to ${status === 'banned' ? 'ban' : 'unban'} student.` }
+  if (!user) {
+    return { error: 'You must be logged in to remove a student.' }
   }
 
-  revalidatePath('/dashboard/sections')
+  const trimmedReason = reason.trim()
 
-  return { success: `Student ${status}.` }
-}
+  if (!trimmedReason) {
+    return { error: 'A removal reason is required.' }
+  }
 
+  const { data: section } = await supabase
+    .from('sections')
+    .select('id, name, teacher_id')
+    .eq('id', sectionId)
+    .maybeSingle()
 
-// Permanently remove a student from the section
-export async function removeStudent(sectionId: string, studentId: string) {
-  const supabase = await createClient()
+  if (!section || section.teacher_id !== user.id) {
+    return { error: 'You are not allowed to remove students from this section.' }
+  }
 
   const { error } = await supabase
     .from('section_members')
     .delete()
     .eq('section_id', sectionId)
     .eq('user_id', studentId)
+    .eq('role', 'student')
 
   if (error) return { error: 'Failed to remove student.' }
 
+  const { error: notificationError } = await supabase
+    .from('user_notifications')
+    .insert({
+      user_id: studentId,
+      actor_id: user.id,
+      section_id: sectionId,
+      notification_type: 'section_removal',
+      title: `Removed from ${section.name}`,
+      message: `You were removed from ${section.name}. Reason: ${trimmedReason}`,
+      reason: trimmedReason,
+      is_read: false,
+    })
+
+  if (notificationError) {
+    return { error: 'Student was removed, but the notification could not be created.' }
+  }
+
   revalidatePath('/dashboard/sections')
+  revalidatePath('/dashboard')
 
   return { success: 'Student completely removed from section.' }
 }

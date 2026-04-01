@@ -30,7 +30,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // State initialization
   const [isCollapsed, setIsCollapsed] = useState(false)
-  const [theme, setTheme] = useState('light')
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === 'undefined') {
+      return 'light'
+    }
+
+    return localStorage.getItem('theme') || 'light'
+  })
   const [pendingRoute, setPendingRoute] = useState<string | null>(null)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -78,16 +84,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Clear pending state on navigation
-  useEffect(() => {
-    setPendingRoute(null)
-  }, [pathname])
-
   // Theme synchronization and user info
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') || 'light'
-    setTheme(savedTheme)
-    document.documentElement.setAttribute('data-theme', savedTheme)
+    document.documentElement.setAttribute('data-theme', theme)
 
     const checkUserRole = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -106,7 +105,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     }
     checkUserRole()
-  }, [supabase])
+  }, [supabase, theme])
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light'
@@ -120,6 +119,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Overview', href: '/admin', icon: Shield },
     { name: 'View as User', href: '/admin/view-as-user', icon: Users },
     { name: 'Faculty Approval', href: '/admin/faculty-approval', icon: Users },
+    { name: 'Student Verification', href: '/admin/student-verification', icon: Users },
     { name: 'User Management', href: '/admin/users', icon: Users },
     { name: 'Master Records', href: '/admin/master-records', icon: Database },
     { name: 'Reports', href: '/admin/reports', icon: BarChart },

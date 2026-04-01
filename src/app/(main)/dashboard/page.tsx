@@ -1,53 +1,78 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { SubmissionsTable } from '@/components/dashboard/SubmissionsTable'
-import { AlertCircle, CheckCircle2, Info, LayoutGrid, Megaphone, TriangleAlert } from 'lucide-react'
+import {
+  AlertCircle,
+  BellRing,
+  CheckCircle2,
+  Info,
+  LayoutGrid,
+  Megaphone,
+  TriangleAlert,
+  UserMinus,
+} from 'lucide-react'
 import Link from 'next/link'
 import RotatingQuote from '@/components/dashboard/RotatingQuote'
 import { getActiveAnnouncements } from '@/app/(admin)/admin/announcements/actions'
 
-export default async function DashboardPage({
-  searchParams
-}: {
-  searchParams: Promise<{ success?: string, section?: string }>
-}) {
+type DashboardSubmission = {
+  id: string
+  user_id: string
+  subject_code?: string | null
+  unresolved_feedback_count?: number
+  [key: string]: unknown
+}
 
-  // Resolve query parameters from the URL
+type TeacherSection = {
+  id: string
+  name: string
+  course_code?: string | null
+  [key: string]: unknown
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ success?: string; section?: string }>
+}) {
   const resolvedSearchParams = await searchParams
   const successMessage = resolvedSearchParams.success
   const activeSectionId = resolvedSearchParams.section
 
-  // Initialize Supabase and verify authentication
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   if (!user) {
     redirect('/login')
   }
 
-  // Fetch the user's profile to determine role and display name
   const { data: profile } = await supabase
     .from('profiles')
     .select('role, first_name')
     .eq('id', user.id)
     .single()
 
-  // Redirect admins to the admin dashboard
   if (profile?.role === 'admin') {
     redirect('/admin')
   }
 
   const activeAnnouncements = await getActiveAnnouncements()
 
-  let displaySubmissions: any[] = []
-  let teacherSections: any[] = []
+  let displaySubmissions: DashboardSubmission[] = []
+  let teacherSections: TeacherSection[] = []
+  let sectionRemovalNotifications: Array<{
+    id: string
+    title: string
+    message: string
+    reason: string | null
+    created_at: string
+  }> = []
 
   const isTeacher = profile?.role === 'mentor'
 
-  // Teacher dashboard logic
   if (isTeacher) {
-
-    // Fetch sections managed by the teacher
     const { data: sections } = await supabase
       .from('sections')
       .select('*')
@@ -56,85 +81,71 @@ export default async function DashboardPage({
 
     teacherSections = sections || []
 
-    // If the teacher manages sections, fetch student submissions
     if (teacherSections.length > 0) {
+      const sectionIds = teacherSections.map((section) => section.id)
 
-      const sectionIds = teacherSections.map(s => s.id)
-
-      // Fetch section membership records
       const { data: members } = await supabase
         .from('section_members')
         .select('section_id, user_id')
         .in('section_id', sectionIds)
 
-      // Extract unique student IDs
-      const studentIds = [...new Set(members?.map(m => m.user_id) || [])]
+      const studentIds = [...new Set(members?.map((member) => member.user_id) || [])]
 
       if (studentIds.length > 0) {
-
-        // Fetch student research and profile data in parallel
         const [researchRes, profilesRes] = await Promise.all([
           supabase
             .from('research')
             .select('*')
             .in('user_id', studentIds)
             .order('created_at', { ascending: false }),
-
           supabase
             .from('profiles')
             .select('id, first_name, last_name')
-            .in('id', studentIds)
+            .in('id', studentIds),
         ])
 
         const studentResearch = researchRes.data || []
         const studentProfiles = profilesRes.data || []
+        const mappedSubmissions: DashboardSubmission[] = []
 
-        // Map submissions to their respective sections and authors
-        const mappedSubmissions: any[] = []
-
-        studentResearch.forEach(res => {
-
+        studentResearch.forEach((research) => {
           const studentMemberships =
-            members?.filter(m => m.user_id === res.user_id) || []
+            members?.filter((member) => member.user_id === research.user_id) || []
 
           let matchedSectionId = null
 
-          // Match research to a section using course code
-          for (const mem of studentMemberships) {
+          for (const membership of studentMemberships) {
+            const section = teacherSections.find((item) => item.id === membership.section_id)
 
-            const sec = teacherSections.find(s => s.id === mem.section_id)
-
-            if (sec && sec.course_code === res.subject_code) {
-              matchedSectionId = sec.id
+            if (section && section.course_code === research.subject_code) {
+              matchedSectionId = section.id
               break
             }
           }
 
-          // Fallback to first membership if no exact course match
           if (!matchedSectionId && studentMemberships.length > 0) {
             matchedSectionId = studentMemberships[0].section_id
           }
 
           if (matchedSectionId) {
-
-            const sec = teacherSections.find(s => s.id === matchedSectionId)
-            const author = studentProfiles.find(p => p.id === res.user_id)
+            const section = teacherSections.find((item) => item.id === matchedSectionId)
+            const author = studentProfiles.find((item) => item.id === research.user_id)
 
             mappedSubmissions.push({
-              ...res,
+              ...research,
               section_id: matchedSectionId,
-              section_name: sec?.name,
+              section_name: section?.name,
               author_name: author
                 ? `${author.first_name} ${author.last_name}`
-                : 'Unknown Student'
+                : 'Unknown Student',
             })
           }
         })
 
-        // Apply section filter if selected
         if (activeSectionId && activeSectionId !== 'all') {
-          displaySubmissions =
-            mappedSubmissions.filter(s => s.section_id === activeSectionId)
+          displaySubmissions = mappedSubmissions.filter(
+            (submission) => submission.section_id === activeSectionId
+          )
         } else {
           displaySubmissions = mappedSubmissions
         }
@@ -156,7 +167,7 @@ export default async function DashboardPage({
         .in('id', adviseeIds)
 
       const mappedAdviseeResearch = adviseeResearch.map((item) => {
-        const author = adviseeProfiles?.find((profile) => profile.id === item.user_id)
+        const author = adviseeProfiles?.find((profileItem) => profileItem.id === item.user_id)
 
         return {
           ...item,
@@ -164,7 +175,7 @@ export default async function DashboardPage({
           section_name: 'Adviser Access',
           author_name: author
             ? `${author.first_name} ${author.last_name}`
-            : 'Unknown Student'
+            : 'Unknown Student',
         }
       })
 
@@ -172,18 +183,37 @@ export default async function DashboardPage({
         ...displaySubmissions,
         ...mappedAdviseeResearch.filter(
           (item) => !displaySubmissions.some((existing) => existing.id === item.id)
-        )
+        ),
       ]
 
       displaySubmissions =
         activeSectionId && activeSectionId !== 'all'
-          ? mergedSubmissions.filter(s => s.section_id === activeSectionId)
+          ? mergedSubmissions.filter((submission) => submission.section_id === activeSectionId)
           : mergedSubmissions
     }
-
   } else {
+    const { data: notifications } = await supabase
+      .from('user_notifications')
+      .select('id, title, message, reason, created_at, is_read')
+      .eq('user_id', user.id)
+      .eq('notification_type', 'section_removal')
+      .order('created_at', { ascending: false })
+      .limit(6)
 
-    // Student dashboard logic: fetch their own research submissions
+    sectionRemovalNotifications = notifications || []
+
+    const unreadNotificationIds = (notifications || [])
+      .filter((item) => !item.is_read)
+      .map((item) => item.id)
+
+    if (unreadNotificationIds.length > 0) {
+      await supabase
+        .from('user_notifications')
+        .update({ is_read: true })
+        .eq('user_id', user.id)
+        .in('id', unreadNotificationIds)
+    }
+
     const { data: submissions } = await supabase
       .from('research')
       .select('*')
@@ -193,38 +223,31 @@ export default async function DashboardPage({
     displaySubmissions = submissions || []
   }
 
-  // Fetch annotation feedback counts for displayed submissions
   if (displaySubmissions.length > 0) {
-
-    const submissionIds = displaySubmissions.map(s => s.id)
+    const submissionIds = displaySubmissions.map((submission) => submission.id)
 
     const { data: annotations } = await supabase
       .from('annotations')
       .select('research_id, is_resolved')
       .in('research_id', submissionIds)
 
-    // Attach unresolved annotation counts to each submission
-    displaySubmissions = displaySubmissions.map(sub => {
-
+    displaySubmissions = displaySubmissions.map((submission) => {
       const relatedAnnotations =
-        annotations?.filter(a => a.research_id === sub.id) || []
-
-      const unresolvedCount =
-        relatedAnnotations.filter(a => !a.is_resolved).length
+        annotations?.filter((annotation) => annotation.research_id === submission.id) || []
 
       return {
-        ...sub,
-        unresolved_feedback_count: unresolvedCount
+        ...submission,
+        unresolved_feedback_count: relatedAnnotations.filter(
+          (annotation) => !annotation.is_resolved
+        ).length,
       }
     })
   }
 
-  // Render the dashboard UI
   return (
     <div className="space-y-8">
-
       {successMessage && (
-        <div className="flex items-center gap-2 p-4 mb-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-xl animate-in fade-in slide-in-from-top-2">
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700 animate-in fade-in slide-in-from-top-2">
           <CheckCircle2 size={18} />
           {successMessage}
         </div>
@@ -236,6 +259,53 @@ export default async function DashboardPage({
         </h1>
         <RotatingQuote />
       </div>
+
+      {!isTeacher && sectionRemovalNotifications.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-gray-500">
+            <BellRing size={16} />
+            Notifications
+          </div>
+
+          <div className="space-y-3">
+            {sectionRemovalNotifications.map((notification) => (
+              <div
+                key={notification.id}
+                className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-900 shadow-sm dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5">
+                    <UserMinus size={18} className="text-red-600 dark:text-red-300" />
+                  </div>
+
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-red-700 dark:bg-red-900/70 dark:text-red-200">
+                        section removal
+                      </span>
+                      <span className="text-xs opacity-70">
+                        {new Date(notification.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h2 className="text-lg font-bold">{notification.title}</h2>
+                      <p className="mt-1 whitespace-pre-wrap text-sm leading-6 opacity-90">
+                        {notification.message}
+                      </p>
+                      {notification.reason && (
+                        <p className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-sm font-medium text-red-800 dark:bg-black/20 dark:text-red-100">
+                          Reason: {notification.reason}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {activeAnnouncements.length > 0 && (
         <div className="space-y-4">
@@ -319,35 +389,33 @@ export default async function DashboardPage({
 
       {isTeacher && teacherSections.length > 0 && (
         <div className="space-y-3">
-
-          <h3 className="text-sm font-bold uppercase text-gray-500 flex items-center gap-2">
+          <h3 className="flex items-center gap-2 text-sm font-bold uppercase text-gray-500">
             <LayoutGrid size={16} /> Filter by Section
           </h3>
 
           <div className="flex flex-wrap gap-2">
-
             <Link
               href="/dashboard"
-              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${
+              className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-all ${
                 !activeSectionId || activeSectionId === 'all'
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200 dark:shadow-none'
-                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                  ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-none'
+                  : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:bg-blue-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-blue-900/20'
               }`}
             >
               All Sections
             </Link>
 
-            {teacherSections.map(sec => (
+            {teacherSections.map((section) => (
               <Link
-                key={sec.id}
-                href={`/dashboard?section=${sec.id}`}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all border ${
-                  activeSectionId === sec.id
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-200 dark:shadow-none'
-                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20'
+                key={section.id}
+                href={`/dashboard?section=${section.id}`}
+                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-all ${
+                  activeSectionId === section.id
+                    ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-none'
+                    : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:bg-blue-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-blue-900/20'
                 }`}
               >
-                {sec.name}
+                {section.name}
               </Link>
             ))}
           </div>
@@ -355,16 +423,14 @@ export default async function DashboardPage({
       )}
 
       <div className="space-y-6">
-
-        <h2 className="text-xl font-bold flex items-center gap-2">
+        <h2 className="flex items-center gap-2 text-xl font-bold">
           {isTeacher ? 'Student Submissions' : 'My Submissions'}
-          <span className="text-xs font-normal bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full text-gray-500">
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-normal text-gray-500 dark:bg-gray-800">
             {displaySubmissions?.length || 0}
           </span>
         </h2>
 
         <SubmissionsTable submissions={displaySubmissions || []} />
-
       </div>
     </div>
   )
