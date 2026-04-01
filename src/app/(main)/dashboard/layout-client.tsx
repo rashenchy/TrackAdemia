@@ -6,7 +6,9 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { stopViewAsUser } from '@/app/(admin)/admin/view-as-user/actions'
 import {
+  ArrowLeft,
   Menu,
   Home,
   Settings,
@@ -30,8 +32,18 @@ import {
 
 export default function DashboardLayoutClient({
   children,
+  previewMode = null,
+  previewDisplayName = '',
+  previewRole = '',
+  previewIsVerified = false,
+  isAdminPreview = false,
 }: {
   children: React.ReactNode
+  previewMode?: 'mentor' | 'student' | 'student-pending' | null
+  previewDisplayName?: string
+  previewRole?: string
+  previewIsVerified?: boolean
+  isAdminPreview?: boolean
 }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -43,15 +55,15 @@ export default function DashboardLayoutClient({
 
     return localStorage.getItem('theme') || 'light'
   })
-  const [isTeacher, setIsTeacher] = useState(false)
-  const [isVerified, setIsVerified] = useState(false)
-  const [isStudent, setIsStudent] = useState(false)
+  const [isTeacher, setIsTeacher] = useState(previewRole === 'mentor')
+  const [isVerified, setIsVerified] = useState(previewIsVerified)
+  const [isStudent, setIsStudent] = useState(previewRole === 'student')
   const [pendingRoute, setPendingRoute] = useState<string | null>(null)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
-  const [userName, setUserName] = useState('')
-  const [userRole, setUserRole] = useState('')
+  const [userName, setUserName] = useState(previewDisplayName)
+  const [userRole, setUserRole] = useState(previewRole)
   const [unresolvedCount, setUnresolvedCount] = useState(0)
   const [resubmittedCount, setResubmittedCount] = useState(0)
   const [notificationCount, setNotificationCount] = useState(0)
@@ -59,8 +71,16 @@ export default function DashboardLayoutClient({
   const profileRef = useRef<HTMLDivElement | null>(null)
   const isTeacherRef = useRef(false)
   const [supabase] = useState(() => createClient())
+  const effectiveUserName = isAdminPreview ? previewDisplayName : userName
+  const effectiveUserRole = isAdminPreview ? previewRole : userRole
+  const effectiveIsTeacher = isAdminPreview ? previewRole === 'mentor' : isTeacher
+  const effectiveIsStudent = isAdminPreview ? previewRole === 'student' : isStudent
+  const effectiveIsVerified = isAdminPreview ? previewIsVerified : isVerified
+  const effectiveUnresolvedCount = isAdminPreview ? 0 : unresolvedCount
+  const effectiveResubmittedCount = isAdminPreview ? 0 : resubmittedCount
+  const effectiveNotificationCount = isAdminPreview ? 0 : notificationCount
   const studentAllowedPaths = ['/dashboard/repository', '/dashboard/profile', '/dashboard/settings']
-  const isStudentPendingApproval = isStudent && !isVerified
+  const isStudentPendingApproval = effectiveIsStudent && !effectiveIsVerified
   const isStudentAccessLocked =
     isStudentPendingApproval &&
     !studentAllowedPaths.some(
@@ -102,6 +122,11 @@ export default function DashboardLayoutClient({
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
 
+    if (isAdminPreview) {
+      isTeacherRef.current = previewRole === 'mentor'
+      return
+    }
+
     const checkUserRole = async () => {
       const {
         data: { user },
@@ -132,9 +157,11 @@ export default function DashboardLayoutClient({
     }
 
     checkUserRole()
-  }, [supabase, theme])
+  }, [isAdminPreview, previewRole, supabase, theme])
 
   useEffect(() => {
+    if (isAdminPreview) return
+
     const fetchCounts = async () => {
       const {
         data: { user },
@@ -248,7 +275,7 @@ export default function DashboardLayoutClient({
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [supabase, router])
+  }, [isAdminPreview, supabase, router])
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light'
@@ -257,14 +284,14 @@ export default function DashboardLayoutClient({
     document.documentElement.setAttribute('data-theme', newTheme)
   }
 
-  const navItems = [
+    const navItems = [
     { name: 'Home', href: '/dashboard', icon: Home },
     { name: 'Submit Research', href: '/dashboard/submit', icon: FilePlus },
     { name: 'Task Manager', href: '/dashboard/tasks', icon: CheckSquare },
-    ...((isTeacher && isVerified) || isStudent
+    ...((effectiveIsTeacher && effectiveIsVerified) || effectiveIsStudent
       ? [
           {
-            name: isTeacher ? 'Manage Sections' : 'My Sections',
+            name: effectiveIsTeacher ? 'Manage Sections' : 'My Sections',
             href: '/dashboard/sections',
             icon: GraduationCap,
           },
@@ -277,6 +304,12 @@ export default function DashboardLayoutClient({
   ]
 
   if (userRole === 'admin') {
+    if (!isAdminPreview) {
+      return <>{children}</>
+    }
+  }
+
+  if (effectiveUserRole === 'admin' && !isAdminPreview) {
     return <>{children}</>
   }
 
@@ -319,11 +352,13 @@ export default function DashboardLayoutClient({
           {navItems.map((item) => {
             const isActive = (pendingRoute || pathname) === item.href
             const isCurrentlyLoading = pendingRoute === item.href
-            const isTaskBadge = item.name === 'Task Manager' && unresolvedCount > 0
-            const homeBadgeValue = isTeacher ? resubmittedCount : notificationCount
+            const isTaskBadge = item.name === 'Task Manager' && effectiveUnresolvedCount > 0
+            const homeBadgeValue = effectiveIsTeacher
+              ? effectiveResubmittedCount
+              : effectiveNotificationCount
             const isHomeBadge = item.name === 'Home' && homeBadgeValue > 0
             const hasBadge = isTaskBadge || isHomeBadge
-            const badgeValue = item.name === 'Home' ? homeBadgeValue : unresolvedCount
+            const badgeValue = item.name === 'Home' ? homeBadgeValue : effectiveUnresolvedCount
 
             return (
               <Link
@@ -402,9 +437,27 @@ export default function DashboardLayoutClient({
 
       <div className="flex-1 flex flex-col overflow-hidden bg-[var(--background)]">
         <header className="h-16 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-6 bg-[var(--background)]">
-          <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-            TrackAdemia
-          </h1>
+          <div className="flex items-center gap-3">
+            {isAdminPreview && (
+              <button
+                onClick={() => stopViewAsUser()}
+                className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200 dark:hover:bg-blue-950/50"
+              >
+                <ArrowLeft size={16} />
+                Return to Admin
+              </button>
+            )}
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+                TrackAdemia
+              </h1>
+              {isAdminPreview && (
+                <p className="text-xs font-medium uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
+                  Previewing {previewMode === 'mentor' ? 'teacher' : previewMode === 'student-pending' ? 'unapproved student' : 'student'} mode
+                </p>
+              )}
+            </div>
+          </div>
 
           <div className="flex items-center gap-4">
             <button
@@ -439,10 +492,12 @@ export default function DashboardLayoutClient({
                   <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-800 z-50">
                     <div className="p-4 border-b border-gray-100 dark:border-gray-800">
                       <p className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
-                        {userName || 'Loading...'}
+                        {effectiveUserName || 'Loading...'}
                       </p>
                       <p className="text-xs text-gray-500 capitalize mt-0.5">
-                        {userRole === 'mentor' ? 'Teacher / Adviser' : userRole || 'User'}
+                        {effectiveUserRole === 'mentor'
+                          ? 'Teacher / Adviser'
+                          : effectiveUserRole || 'User'}
                       </p>
                     </div>
                     <div className="p-2">
@@ -482,7 +537,7 @@ export default function DashboardLayoutClient({
           </div>
         </header>
 
-        {isTeacher && !isVerified && (
+        {effectiveIsTeacher && !effectiveIsVerified && (
           <div className="flex items-center justify-center gap-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 p-3 text-amber-800 dark:text-amber-400 text-sm font-medium">
             <AlertCircle size={16} />
             Your faculty account is pending verification by an administrator.

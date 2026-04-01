@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import type { ReactNode } from 'react'
 import {
   BellRing,
@@ -13,6 +14,11 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import {
+  ADMIN_VIEW_COOKIE,
+  getAdminViewMeta,
+  isAdminViewMode,
+} from '@/lib/admin-view-mode'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -30,8 +36,18 @@ export default async function SettingsPage() {
     .eq('id', user.id)
     .single()
 
+  const cookieStore = await cookies()
+  const previewCookie = cookieStore.get(ADMIN_VIEW_COOKIE)?.value
+  const adminPreviewMode = isAdminViewMode(previewCookie) ? previewCookie : null
+  const previewMeta = adminPreviewMode ? getAdminViewMeta(adminPreviewMode) : null
+  const isAdminPreview = profile?.role === 'admin' && Boolean(previewMeta)
+
   const roleLabel =
-    profile?.role === 'mentor'
+    isAdminPreview
+      ? previewMeta?.role === 'mentor'
+        ? 'Teacher / Adviser'
+        : 'Student'
+      : profile?.role === 'mentor'
       ? 'Teacher / Adviser'
       : profile?.role === 'admin'
         ? 'Administrator'
@@ -56,7 +72,7 @@ export default async function SettingsPage() {
             <InfoTile
               icon={<Mail size={18} className="text-blue-600" />}
               label="Email"
-              value={user.email || 'No email available'}
+              value={isAdminPreview ? 'preview@trackademia.local' : user.email || 'No email available'}
             />
             <InfoTile
               icon={<ShieldCheck size={18} className="text-emerald-600" />}
@@ -66,12 +82,18 @@ export default async function SettingsPage() {
             <InfoTile
               icon={<BookOpen size={18} className="text-amber-600" />}
               label="Course / Program"
-              value={profile?.course_program || 'Not set'}
+              value={isAdminPreview ? 'Preview Program' : profile?.course_program || 'Not set'}
             />
             <InfoTile
               icon={<IdCard size={18} className="text-violet-600" />}
               label="Student Number"
-              value={profile?.student_number || 'Not assigned'}
+              value={
+                isAdminPreview
+                  ? previewMeta?.role === 'student'
+                    ? 'ATC2023-00014'
+                    : 'Not assigned'
+                  : profile?.student_number || 'Not assigned'
+              }
             />
           </div>
         </div>
@@ -114,7 +136,13 @@ export default async function SettingsPage() {
               icon={<ShieldCheck size={18} className="text-emerald-600" />}
               title="Verification matters for faculty"
               description={
-                profile?.role === 'mentor' && !profile?.is_verified
+                isAdminPreview
+                  ? previewMeta?.role === 'mentor'
+                    ? 'In teacher preview, the account is treated as fully verified so faculty-only tools remain visible.'
+                    : previewMeta?.isVerified
+                      ? 'This preview shows the approved student state with normal student access.'
+                      : 'This preview shows the pending student state with the approval hold still active.'
+                  : profile?.role === 'mentor' && !profile?.is_verified
                   ? 'Your account is still pending verification. An administrator needs to approve it before full faculty tools unlock.'
                   : 'Your current account status looks good and your access is active.'
               }

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { SubmissionsTable } from '@/components/dashboard/SubmissionsTable'
 import {
   AlertCircle,
@@ -14,6 +15,11 @@ import {
 import Link from 'next/link'
 import RotatingQuote from '@/components/dashboard/RotatingQuote'
 import { getActiveAnnouncements } from '@/app/(admin)/admin/announcements/actions'
+import {
+  ADMIN_VIEW_COOKIE,
+  getAdminViewMeta,
+  isAdminViewMode,
+} from '@/lib/admin-view-mode'
 
 type DashboardSubmission = {
   id: string
@@ -54,8 +60,16 @@ export default async function DashboardPage({
     .eq('id', user.id)
     .single()
 
+  const cookieStore = await cookies()
+  const previewCookie = cookieStore.get(ADMIN_VIEW_COOKIE)?.value
+  const adminPreviewMode = isAdminViewMode(previewCookie) ? previewCookie : null
+  const previewMeta = adminPreviewMode ? getAdminViewMeta(adminPreviewMode) : null
+  const isAdminPreview = profile?.role === 'admin' && Boolean(previewMeta)
+
   if (profile?.role === 'admin') {
-    redirect('/admin')
+    if (!isAdminPreview) {
+      redirect('/admin')
+    }
   }
 
   const activeAnnouncements = await getActiveAnnouncements()
@@ -70,7 +84,72 @@ export default async function DashboardPage({
     created_at: string
   }> = []
 
-  const isTeacher = profile?.role === 'mentor'
+  const isTeacher = isAdminPreview ? previewMeta?.role === 'mentor' : profile?.role === 'mentor'
+
+  if (isAdminPreview) {
+    return (
+      <div className="space-y-8">
+        <div className="rounded-[1.75rem] border border-blue-200 bg-blue-50 p-6 text-blue-900 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-100">
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-blue-700 dark:text-blue-300">
+            Preview Mode
+          </p>
+          <h1 className="mt-3 text-3xl font-black tracking-tight">
+            Welcome back, {previewMeta?.displayName || 'User Preview'}!
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm leading-7 opacity-90">
+            This dashboard is being rendered as a{' '}
+            {previewMeta?.role === 'mentor'
+              ? 'teacher / adviser'
+              : previewMeta?.isVerified
+                ? 'verified student'
+                : 'student awaiting approval'}{' '}
+            so you can inspect navigation, access state, and the overall user-facing shell before
+            returning to admin tools.
+          </p>
+        </div>
+
+        {activeAnnouncements.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-gray-500">
+              <Megaphone size={16} />
+              Announcements
+            </div>
+
+            <div className="space-y-3">
+              {activeAnnouncements.map((announcement) => (
+                <div
+                  key={announcement.id}
+                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900"
+                >
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+                    <span>{announcement.type}</span>
+                    <span>{new Date(announcement.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <h2 className="mt-3 text-lg font-bold text-slate-950 dark:text-white">
+                    {announcement.title}
+                  </h2>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600 dark:text-slate-300">
+                    {announcement.message}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="rounded-[1.75rem] border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm dark:border-gray-700 dark:bg-gray-900">
+          <h2 className="text-xl font-bold text-slate-950 dark:text-white">
+            {isTeacher ? 'Teacher dashboard preview is active' : 'Student dashboard preview is active'}
+          </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
+            Use the sidebar to inspect how the interface behaves for this account type. Data-heavy
+            tools in preview mode intentionally stay lightweight so the layout, access rules, and
+            messaging are easier to verify.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   if (isTeacher) {
     const { data: sections } = await supabase

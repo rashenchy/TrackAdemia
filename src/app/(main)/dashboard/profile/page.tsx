@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import type { ReactNode } from 'react'
 import {
   BadgeCheck,
@@ -12,6 +13,11 @@ import {
   UserCircle2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import {
+  ADMIN_VIEW_COOKIE,
+  getAdminViewMeta,
+  isAdminViewMode,
+} from '@/lib/admin-view-mode'
 
 export default async function ProfilePage() {
   const supabase = await createClient()
@@ -29,19 +35,37 @@ export default async function ProfilePage() {
     .eq('id', user.id)
     .single()
 
-  const fullName = [profile?.first_name, profile?.middle_name, profile?.last_name]
+  const cookieStore = await cookies()
+  const previewCookie = cookieStore.get(ADMIN_VIEW_COOKIE)?.value
+  const adminPreviewMode = isAdminViewMode(previewCookie) ? previewCookie : null
+  const previewMeta = adminPreviewMode ? getAdminViewMeta(adminPreviewMode) : null
+  const isAdminPreview = profile?.role === 'admin' && Boolean(previewMeta)
+
+  const fullName = isAdminPreview
+    ? previewMeta?.displayName || 'Preview User'
+    : [profile?.first_name, profile?.middle_name, profile?.last_name]
     .filter(Boolean)
     .join(' ')
 
   const roleLabel =
-    profile?.role === 'mentor'
+    isAdminPreview
+      ? previewMeta?.role === 'mentor'
+        ? 'Teacher / Adviser'
+        : 'Student'
+      : profile?.role === 'mentor'
       ? 'Teacher / Adviser'
       : profile?.role === 'admin'
         ? 'Administrator'
         : 'Student'
 
   const statusLabel =
-    profile?.role === 'mentor'
+    isAdminPreview
+      ? previewMeta?.role === 'mentor'
+        ? 'Verified faculty account'
+        : previewMeta?.isVerified
+          ? 'Approved student account'
+          : 'Pending student approval'
+      : profile?.role === 'mentor'
       ? profile?.is_verified
         ? 'Verified faculty account'
         : 'Pending faculty verification'
@@ -89,17 +113,23 @@ export default async function ProfilePage() {
             <ProfileCard
               icon={<Mail size={18} className="text-blue-600" />}
               label="Email"
-              value={user.email || 'No email available'}
+              value={isAdminPreview ? 'preview@trackademia.local' : user.email || 'No email available'}
             />
             <ProfileCard
               icon={<GraduationCap size={18} className="text-blue-600" />}
               label="Course / Program"
-              value={profile?.course_program || 'Not set'}
+              value={isAdminPreview ? 'Preview Program' : profile?.course_program || 'Not set'}
             />
             <ProfileCard
               icon={<IdCard size={18} className="text-blue-600" />}
               label="Student Number"
-              value={profile?.student_number || 'Not assigned'}
+              value={
+                isAdminPreview
+                  ? previewMeta?.role === 'student'
+                    ? 'ATC2023-00014'
+                    : 'Not assigned'
+                  : profile?.student_number || 'Not assigned'
+              }
             />
             <ProfileCard
               icon={<BadgeCheck size={18} className="text-blue-600" />}

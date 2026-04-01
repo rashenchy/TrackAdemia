@@ -1,6 +1,55 @@
 'use server'
 
+import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import {
+  ADMIN_VIEW_COOKIE,
+  type AdminViewMode,
+} from '@/lib/admin-view-mode'
+
+async function requireAdmin() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    redirect('/login')
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profile?.role !== 'admin') {
+    redirect('/dashboard')
+  }
+}
+
+export async function beginViewAsUser(mode: AdminViewMode) {
+  await requireAdmin()
+
+  const cookieStore = await cookies()
+  cookieStore.set(ADMIN_VIEW_COOKIE, mode, {
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax',
+  })
+
+  redirect('/dashboard')
+}
+
+export async function stopViewAsUser() {
+  await requireAdmin()
+
+  const cookieStore = await cookies()
+  cookieStore.delete(ADMIN_VIEW_COOKIE)
+
+  redirect('/admin/view-as-user')
+}
 
 export interface DashboardStats {
   totalResearch: number

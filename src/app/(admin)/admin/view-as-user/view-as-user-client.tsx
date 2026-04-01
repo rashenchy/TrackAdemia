@@ -1,140 +1,114 @@
 'use client'
 
-import { useState } from 'react'
-import { Eye, BookOpen, Users, BarChart3, GraduationCap, Loader2 } from 'lucide-react'
-import { getDashboardStats, getFeaturedResearch } from './actions'
-
-interface DashboardStats {
-  totalResearch: number
-  publishedResearch: number
-  totalSections: number
-  totalUsers: number
-  totalMentors: number
-}
-
-interface FeaturedResearchItem {
-  id: string
-  title: string
-  views_count: number
-  downloads_count: number
-  status: string
-}
+import { Eye, GraduationCap, ShieldAlert, UserRound } from 'lucide-react'
+import type { AdminViewMode } from '@/lib/admin-view-mode'
 
 interface ViewAsUserClientProps {
-  initialStats: DashboardStats
-  initialFeatured: FeaturedResearchItem[]
+  beginViewAsUser: (mode: AdminViewMode) => Promise<void>
 }
 
+const previewOptions: Array<{
+  mode: AdminViewMode
+  title: string
+  description: string
+  icon: typeof UserRound
+  accent: string
+  note: string
+}> = [
+  {
+    mode: 'mentor',
+    title: 'Teacher / Adviser View',
+    description:
+      'Open the dashboard the way a verified faculty account sees it, including teacher navigation and section-focused tools.',
+    icon: GraduationCap,
+    accent:
+      'from-emerald-50 to-teal-100 border-emerald-200 text-emerald-700 dark:from-emerald-900/20 dark:to-teal-900/10 dark:border-emerald-900/40 dark:text-emerald-300',
+    note: 'Best for checking teacher-only navigation and submission review flow.',
+  },
+  {
+    mode: 'student',
+    title: 'Approved Student View',
+    description:
+      'Jump into the regular student dashboard experience with the standard sidebar, profile access, and research workflow shell.',
+    icon: UserRound,
+    accent:
+      'from-blue-50 to-cyan-100 border-blue-200 text-blue-700 dark:from-blue-900/20 dark:to-cyan-900/10 dark:border-blue-900/40 dark:text-blue-300',
+    note: 'Useful for validating the normal student-facing interface and layout.',
+  },
+  {
+    mode: 'student-pending',
+    title: 'Unapproved Student View',
+    description:
+      'Preview the pending-approval experience, including the access restriction banner and repository-only hold state.',
+    icon: ShieldAlert,
+    accent:
+      'from-amber-50 to-orange-100 border-amber-200 text-amber-700 dark:from-amber-900/20 dark:to-orange-900/10 dark:border-amber-900/40 dark:text-amber-300',
+    note: 'Useful for checking the approval-hold messaging and restricted student state.',
+  },
+]
+
 export default function ViewAsUserClient({
-  initialStats,
-  initialFeatured,
+  beginViewAsUser,
 }: ViewAsUserClientProps) {
-  const [stats, setStats] = useState(initialStats)
-  const [featured, setFeatured] = useState(initialFeatured)
-  const [loading, setLoading] = useState(false)
-
-  const refreshData = async () => {
-    setLoading(true)
-    const [statsData, featuredData] = await Promise.all([
-      getDashboardStats(),
-      getFeaturedResearch(),
-    ])
-    setStats(statsData)
-    setFeatured(featuredData)
-    setLoading(false)
-  }
-
   return (
-    <div className="max-w-6xl">
-      <div className="mb-8 p-4 bg-purple-50 dark:bg-purple-900/20 border-2 border-purple-200 dark:border-purple-800 rounded-xl flex items-center gap-3">
-        <Eye size={20} className="text-purple-600 dark:text-purple-400 flex-shrink-0" />
-        <div className="flex-1">
-          <p className="text-sm font-semibold text-purple-900 dark:text-purple-300">Admin Viewing Mode</p>
-          <p className="text-xs text-purple-800 dark:text-purple-400 mt-0.5">
-            You&apos;re viewing the system from a regular user&apos;s perspective.
-          </p>
-        </div>
-        <button
-          onClick={refreshData}
-          disabled={loading}
-          className="px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
-        >
-          {loading ? 'Refreshing...' : 'Refresh'}
-        </button>
-      </div>
-
-      <div className="flex items-start gap-4 mb-8">
-        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-blue-600 dark:text-blue-400">
-          <BookOpen size={28} />
-        </div>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">System Overview</h1>
-          <p className="text-gray-600 dark:text-gray-400">Aggregate statistics of the TrackAdemia research platform</p>
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 size={32} className="animate-spin text-blue-600" />
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-900/10 rounded-2xl border border-blue-200 dark:border-blue-800 p-6">
-              <div className="flex items-start justify-between mb-4"><div className="p-2 bg-blue-200 dark:bg-blue-900/40 rounded-lg"><Users size={24} className="text-blue-600 dark:text-blue-400" /></div></div>
-              <p className="text-gray-600 dark:text-gray-400 text-sm font-medium mb-1">Total Users</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{stats.totalUsers}</p>
+    <div className="mx-auto max-w-6xl space-y-8">
+      <section className="rounded-[2rem] border border-purple-200 bg-[linear-gradient(135deg,#faf5ff_0%,#ffffff_45%,#eef2ff_100%)] p-8 shadow-sm dark:border-purple-900/40 dark:bg-[linear-gradient(135deg,rgba(88,28,135,0.22)_0%,rgba(17,24,39,0.96)_48%,rgba(30,41,59,0.95)_100%)]">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="max-w-3xl">
+            <div className="inline-flex items-center gap-2 rounded-full bg-purple-100 px-3 py-1 text-xs font-bold uppercase tracking-[0.25em] text-purple-700 dark:bg-purple-900/40 dark:text-purple-200">
+              <Eye size={14} />
+              View As User
             </div>
-            <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-900/10 rounded-2xl border border-green-200 dark:border-green-800 p-6">
-              <div className="flex items-start justify-between mb-4"><div className="p-2 bg-green-200 dark:bg-green-900/40 rounded-lg"><GraduationCap size={24} className="text-green-600 dark:text-green-400" /></div></div>
-              <p className="text-gray-600 dark:text-gray-400 text-sm font-medium mb-1">Mentors/Teachers</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{stats.totalMentors}</p>
-            </div>
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-900/10 rounded-2xl border border-purple-200 dark:border-purple-800 p-6">
-              <div className="flex items-start justify-between mb-4"><div className="p-2 bg-purple-200 dark:bg-purple-900/40 rounded-lg"><BookOpen size={24} className="text-purple-600 dark:text-purple-400" /></div></div>
-              <p className="text-gray-600 dark:text-gray-400 text-sm font-medium mb-1">Total Research</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{stats.totalResearch}</p>
-            </div>
-            <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-900/10 rounded-2xl border border-orange-200 dark:border-orange-800 p-6">
-              <div className="flex items-start justify-between mb-4"><div className="p-2 bg-orange-200 dark:bg-orange-900/40 rounded-lg"><BarChart3 size={24} className="text-orange-600 dark:text-orange-400" /></div></div>
-              <p className="text-gray-600 dark:text-gray-400 text-sm font-medium mb-1">Published Research</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{stats.publishedResearch}</p>
-            </div>
-            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-900/10 rounded-2xl border border-indigo-200 dark:border-indigo-800 p-6">
-              <div className="flex items-start justify-between mb-4"><div className="p-2 bg-indigo-200 dark:bg-indigo-900/40 rounded-lg"><Users size={24} className="text-indigo-600 dark:text-indigo-400" /></div></div>
-              <p className="text-gray-600 dark:text-gray-400 text-sm font-medium mb-1">Active Sections</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">{stats.totalSections}</p>
-            </div>
+            <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950 dark:text-white">
+              Choose the account view you want to open
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
+              Pick a role first, then you&apos;ll jump directly into the main dashboard shell for
+              that user state. A return button will stay visible in the top bar so you can come
+              back to the admin area anytime.
+            </p>
           </div>
+        </div>
+      </section>
 
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">Most Viewed Research</h2>
-            <div className="space-y-3">
-              {featured.length > 0 ? (
-                featured.map((item, index) => (
-                  <div key={item.id} className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 text-xs font-bold text-blue-600 dark:text-blue-400">#{index + 1}</span>
-                          <p className="font-semibold text-gray-900 dark:text-gray-100">{item.title}</p>
-                        </div>
-                        <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                          <span>{item.views_count} views</span>
-                          <span>{item.downloads_count} downloads</span>
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400">{item.status}</span>
-                        </div>
-                      </div>
+      <section className="grid gap-6 lg:grid-cols-3">
+        {previewOptions.map((option) => {
+          const Icon = option.icon
+
+          return (
+            <form key={option.mode} action={beginViewAsUser.bind(null, option.mode)}>
+              <button
+                type="submit"
+                className={`group h-full w-full rounded-[1.75rem] border bg-gradient-to-br p-6 text-left shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg ${option.accent}`}
+              >
+                <div className="flex h-full flex-col">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/80 shadow-sm dark:bg-slate-950/40">
+                      <Icon size={28} />
                     </div>
+                    <span className="rounded-full bg-white/80 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-700 dark:bg-slate-950/40 dark:text-slate-200">
+                      Open Preview
+                    </span>
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">No research available yet</div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
+
+                  <div className="mt-6 flex-1">
+                    <h2 className="text-xl font-black tracking-tight text-slate-950 dark:text-white">
+                      {option.title}
+                    </h2>
+                    <p className="mt-3 text-sm leading-7 text-slate-700 dark:text-slate-300">
+                      {option.description}
+                    </p>
+                  </div>
+
+                  <div className="mt-6 rounded-2xl bg-white/70 p-4 text-sm font-medium text-slate-700 shadow-sm dark:bg-slate-950/35 dark:text-slate-200">
+                    {option.note}
+                  </div>
+                </div>
+              </button>
+            </form>
+          )
+        })}
+      </section>
     </div>
   )
 }
