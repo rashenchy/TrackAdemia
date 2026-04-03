@@ -2,8 +2,7 @@
 
 // @refresh reset
 
-import { useState, useEffect, useRef } from 'react'
-import Link from 'next/link'
+import { useState, useEffect, useRef, useTransition } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -46,6 +45,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [userName, setUserName] = useState('')
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [isNavigating, startNavigation] = useTransition()
 
   const profileRef = useRef<HTMLDivElement | null>(null)
 
@@ -117,6 +117,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     document.documentElement.setAttribute('data-theme', newTheme)
   }
 
+  const handleSidebarNavigation = (href: string) => {
+    if (pathname === href || isNavigating) return
+
+    setPendingRoute(href)
+    startNavigation(() => {
+      router.push(href)
+    })
+  }
+
+  const visualRoute = isNavigating && pendingRoute ? pendingRoute : pathname
+
   // Admin navigation items
   const navItems = [
     { name: 'Overview', href: '/admin', icon: Shield },
@@ -163,18 +174,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           }`}
         >
           {navItems.map((item) => {
-            const isActive = (pendingRoute || pathname) === item.href
-            const isCurrentlyLoading = pendingRoute === item.href
+            const isActive = visualRoute === item.href
+            const isCurrentlyLoading = isNavigating && pendingRoute === item.href
 
             return (
-              <Link
+              <button
                 key={item.name}
-                href={item.href}
-                onClick={() => {
-                  if (pathname !== item.href) setPendingRoute(item.href)
-                }}
+                type="button"
+                onClick={() => handleSidebarNavigation(item.href)}
                 className={`group relative flex items-center overflow-hidden p-3 transition-colors ${
-                  isCollapsed ? 'justify-center' : ''
+                  isCollapsed ? 'justify-center' : 'w-full'
                 } rounded-lg ${
                   isActive
                     ? 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 font-bold'
@@ -195,10 +204,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 >
                   <span className="block font-medium">{item.name}</span>
                 </div>
-                {!isCollapsed && isCurrentlyLoading && (
-                  <Loader2 size={16} className="absolute right-3 animate-spin text-purple-500" />
+                {!isCollapsed && (
+                  <span className="ml-auto flex h-4 w-4 items-center justify-center">
+                    {isCurrentlyLoading && (
+                      <Loader2 size={16} className="animate-spin text-purple-500" />
+                    )}
+                  </span>
                 )}
-              </Link>
+              </button>
             )
           })}
         </nav>
@@ -300,7 +313,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-8 relative">
+        <main
+          aria-busy={isNavigating}
+          className={`relative flex-1 overflow-y-auto p-8 transition-opacity ${
+            isNavigating ? 'opacity-70' : 'opacity-100'
+          }`}
+        >
+          {isNavigating && (
+            <div className="pointer-events-none absolute inset-x-8 top-4 z-10 h-1 overflow-hidden rounded-full bg-purple-100 dark:bg-purple-950/40">
+              <div className="h-full w-1/3 animate-pulse rounded-full bg-purple-500" />
+            </div>
+          )}
           {children}
         </main>
       </div>

@@ -2,7 +2,7 @@
 
 // @refresh reset
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -28,6 +28,7 @@ import {
   BookOpen,
   Sparkles,
   ShieldAlert,
+  Files,
 } from 'lucide-react'
 
 export default function DashboardLayoutClient({
@@ -65,9 +66,10 @@ export default function DashboardLayoutClient({
   const [userName, setUserName] = useState(previewDisplayName)
   const [userRole, setUserRole] = useState(previewRole)
   const [unresolvedCount, setUnresolvedCount] = useState(0)
-  const [resubmittedCount, setResubmittedCount] = useState(0)
   const [notificationCount, setNotificationCount] = useState(0)
+  const [submissionAlertCount, setSubmissionAlertCount] = useState(0)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [isNavigating, startNavigation] = useTransition()
   const profileRef = useRef<HTMLDivElement | null>(null)
   const isTeacherRef = useRef(false)
   const [supabase] = useState(() => createClient())
@@ -77,8 +79,8 @@ export default function DashboardLayoutClient({
   const effectiveIsStudent = isAdminPreview ? previewRole === 'student' : isStudent
   const effectiveIsVerified = isAdminPreview ? previewIsVerified : isVerified
   const effectiveUnresolvedCount = isAdminPreview ? 0 : unresolvedCount
-  const effectiveResubmittedCount = isAdminPreview ? 0 : resubmittedCount
   const effectiveNotificationCount = isAdminPreview ? 0 : notificationCount
+  const effectiveSubmissionAlertCount = isAdminPreview ? 0 : submissionAlertCount
   const studentAllowedPaths = ['/dashboard/repository', '/dashboard/profile', '/dashboard/settings']
   const isStudentPendingApproval = effectiveIsStudent && !effectiveIsVerified
   const isStudentAccessLocked =
@@ -197,12 +199,51 @@ export default function DashboardLayoutClient({
       setUnresolvedCount((personalCount || 0) + (teacherCount || 0) + (annotationCount || 0))
 
       if (isTeacherRef.current) {
-        const { count: resubCount } = await supabase
-          .from('research')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'Resubmitted')
+        const { data: teacherSections } = await supabase
+          .from('sections')
+          .select('id')
+          .eq('teacher_id', user.id)
 
-        setResubmittedCount(resubCount || 0)
+        const sectionIds = teacherSections?.map((section) => section.id) || []
+
+        let sectionStudentIds: string[] = []
+
+        if (sectionIds.length > 0) {
+          const { data: members } = await supabase
+            .from('section_members')
+            .select('user_id')
+            .in('section_id', sectionIds)
+
+          sectionStudentIds = [...new Set((members || []).map((member) => member.user_id))]
+        }
+
+        const recentIds = new Set<string>()
+
+        if (sectionStudentIds.length > 0) {
+          const { data: sectionResearch } = await supabase
+            .from('research')
+            .select('id, status')
+            .in('user_id', sectionStudentIds)
+
+          for (const item of sectionResearch || []) {
+            if (item.status === 'Resubmitted' || item.status === 'Pending Review') {
+              recentIds.add(item.id)
+            }
+          }
+        }
+
+        const { data: advisoryResearch } = await supabase
+          .from('research')
+          .select('id, status')
+          .eq('adviser_id', user.id)
+
+        for (const item of advisoryResearch || []) {
+          if (item.status === 'Resubmitted' || item.status === 'Pending Review') {
+            recentIds.add(item.id)
+          }
+        }
+
+        setSubmissionAlertCount(recentIds.size)
         setNotificationCount(0)
       } else {
         const { count: noticeCount } = await supabase
@@ -284,6 +325,17 @@ export default function DashboardLayoutClient({
     document.documentElement.setAttribute('data-theme', newTheme)
   }
 
+  const handleSidebarNavigation = (href: string) => {
+    if (pathname === href || isNavigating) return
+
+    setPendingRoute(href)
+    startNavigation(() => {
+      router.push(href)
+    })
+  }
+
+  const visualRoute = isNavigating && pendingRoute ? pendingRoute : pathname
+
     const navItems = [
     { name: 'Home', href: '/dashboard', icon: Home },
     { name: 'Submit Research', href: '/dashboard/submit', icon: FilePlus },
@@ -294,6 +346,15 @@ export default function DashboardLayoutClient({
             name: effectiveIsTeacher ? 'Manage Sections' : 'My Sections',
             href: '/dashboard/sections',
             icon: GraduationCap,
+          },
+        ]
+      : []),
+    ...(effectiveIsTeacher
+      ? [
+          {
+            name: 'Student Submissions',
+            href: '/dashboard/student-submissions',
+            icon: Files,
           },
         ]
       : []),
@@ -350,25 +411,28 @@ export default function DashboardLayoutClient({
           }`}
         >
           {navItems.map((item) => {
-            const isActive = (pendingRoute || pathname) === item.href
-            const isCurrentlyLoading = pendingRoute === item.href
+            const isActive = visualRoute === item.href
+            const isCurrentlyLoading = isNavigating && pendingRoute === item.href
             const isTaskBadge = item.name === 'Task Manager' && effectiveUnresolvedCount > 0
-            const homeBadgeValue = effectiveIsTeacher
-              ? effectiveResubmittedCount
-              : effectiveNotificationCount
+            const isSubmissionBadge =
+              item.name === 'Student Submissions' && effectiveSubmissionAlertCount > 0
+            const homeBadgeValue = effectiveIsTeacher ? 0 : effectiveNotificationCount
             const isHomeBadge = item.name === 'Home' && homeBadgeValue > 0
-            const hasBadge = isTaskBadge || isHomeBadge
-            const badgeValue = item.name === 'Home' ? homeBadgeValue : effectiveUnresolvedCount
+            const hasBadge = isTaskBadge || isHomeBadge || isSubmissionBadge
+            const badgeValue =
+              item.name === 'Home'
+                ? homeBadgeValue
+                : item.name === 'Student Submissions'
+                  ? effectiveSubmissionAlertCount
+                  : effectiveUnresolvedCount
 
             return (
-              <Link
+              <button
                 key={item.name}
-                href={item.href}
-                onClick={() => {
-                  if (pathname !== item.href) setPendingRoute(item.href)
-                }}
+                type="button"
+                onClick={() => handleSidebarNavigation(item.href)}
                 className={`group relative flex items-center overflow-hidden p-3 transition-colors ${
-                  isCollapsed ? 'justify-center' : ''
+                  isCollapsed ? 'justify-center' : 'w-full'
                 } rounded-lg ${
                   isActive
                     ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 font-bold'
@@ -397,10 +461,14 @@ export default function DashboardLayoutClient({
                 >
                   <span className="block font-medium">{item.name}</span>
                 </div>
-                {!isCollapsed && isCurrentlyLoading && (
-                  <Loader2 size={16} className="absolute right-3 animate-spin text-blue-500" />
+                {!isCollapsed && (
+                  <span className="ml-auto flex h-4 w-4 items-center justify-center">
+                    {isCurrentlyLoading && (
+                      <Loader2 size={16} className="animate-spin text-blue-500" />
+                    )}
+                  </span>
                 )}
-              </Link>
+              </button>
             )
           })}
         </nav>
@@ -551,7 +619,17 @@ export default function DashboardLayoutClient({
           </div>
         )}
 
-        <main className="flex-1 overflow-y-auto p-8 relative">
+        <main
+          aria-busy={isNavigating}
+          className={`relative flex-1 overflow-y-auto p-8 transition-opacity ${
+            isNavigating ? 'opacity-70' : 'opacity-100'
+          }`}
+        >
+          {isNavigating && (
+            <div className="pointer-events-none absolute inset-x-8 top-4 z-10 h-1 overflow-hidden rounded-full bg-blue-100 dark:bg-blue-950/40">
+              <div className="h-full w-1/3 animate-pulse rounded-full bg-blue-500" />
+            </div>
+          )}
           {children}
 
           {isStudentAccessLocked && (

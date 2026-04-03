@@ -13,6 +13,7 @@ import {
   UserCircle2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { ProfileEditForm } from '@/components/dashboard/ProfileEditForm'
 import {
   ADMIN_VIEW_COOKIE,
   getAdminViewMeta,
@@ -70,6 +71,8 @@ export default async function ProfilePage() {
         ? 'Verified faculty account'
         : 'Pending faculty verification'
       : 'Active account'
+  const showStudentNumber =
+    isAdminPreview ? previewMeta?.role === 'student' : profile?.role === 'student'
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -120,17 +123,19 @@ export default async function ProfilePage() {
               label="Course / Program"
               value={isAdminPreview ? 'Preview Program' : profile?.course_program || 'Not set'}
             />
-            <ProfileCard
-              icon={<IdCard size={18} className="text-blue-600" />}
-              label="Student Number"
-              value={
-                isAdminPreview
-                  ? previewMeta?.role === 'student'
-                    ? 'ATC2023-00014'
-                    : 'Not assigned'
-                  : profile?.student_number || 'Not assigned'
-              }
-            />
+            {showStudentNumber && (
+              <ProfileCard
+                icon={<IdCard size={18} className="text-blue-600" />}
+                label="Student Number"
+                value={
+                  isAdminPreview
+                    ? previewMeta?.role === 'student'
+                      ? 'ATC2023-00014'
+                      : 'Not assigned'
+                    : profile?.student_number || 'Not assigned'
+                }
+              />
+            )}
             <ProfileCard
               icon={<BadgeCheck size={18} className="text-blue-600" />}
               label="Role"
@@ -163,6 +168,21 @@ export default async function ProfilePage() {
           </div>
         </div>
       </section>
+
+      <ProfileEditForm
+        disabled={isAdminPreview}
+        showStudentNumber={showStudentNumber}
+        initialValues={{
+          firstName: isAdminPreview ? previewMeta?.displayName?.split(' ')[0] || '' : profile?.first_name || '',
+          middleName: isAdminPreview ? '' : profile?.middle_name || '',
+          lastName: isAdminPreview ? previewMeta?.displayName?.split(' ').slice(1).join(' ') || '' : profile?.last_name || '',
+          courseProgram: isAdminPreview ? 'Preview Program' : profile?.course_program || '',
+          studentNumber:
+            isAdminPreview && previewMeta?.role === 'student'
+              ? 'ATC2023-00014'
+              : profile?.student_number || '',
+        }}
+      />
     </div>
   )
 }

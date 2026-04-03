@@ -5,7 +5,13 @@ import { Download, Eye, Loader2 } from 'lucide-react'
 import { getSignedViewUrl, getSignedDownloadUrl } from '@/app/(main)/dashboard/fileActions'
 
 // Button component that allows users to view or download a research document
-export function DocumentDownloadButton({ fileUrl }: { fileUrl: string }) {
+export function DocumentDownloadButton({
+  fileUrl,
+  stopRowClick = false,
+}: {
+  fileUrl: string
+  stopRowClick?: boolean
+}) {
 
   // UI loading states for viewing and downloading
   const [isViewing, setIsViewing] = useState(false)
@@ -59,23 +65,25 @@ export function DocumentDownloadButton({ fileUrl }: { fileUrl: string }) {
 
   // Render View and Download buttons with loading indicators
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center gap-2">
 
       {/* View Button */}
       <button
         onClick={handleView}
+        onMouseDown={stopRowClick ? (event) => event.stopPropagation() : undefined}
         disabled={isViewing || isDownloading}
-        className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 rounded-xl font-semibold transition-colors disabled:opacity-50 text-sm"
+        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-slate-200 dark:hover:bg-gray-800"
       >
         {isViewing ? <Loader2 size={18} className="animate-spin" /> : <Eye size={18} />}
-        {isViewing ? 'Opening...' : 'View'}
+        {isViewing ? 'Opening...' : 'View File'}
       </button>
 
       {/* Download Button */}
       <button
         onClick={handleDownload}
+        onMouseDown={stopRowClick ? (event) => event.stopPropagation() : undefined}
         disabled={isViewing || isDownloading}
-        className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/40 rounded-xl font-semibold transition-colors disabled:opacity-50 text-sm shadow-sm"
+        className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
       >
         {isDownloading ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />}
         {isDownloading ? 'Downloading...' : 'Download'}

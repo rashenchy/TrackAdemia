@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Users, Search, Loader2, AlertCircle, Trash2, UserCheck } from 'lucide-react'
-import { getAllUsers, updateUserRole, deleteOrBanUser } from './actions'
+import { getAllUsers, deleteOrBanUser } from './actions'
 
 interface UserProfile {
   id: string
@@ -73,23 +73,6 @@ export default function UserManagementClient({
     setLoading(false)
   }
 
-  const handlePromoteToAdmin = async (userId: string, userName: string) => {
-    setActionInProgress(userId)
-    const result = await updateUserRole(userId, 'admin')
-
-    if (result.success) {
-      setSuccessMessage(`${userName} has been promoted to Admin`)
-      setUsers((currentUsers) =>
-        currentUsers.map((u) => (u.id === userId ? { ...u, role: 'admin' } : u))
-      )
-      setTimeout(() => setSuccessMessage(null), 3000)
-    } else {
-      setError(result.error || 'Failed to update user role')
-    }
-
-    setActionInProgress(null)
-  }
-
   const handleDeleteUser = async (userId: string, userName: string) => {
     if (!confirm(`Are you sure you want to delete ${userName}? This cannot be undone.`)) {
       return
@@ -120,7 +103,7 @@ export default function UserManagementClient({
             User Management
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Manage all users, update roles, and handle account access
+            Manage all users and handle account access
           </p>
         </div>
       </div>
@@ -245,16 +228,6 @@ export default function UserManagementClient({
                       </td>
                       <td className="px-6 py-4 text-sm">
                         <div className="flex items-center gap-2">
-                          {user.role !== 'admin' && (
-                            <button
-                              onClick={() => handlePromoteToAdmin(user.id, `${user.first_name} ${user.last_name}`)}
-                              disabled={actionInProgress === user.id}
-                              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 font-medium text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {actionInProgress === user.id ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />}
-                              Promote
-                            </button>
-                          )}
                           <button
                             onClick={() => handleDeleteUser(user.id, `${user.first_name} ${user.last_name}`)}
                             disabled={actionInProgress === user.id}

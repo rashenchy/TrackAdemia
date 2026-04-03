@@ -97,52 +97,6 @@ export async function getAllUsers(roleFilter?: string, searchTerm?: string): Pro
 }
 
 /**
- * Update a user's role
- */
-export async function updateUserRole(userId: string, newRole: 'student' | 'mentor' | 'admin'): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-
-  try {
-    // Verify the current user is an admin
-    const { data: { user: currentUser } } = await supabase.auth.getUser()
-    if (!currentUser) {
-      return { success: false, error: 'Not authenticated' }
-    }
-
-    const { data: adminProfile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', currentUser.id)
-      .single()
-
-    if (!adminProfile || adminProfile.role !== 'admin') {
-      return { success: false, error: 'Insufficient permissions' }
-    }
-
-    // Prevent self-demotion
-    if (userId === currentUser.id && newRole !== 'admin') {
-      return { success: false, error: 'Cannot change your own admin role' }
-    }
-
-    // Update the user's role
-    const { error } = await supabase
-      .from('profiles')
-      .update({ role: newRole, updated_at: new Date().toISOString() })
-      .eq('id', userId)
-
-    if (error) {
-      console.error('Error updating user role:', error)
-      return { success: false, error: error.message }
-    }
-
-    return { success: true }
-  } catch (error) {
-    console.error('Unexpected error updating user role:', error)
-    return { success: false, error: 'An unexpected error occurred' }
-  }
-}
-
-/**
  * Delete/suspend a user by removing their profile and disabling auth
  * Note: This soft-deletes the profile and relies on auth disable
  */

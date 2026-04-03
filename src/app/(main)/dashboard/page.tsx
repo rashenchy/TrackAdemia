@@ -7,7 +7,6 @@ import {
   BellRing,
   CheckCircle2,
   Info,
-  LayoutGrid,
   Megaphone,
   TriangleAlert,
   UserMinus,
@@ -15,6 +14,7 @@ import {
 import Link from 'next/link'
 import RotatingQuote from '@/components/dashboard/RotatingQuote'
 import { getActiveAnnouncements } from '@/app/(admin)/admin/announcements/actions'
+import { getTeacherSubmissionData, type TeacherSubmissionRecord } from '@/lib/teacher-submissions'
 import {
   ADMIN_VIEW_COOKIE,
   getAdminViewMeta,
@@ -24,15 +24,11 @@ import {
 type DashboardSubmission = {
   id: string
   user_id: string
-  subject_code?: string | null
+  title: string
+  type?: string | null
+  status: string
+  created_at: string
   unresolved_feedback_count?: number
-  [key: string]: unknown
-}
-
-type TeacherSection = {
-  id: string
-  name: string
-  course_code?: string | null
   [key: string]: unknown
 }
 
@@ -43,7 +39,6 @@ export default async function DashboardPage({
 }) {
   const resolvedSearchParams = await searchParams
   const successMessage = resolvedSearchParams.success
-  const activeSectionId = resolvedSearchParams.section
 
   const supabase = await createClient()
   const {
@@ -75,7 +70,7 @@ export default async function DashboardPage({
   const activeAnnouncements = await getActiveAnnouncements()
 
   let displaySubmissions: DashboardSubmission[] = []
-  let teacherSections: TeacherSection[] = []
+  let teacherRecentSubmissions: TeacherSubmissionRecord[] = []
   let sectionRemovalNotifications: Array<{
     id: string
     title: string
@@ -152,124 +147,8 @@ export default async function DashboardPage({
   }
 
   if (isTeacher) {
-    const { data: sections } = await supabase
-      .from('sections')
-      .select('*')
-      .eq('teacher_id', user.id)
-      .order('created_at', { ascending: false })
-
-    teacherSections = sections || []
-
-    if (teacherSections.length > 0) {
-      const sectionIds = teacherSections.map((section) => section.id)
-
-      const { data: members } = await supabase
-        .from('section_members')
-        .select('section_id, user_id')
-        .in('section_id', sectionIds)
-
-      const studentIds = [...new Set(members?.map((member) => member.user_id) || [])]
-
-      if (studentIds.length > 0) {
-        const [researchRes, profilesRes] = await Promise.all([
-          supabase
-            .from('research')
-            .select('*')
-            .in('user_id', studentIds)
-            .order('created_at', { ascending: false }),
-          supabase
-            .from('profiles')
-            .select('id, first_name, last_name')
-            .in('id', studentIds),
-        ])
-
-        const studentResearch = researchRes.data || []
-        const studentProfiles = profilesRes.data || []
-        const mappedSubmissions: DashboardSubmission[] = []
-
-        studentResearch.forEach((research) => {
-          const studentMemberships =
-            members?.filter((member) => member.user_id === research.user_id) || []
-
-          let matchedSectionId = null
-
-          for (const membership of studentMemberships) {
-            const section = teacherSections.find((item) => item.id === membership.section_id)
-
-            if (section && section.course_code === research.subject_code) {
-              matchedSectionId = section.id
-              break
-            }
-          }
-
-          if (!matchedSectionId && studentMemberships.length > 0) {
-            matchedSectionId = studentMemberships[0].section_id
-          }
-
-          if (matchedSectionId) {
-            const section = teacherSections.find((item) => item.id === matchedSectionId)
-            const author = studentProfiles.find((item) => item.id === research.user_id)
-
-            mappedSubmissions.push({
-              ...research,
-              section_id: matchedSectionId,
-              section_name: section?.name,
-              author_name: author
-                ? `${author.first_name} ${author.last_name}`
-                : 'Unknown Student',
-            })
-          }
-        })
-
-        if (activeSectionId && activeSectionId !== 'all') {
-          displaySubmissions = mappedSubmissions.filter(
-            (submission) => submission.section_id === activeSectionId
-          )
-        } else {
-          displaySubmissions = mappedSubmissions
-        }
-      }
-    }
-
-    const { data: adviseeResearch } = await supabase
-      .from('research')
-      .select('*')
-      .eq('adviser_id', user.id)
-      .order('created_at', { ascending: false })
-
-    if (adviseeResearch && adviseeResearch.length > 0) {
-      const adviseeIds = [...new Set(adviseeResearch.map((item) => item.user_id))]
-
-      const { data: adviseeProfiles } = await supabase
-        .from('profiles')
-        .select('id, first_name, last_name')
-        .in('id', adviseeIds)
-
-      const mappedAdviseeResearch = adviseeResearch.map((item) => {
-        const author = adviseeProfiles?.find((profileItem) => profileItem.id === item.user_id)
-
-        return {
-          ...item,
-          section_id: 'adviser-access',
-          section_name: 'Adviser Access',
-          author_name: author
-            ? `${author.first_name} ${author.last_name}`
-            : 'Unknown Student',
-        }
-      })
-
-      const mergedSubmissions = [
-        ...displaySubmissions,
-        ...mappedAdviseeResearch.filter(
-          (item) => !displaySubmissions.some((existing) => existing.id === item.id)
-        ),
-      ]
-
-      displaySubmissions =
-        activeSectionId && activeSectionId !== 'all'
-          ? mergedSubmissions.filter((submission) => submission.section_id === activeSectionId)
-          : mergedSubmissions
-    }
+    const { submissions } = await getTeacherSubmissionData(supabase, user.id)
+    teacherRecentSubmissions = submissions.slice(0, 3)
   } else {
     const { data: notifications } = await supabase
       .from('user_notifications')
@@ -302,7 +181,7 @@ export default async function DashboardPage({
     displaySubmissions = submissions || []
   }
 
-  if (displaySubmissions.length > 0) {
+  if (!isTeacher && displaySubmissions.length > 0) {
     const submissionIds = displaySubmissions.map((submission) => submission.id)
 
     const { data: annotations } = await supabase
@@ -466,50 +345,29 @@ export default async function DashboardPage({
         </div>
       )}
 
-      {isTeacher && teacherSections.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="flex items-center gap-2 text-sm font-bold uppercase text-gray-500">
-            <LayoutGrid size={16} /> Filter by Section
-          </h3>
-
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/dashboard"
-              className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-all ${
-                !activeSectionId || activeSectionId === 'all'
-                  ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-none'
-                  : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:bg-blue-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-blue-900/20'
-              }`}
-            >
-              All Sections
-            </Link>
-
-            {teacherSections.map((section) => (
-              <Link
-                key={section.id}
-                href={`/dashboard?section=${section.id}`}
-                className={`rounded-xl border px-4 py-2 text-sm font-semibold transition-all ${
-                  activeSectionId === section.id
-                    ? 'border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-200 dark:shadow-none'
-                    : 'border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:bg-blue-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-blue-900/20'
-                }`}
-              >
-                {section.name}
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div className="space-y-6">
-        <h2 className="flex items-center gap-2 text-xl font-bold">
-          {isTeacher ? 'Student Submissions' : 'My Submissions'}
-          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-normal text-gray-500 dark:bg-gray-800">
-            {displaySubmissions?.length || 0}
-          </span>
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="flex items-center gap-2 text-xl font-bold">
+            {isTeacher ? 'Student Submissions' : 'My Submissions'}
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-normal text-gray-500 dark:bg-gray-800">
+              {isTeacher ? teacherRecentSubmissions.length : displaySubmissions?.length || 0}
+            </span>
+          </h2>
 
-        <SubmissionsTable submissions={displaySubmissions || []} />
+          {isTeacher && (
+            <Link
+              href="/dashboard/student-submissions"
+              className="inline-flex items-center rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-950/50"
+            >
+              View All
+            </Link>
+          )}
+        </div>
+
+        <SubmissionsTable
+          submissions={(isTeacher ? teacherRecentSubmissions : displaySubmissions) || []}
+          variant={isTeacher ? 'preview' : 'full'}
+        />
       </div>
     </div>
   )
