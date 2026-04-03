@@ -29,6 +29,7 @@ import {
   Sparkles,
   ShieldAlert,
   Files,
+  BellRing,
 } from 'lucide-react'
 
 export default function DashboardLayoutClient({
@@ -81,7 +82,12 @@ export default function DashboardLayoutClient({
   const effectiveUnresolvedCount = isAdminPreview ? 0 : unresolvedCount
   const effectiveNotificationCount = isAdminPreview ? 0 : notificationCount
   const effectiveSubmissionAlertCount = isAdminPreview ? 0 : submissionAlertCount
-  const studentAllowedPaths = ['/dashboard/repository', '/dashboard/profile', '/dashboard/settings']
+  const studentAllowedPaths = [
+    '/dashboard/repository',
+    '/dashboard/profile',
+    '/dashboard/settings',
+    '/dashboard/notifications',
+  ]
   const isStudentPendingApproval = effectiveIsStudent && !effectiveIsVerified
   const isStudentAccessLocked =
     isStudentPendingApproval &&
@@ -170,6 +176,12 @@ export default function DashboardLayoutClient({
       } = await supabase.auth.getUser()
       if (!user) return
 
+      const { count: unreadNotificationTotal } = await supabase
+        .from('user_notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('is_read', false)
+
       const { count: personalCount } = await supabase
         .from('tasks')
         .select('*', { count: 'exact', head: true })
@@ -197,6 +209,7 @@ export default function DashboardLayoutClient({
         .eq('is_resolved', false)
 
       setUnresolvedCount((personalCount || 0) + (teacherCount || 0) + (annotationCount || 0))
+      setNotificationCount(unreadNotificationTotal || 0)
 
       if (isTeacherRef.current) {
         const { data: teacherSections } = await supabase
@@ -244,16 +257,6 @@ export default function DashboardLayoutClient({
         }
 
         setSubmissionAlertCount(recentIds.size)
-        setNotificationCount(0)
-      } else {
-        const { count: noticeCount } = await supabase
-          .from('user_notifications')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', user.id)
-          .eq('is_read', false)
-          .eq('notification_type', 'section_removal')
-
-        setNotificationCount(noticeCount || 0)
       }
     }
 
@@ -336,7 +339,7 @@ export default function DashboardLayoutClient({
 
   const visualRoute = isNavigating && pendingRoute ? pendingRoute : pathname
 
-    const navItems = [
+  const navItems = [
     { name: 'Home', href: '/dashboard', icon: Home },
     { name: 'Submit Research', href: '/dashboard/submit', icon: FilePlus },
     { name: 'Task Manager', href: '/dashboard/tasks', icon: CheckSquare },
@@ -358,6 +361,7 @@ export default function DashboardLayoutClient({
           },
         ]
       : []),
+    { name: 'Notifications', href: '/dashboard/notifications', icon: BellRing },
     { name: 'Grammar Checker', href: '/dashboard/grammar', icon: Sparkles },
     { name: 'Plagiarism Checker', href: '/dashboard/plagiarism', icon: ShieldAlert },
     { name: 'Repository', href: '/dashboard/repository', icon: BookOpen },
@@ -416,12 +420,12 @@ export default function DashboardLayoutClient({
             const isTaskBadge = item.name === 'Task Manager' && effectiveUnresolvedCount > 0
             const isSubmissionBadge =
               item.name === 'Student Submissions' && effectiveSubmissionAlertCount > 0
-            const homeBadgeValue = effectiveIsTeacher ? 0 : effectiveNotificationCount
-            const isHomeBadge = item.name === 'Home' && homeBadgeValue > 0
-            const hasBadge = isTaskBadge || isHomeBadge || isSubmissionBadge
+            const isNotificationBadge =
+              item.name === 'Notifications' && effectiveNotificationCount > 0
+            const hasBadge = isTaskBadge || isNotificationBadge || isSubmissionBadge
             const badgeValue =
-              item.name === 'Home'
-                ? homeBadgeValue
+              item.name === 'Notifications'
+                ? effectiveNotificationCount
                 : item.name === 'Student Submissions'
                   ? effectiveSubmissionAlertCount
                   : effectiveUnresolvedCount

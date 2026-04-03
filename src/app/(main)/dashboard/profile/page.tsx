@@ -130,7 +130,7 @@ export default async function ProfilePage() {
                 value={
                   isAdminPreview
                     ? previewMeta?.role === 'student'
-                      ? 'ATC2023-00014'
+                      ? 'ATC2023-12345'
                       : 'Not assigned'
                     : profile?.student_number || 'Not assigned'
                 }
@@ -179,7 +179,7 @@ export default async function ProfilePage() {
           courseProgram: isAdminPreview ? 'Preview Program' : profile?.course_program || '',
           studentNumber:
             isAdminPreview && previewMeta?.role === 'student'
-              ? 'ATC2023-00014'
+              ? 'ATC2023-12345'
               : profile?.student_number || '',
         }}
       />

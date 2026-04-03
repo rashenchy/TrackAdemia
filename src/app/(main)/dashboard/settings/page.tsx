@@ -13,12 +13,14 @@ import {
   Mail,
   ShieldCheck,
 } from 'lucide-react'
+import SettingsNotificationsPreview from '@/components/dashboard/SettingsNotificationsPreview'
 import { createClient } from '@/lib/supabase/server'
 import {
   ADMIN_VIEW_COOKIE,
   getAdminViewMeta,
   isAdminViewMode,
 } from '@/lib/admin-view-mode'
+import type { UserNotification } from '@/lib/notifications'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -52,6 +54,13 @@ export default async function SettingsPage() {
       : profile?.role === 'admin'
         ? 'Administrator'
         : 'Student'
+
+  const { data: notifications } = await supabase
+    .from('user_notifications')
+    .select('id, title, message, created_at, is_read, notification_type, reason')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(3)
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -90,7 +99,7 @@ export default async function SettingsPage() {
               value={
                 isAdminPreview
                   ? previewMeta?.role === 'student'
-                    ? 'ATC2023-00014'
+                    ? 'ATC2023-12345'
                     : 'Not assigned'
                   : profile?.student_number || 'Not assigned'
               }
@@ -124,6 +133,10 @@ export default async function SettingsPage() {
       </section>
 
       <section className="grid gap-6 md:grid-cols-2">
+        <SettingsNotificationsPreview
+          notifications={(notifications || []) as UserNotification[]}
+        />
+
         <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-bold text-slate-950">Helpful Reminders</h2>
           <div className="mt-5 space-y-4">

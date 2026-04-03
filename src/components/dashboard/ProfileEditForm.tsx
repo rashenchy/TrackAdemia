@@ -68,7 +68,7 @@ export function ProfileEditForm({
                 label="Student Number"
                 name="studentNumber"
                 defaultValue={initialValues.studentNumber}
-                helper="Use the format ATC2023-00014."
+                helper="Use the format ATC2023-12345."
               />
             )}
           </div>
@@ -93,7 +93,7 @@ export function ProfileEditForm({
             </SubmitButton>
             {showStudentNumber && (
               <span className="text-xs text-slate-500">
-                Student number must follow `ATC2023-00014` if provided.
+                Student number must follow `ATC2023-12345` if provided.
               </span>
             )}
           </div>

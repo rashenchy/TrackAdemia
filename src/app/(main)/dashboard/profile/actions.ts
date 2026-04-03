@@ -38,7 +38,7 @@ export async function updateProfile(
   }
 
   if (studentNumber && !isValidStudentNumber(studentNumber)) {
-    return { error: 'Student number must follow the format ATC2023-00014.' }
+    return { error: 'Student number must follow the format ATC2023-12345.' }
   }
 
   const { error } = await supabase

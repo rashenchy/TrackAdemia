@@ -2,8 +2,15 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { sendRegistrationVerificationEmail } from '@/lib/email'
+import { rethrowIfRedirectError } from '@/lib/redirect-error'
 import { createClient } from '@/lib/supabase/server'
 import { isValidStudentNumber, normalizeStudentNumber } from '@/lib/student-number'
+import {
+  clearPendingRegistration,
+  createPendingRegistrationSession,
+} from '@/lib/pending-registration'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 
 export async function login(formData: FormData) {
@@ -56,67 +63,170 @@ export async function login(formData: FormData) {
 
 
 export async function signup(formData: FormData) {
-
-  // Initialize Supabase server client
-  const supabase = await createClient()
-
-
   // Extract user registration data from the submitted form
-  const email = formData.get('email') as string
+  const email = (formData.get('email') as string).trim().toLowerCase()
   const password = formData.get('password') as string
-  const firstName = formData.get('firstName') as string
-  const middleName = formData.get('middleName') as string
-  const lastName = formData.get('lastName') as string
-  const course = formData.get('course') as string
-  const role = formData.get('role') as string || 'student'
+  const firstName = (formData.get('firstName') as string).trim()
+  const middleName = (formData.get('middleName') as string).trim()
+  const lastName = (formData.get('lastName') as string).trim()
+  const course = (formData.get('course') as string).trim()
+  const role = ((formData.get('role') as string) || 'student') as 'student' | 'mentor'
   const rawStudentNumber = (formData.get('studentNumber') as string | null) ?? ''
   const studentNumber = normalizeStudentNumber(rawStudentNumber)
-
-
-  // All non-admin accounts require admin approval before full access
-  const isVerified = false
 
   if (role === 'student' && !isValidStudentNumber(studentNumber)) {
     redirect(
       '/register?error=' +
         encodeURIComponent(
-          'Student number must follow the format ATC2023-00014.'
+          'Student number must follow the format ATC2023-12345.'
         )
     )
   }
 
+  if (!email || !password || !firstName || !lastName || !course) {
+    redirect('/register?error=' + encodeURIComponent('Please complete all required fields.'))
+  }
 
-  // Create a new Supabase authentication account and store additional profile metadata
-  const { error } = await supabase.auth.signUp({
+  try {
+    const { code, expiresAt, maskedEmail } = await createPendingRegistrationSession({
+      email,
+      password,
+      firstName,
+      middleName,
+      lastName,
+      course,
+      role,
+      studentNumber: role === 'student' ? studentNumber : null,
+    })
+
+    try {
+      await sendRegistrationVerificationEmail({
+        email,
+        code,
+        expiresAt,
+      })
+    } catch (error) {
+      await clearPendingRegistration()
+      throw error
+    }
+
+    redirect(
+      '/verify-email?success=' +
+        encodeURIComponent(`We sent a verification code to ${maskedEmail}.`)
+    )
+  } catch (error) {
+    rethrowIfRedirectError(error)
+
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Unable to start email verification. Please try again.'
+
+    redirect('/register?error=' + encodeURIComponent(message))
+  }
+}
+
+export async function finalizeVerifiedSignup({
+  email,
+  password,
+  firstName,
+  middleName,
+  lastName,
+  course,
+  role,
+  studentNumber,
+}: {
+  email: string
+  password: string
+  firstName: string
+  middleName: string
+  lastName: string
+  course: string
+  role: 'student' | 'mentor'
+  studentNumber: string | null
+}) {
+  const metadata = {
+    first_name: firstName,
+    middle_name: middleName,
+    last_name: lastName,
+    course_program: course,
+    role,
+    is_verified: false,
+    student_number: role === 'student' ? studentNumber : null,
+  }
+
+  const adminSupabase = createAdminClient()
+
+  if (adminSupabase) {
+    const { data, error } = await adminSupabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: metadata,
+    })
+
+    if (error) {
+      throw error
+    }
+
+    const supabase = await createClient()
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (signInError) {
+      return {
+        redirectPath:
+          '/login?success=' +
+          encodeURIComponent(
+            role === 'mentor'
+              ? 'Email confirmed and account created. Faculty accounts still require admin verification before full access.'
+              : 'Email confirmed and account created. Student accounts still require admin approval before full access.'
+          ),
+      }
+    }
+
+    return {
+      redirectPath: '/dashboard',
+      userId: data.user?.id ?? null,
+    }
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
-      data: {
-        first_name: firstName,
-        middle_name: middleName,
-        last_name: lastName,
-        course_program: course,
-        role: role,
-        is_verified: isVerified,
-        student_number: role === 'student' ? studentNumber : null,
-      }
-    }
+      data: metadata,
+    },
   })
 
-
-  // If account creation fails, redirect back to registration page with error message
   if (error) {
-    redirect('/register?error=' + encodeURIComponent(error.message))
+    throw error
   }
 
+  if (!data.session) {
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
 
-  // Generate a success message depending on whether the user is a student or mentor
-  const successMsg =
-    role === 'mentor'
-      ? 'Account created! Faculty accounts require admin verification before full access.'
-      : 'Account created! Student accounts require admin approval before full access. You can still sign in and use the repository while approval is pending.'
+    if (signInError) {
+      return {
+        redirectPath:
+          '/login?success=' +
+          encodeURIComponent(
+            role === 'mentor'
+              ? 'Email confirmed and account created. Faculty accounts still require admin verification before full access.'
+              : 'Email confirmed and account created. Student accounts still require admin approval before full access.'
+          ),
+      }
+    }
+  }
 
-
-  // Redirect user to login page with success confirmation message
-  redirect('/login?success=' + encodeURIComponent(successMsg))
+  return {
+    redirectPath: '/dashboard',
+    userId: data.user?.id ?? null,
+  }
 }

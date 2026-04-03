@@ -4,15 +4,14 @@ import { cookies } from 'next/headers'
 import { SubmissionsTable } from '@/components/dashboard/SubmissionsTable'
 import {
   AlertCircle,
-  BellRing,
   CheckCircle2,
   Info,
   Megaphone,
   TriangleAlert,
-  UserMinus,
 } from 'lucide-react'
 import Link from 'next/link'
 import RotatingQuote from '@/components/dashboard/RotatingQuote'
+import HomeSectionRemovalAlerts from '@/components/dashboard/HomeSectionRemovalAlerts'
 import { getActiveAnnouncements } from '@/app/(admin)/admin/announcements/actions'
 import { getTeacherSubmissionData, type TeacherSubmissionRecord } from '@/lib/teacher-submissions'
 import {
@@ -20,6 +19,10 @@ import {
   getAdminViewMeta,
   isAdminViewMode,
 } from '@/lib/admin-view-mode'
+import {
+  getHomeSectionRemovalCutoff,
+  type UserNotification,
+} from '@/lib/notifications'
 
 type DashboardSubmission = {
   id: string
@@ -77,6 +80,8 @@ export default async function DashboardPage({
     message: string
     reason: string | null
     created_at: string
+    is_read: boolean
+    notification_type: string
   }> = []
 
   const isTeacher = isAdminPreview ? previewMeta?.role === 'mentor' : profile?.role === 'mentor'
@@ -150,27 +155,17 @@ export default async function DashboardPage({
     const { submissions } = await getTeacherSubmissionData(supabase, user.id)
     teacherRecentSubmissions = submissions.slice(0, 3)
   } else {
+    const sectionRemovalCutoff = getHomeSectionRemovalCutoff()
     const { data: notifications } = await supabase
       .from('user_notifications')
-      .select('id, title, message, reason, created_at, is_read')
+      .select('id, title, message, reason, created_at, is_read, notification_type')
       .eq('user_id', user.id)
       .eq('notification_type', 'section_removal')
+      .gte('created_at', sectionRemovalCutoff)
       .order('created_at', { ascending: false })
-      .limit(6)
+      .limit(10)
 
     sectionRemovalNotifications = notifications || []
-
-    const unreadNotificationIds = (notifications || [])
-      .filter((item) => !item.is_read)
-      .map((item) => item.id)
-
-    if (unreadNotificationIds.length > 0) {
-      await supabase
-        .from('user_notifications')
-        .update({ is_read: true })
-        .eq('user_id', user.id)
-        .in('id', unreadNotificationIds)
-    }
 
     const { data: submissions } = await supabase
       .from('research')
@@ -218,51 +213,10 @@ export default async function DashboardPage({
         <RotatingQuote />
       </div>
 
-      {!isTeacher && sectionRemovalNotifications.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-gray-500">
-            <BellRing size={16} />
-            Notifications
-          </div>
-
-          <div className="space-y-3">
-            {sectionRemovalNotifications.map((notification) => (
-              <div
-                key={notification.id}
-                className="rounded-2xl border border-red-200 bg-red-50 p-5 text-red-900 shadow-sm dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5">
-                    <UserMinus size={18} className="text-red-600 dark:text-red-300" />
-                  </div>
-
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-red-700 dark:bg-red-900/70 dark:text-red-200">
-                        section removal
-                      </span>
-                      <span className="text-xs opacity-70">
-                        {new Date(notification.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-
-                    <div>
-                      <h2 className="text-lg font-bold">{notification.title}</h2>
-                      <p className="mt-1 whitespace-pre-wrap text-sm leading-6 opacity-90">
-                        {notification.message}
-                      </p>
-                      {notification.reason && (
-                        <p className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-sm font-medium text-red-800 dark:bg-black/20 dark:text-red-100">
-                          Reason: {notification.reason}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+      {!isTeacher && (
+        <HomeSectionRemovalAlerts
+          notifications={sectionRemovalNotifications as UserNotification[]}
+        />
       )}
 
       {activeAnnouncements.length > 0 && (
