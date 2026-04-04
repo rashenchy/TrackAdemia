@@ -1,13 +1,13 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { uploadResearchDocument } from '@/lib/research-files'
-import { getPublishedAtForStatusChange } from '@/lib/research-publication'
+import { uploadResearchDocument } from '@/lib/research/files'
+import { getPublishedAtForStatusChange } from '@/lib/research/publication'
 import {
   getUnresolvedAnnotationCount,
   notifyTeachersForResearchSubmission,
   notifyTeachersForResearchVersionUpload,
-} from '@/lib/research-workflow'
+} from '@/lib/research/workflow'
 import { redirect } from 'next/navigation'
 
 export async function updateResearch(editId: string, prevState: any, formData: FormData) {

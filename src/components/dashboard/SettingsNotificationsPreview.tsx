@@ -4,7 +4,7 @@ import {
   formatNotificationTimestamp,
   getNotificationPreview,
   type UserNotification,
-} from '@/lib/notifications'
+} from '@/lib/notifications/types'
 
 export default function SettingsNotificationsPreview({
   notifications,

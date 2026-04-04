@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import { useFormStatus } from 'react-dom'
-import { MANUAL_RESEARCH_STATUS_OPTIONS } from '@/lib/research-status'
+import { MANUAL_RESEARCH_STATUS_OPTIONS } from '@/lib/research/status'
 
 function StatusControls({ currentStatus }: { currentStatus: string }) {
   const { pending } = useFormStatus()

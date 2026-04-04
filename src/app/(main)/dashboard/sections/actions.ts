@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
-import { createNotification } from '@/lib/notification-service'
+import { createNotification } from '@/lib/notifications/service'
 
 // Create a new class section (Teacher)
 export async function createSection(

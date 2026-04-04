@@ -2,8 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { syncResearchReviewStatus } from '@/lib/research-review-status'
-import { createNotifications } from '@/lib/notification-service'
+import { syncResearchReviewStatus } from '@/lib/research/review'
+import { createNotifications } from '@/lib/notifications/service'
 
 type HighlightArea = {
   pageIndex: number

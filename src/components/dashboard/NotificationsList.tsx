@@ -6,7 +6,7 @@ import {
   getNotificationRoute,
   getNotificationTypeLabel,
   type UserNotification,
-} from '@/lib/notifications'
+} from '@/lib/notifications/types'
 
 export default function NotificationsList({
   notifications,

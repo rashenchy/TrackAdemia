@@ -5,7 +5,7 @@ import {
   maskEmailAddress,
   readPendingRegistration,
   verificationConfig,
-} from '@/lib/pending-registration'
+} from '@/lib/users/pending-registration'
 import { resendVerificationCode, verifyEmailCode } from './actions'
 
 export default async function VerifyEmailPage({

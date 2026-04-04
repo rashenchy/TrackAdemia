@@ -14,16 +14,16 @@ import RotatingQuote from '@/components/dashboard/RotatingQuote'
 import HomeSectionRemovalAlerts from '@/components/dashboard/HomeSectionRemovalAlerts'
 import HomeNotificationsPanel from '@/components/dashboard/HomeNotificationsPanel'
 import { getActiveAnnouncements } from '@/app/(admin)/admin/announcements/actions'
-import { getTeacherSubmissionData, type TeacherSubmissionRecord } from '@/lib/teacher-submissions'
+import { getTeacherSubmissionData, type TeacherSubmissionRecord } from '@/lib/users/teacher-submissions'
 import {
   ADMIN_VIEW_COOKIE,
   getAdminViewMeta,
   isAdminViewMode,
-} from '@/lib/admin-view-mode'
+} from '@/lib/users/admin-view-mode'
 import {
   getHomeSectionRemovalCutoff,
   type UserNotification,
-} from '@/lib/notifications'
+} from '@/lib/notifications/types'
 
 type DashboardSubmission = {
   id: string

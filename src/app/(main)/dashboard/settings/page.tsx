@@ -19,8 +19,8 @@ import {
   ADMIN_VIEW_COOKIE,
   getAdminViewMeta,
   isAdminViewMode,
-} from '@/lib/admin-view-mode'
-import type { UserNotification } from '@/lib/notifications'
+} from '@/lib/users/admin-view-mode'
+import type { UserNotification } from '@/lib/notifications/types'
 
 export default async function SettingsPage() {
   const supabase = await createClient()

@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import type { MonitoredProvider, MonitoredStatus } from '@/lib/api-monitoring'
+import type { MonitoredProvider, MonitoredStatus } from '@/lib/api-monitoring/service'
 
 export interface ApiMonitoringLog {
   id: string

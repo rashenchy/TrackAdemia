@@ -1,8 +1,8 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { getPublishedAtForStatusChange } from '@/lib/research-publication'
-import { isManualResearchStatus } from '@/lib/research-status'
+import { getPublishedAtForStatusChange } from '@/lib/research/publication'
+import { isManualResearchStatus } from '@/lib/research/status'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 

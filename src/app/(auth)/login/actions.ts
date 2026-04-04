@@ -2,16 +2,16 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { sendRegistrationVerificationEmail } from '@/lib/email'
-import { isRegistrationEmailVerificationEnabled } from '@/lib/registration-config'
-import { rethrowIfRedirectError } from '@/lib/redirect-error'
+import { sendRegistrationVerificationEmail } from '@/lib/core/email'
+import { isRegistrationEmailVerificationEnabled } from '@/lib/core/registration-config'
+import { rethrowIfRedirectError } from '@/lib/core/redirect-error'
 import { createClient } from '@/lib/supabase/server'
-import { isAllowedCourseProgram } from '@/lib/course-programs'
-import { isValidStudentNumber, normalizeStudentNumber } from '@/lib/student-number'
+import { isAllowedCourseProgram } from '@/lib/core/course-programs'
+import { isValidStudentNumber, normalizeStudentNumber } from '@/lib/core/student-number'
 import {
   clearPendingRegistration,
   createPendingRegistrationSession,
-} from '@/lib/pending-registration'
+} from '@/lib/users/pending-registration'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 

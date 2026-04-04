@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { getPublishedAtForStatusChange } from '@/lib/research-publication'
+import { getPublishedAtForStatusChange } from '@/lib/research/publication'
 
 export interface ResearchRecord {
   id: string

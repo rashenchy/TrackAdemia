@@ -13,7 +13,7 @@ import {
   MessageCircle,
   ChevronRight,
 } from 'lucide-react'
-import type { TeacherSubmissionFilter, TeacherSubmissionRecord, TeacherSubmissionSection } from '@/lib/teacher-submissions'
+import type { TeacherSubmissionFilter, TeacherSubmissionRecord, TeacherSubmissionSection } from '@/lib/users/teacher-submissions'
 
 type BasicSubmission = {
   id: string

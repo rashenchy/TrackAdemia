@@ -18,7 +18,7 @@ import {
   ADMIN_VIEW_COOKIE,
   getAdminViewMeta,
   isAdminViewMode,
-} from '@/lib/admin-view-mode'
+} from '@/lib/users/admin-view-mode'
 
 export default async function ProfilePage() {
   const supabase = await createClient()

@@ -1,9 +1,9 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { uploadResearchDocument } from '@/lib/research-files'
-import { getPublishedAtForStatusChange } from '@/lib/research-publication'
-import { notifyTeachersForResearchSubmission } from '@/lib/research-workflow'
+import { uploadResearchDocument } from '@/lib/research/files'
+import { getPublishedAtForStatusChange } from '@/lib/research/publication'
+import { notifyTeachersForResearchSubmission } from '@/lib/research/workflow'
 import { redirect } from 'next/navigation'
 
 export async function submitResearch(prevState: any, formData: FormData) {

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { isValidStudentNumber, normalizeStudentNumber } from '@/lib/student-number'
+import { isValidStudentNumber, normalizeStudentNumber } from '@/lib/core/student-number'
 
 export type UpdateProfileState = {
   error?: string

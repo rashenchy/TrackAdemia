@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { createNotification } from '@/lib/notification-service'
+import { createNotification } from '@/lib/notifications/service'
 
 interface Faculty {
   id: string

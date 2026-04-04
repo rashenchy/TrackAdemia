@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { logApiRequest } from '@/lib/api-monitoring'
+import { logApiRequest } from '@/lib/api-monitoring/service'
 import {
   analyzeMatches,
   preprocessText,
   searchWithSerpAPI,
   selectTopSentences,
   splitIntoSentences,
-} from '@/lib/plagiarism'
+} from '@/lib/plagiarism/service'
 
 interface PlagiarismCheckRequest {
   text: string

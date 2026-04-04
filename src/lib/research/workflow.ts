@@ -1,6 +1,6 @@
 'use server'
 
-import { createNotifications } from '@/lib/notification-service'
+import { createNotifications } from '@/lib/notifications/service'
 
 type SupabaseClientLike = any
 

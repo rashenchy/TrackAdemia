@@ -3,8 +3,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
-import { syncResearchReviewStatus } from '@/lib/research-review-status'
-import { createNotifications } from '@/lib/notification-service'
+import { syncResearchReviewStatus } from '@/lib/research/review'
+import { createNotifications } from '@/lib/notifications/service'
 
 // Create a personal task for the current user
 export async function createTask(formData: FormData) {

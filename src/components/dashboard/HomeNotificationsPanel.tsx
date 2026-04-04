@@ -10,7 +10,7 @@ import {
   getNotificationRoute,
   getNotificationTypeLabel,
   type UserNotification,
-} from '@/lib/notifications'
+} from '@/lib/notifications/types'
 
 const STORAGE_KEY = 'dashboard:notifications:collapsed'
 

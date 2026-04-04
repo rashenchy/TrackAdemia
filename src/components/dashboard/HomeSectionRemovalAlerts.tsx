@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { BellRing, ChevronDown, ChevronUp, PanelTopClose, UserMinus } from 'lucide-react'
-import { formatNotificationTimestamp, type UserNotification } from '@/lib/notifications'
+import { formatNotificationTimestamp, type UserNotification } from '@/lib/notifications/types'
 
 const STORAGE_KEY = 'dashboard:section-removal-alerts:collapsed'
 

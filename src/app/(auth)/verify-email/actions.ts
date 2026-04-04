@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { finalizeVerifiedSignup } from '../login/actions'
-import { sendRegistrationVerificationEmail } from '@/lib/email'
+import { sendRegistrationVerificationEmail } from '@/lib/core/email'
 import {
   clearPendingRegistration,
   maskEmailAddress,
@@ -10,8 +10,8 @@ import {
   resendPendingRegistrationCode,
   verificationConfig,
   verifyPendingRegistrationCode,
-} from '@/lib/pending-registration'
-import { rethrowIfRedirectError } from '@/lib/redirect-error'
+} from '@/lib/users/pending-registration'
+import { rethrowIfRedirectError } from '@/lib/core/redirect-error'
 
 function redirectToVerifyEmail(messageType: 'error' | 'success', message: string) {
   redirect(`/verify-email?${messageType}=${encodeURIComponent(message)}`)

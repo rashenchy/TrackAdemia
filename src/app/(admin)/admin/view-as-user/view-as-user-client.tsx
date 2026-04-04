@@ -1,7 +1,7 @@
 'use client'
 
 import { Eye, GraduationCap, ShieldAlert, UserRound } from 'lucide-react'
-import type { AdminViewMode } from '@/lib/admin-view-mode'
+import type { AdminViewMode } from '@/lib/users/admin-view-mode'
 
 interface ViewAsUserClientProps {
   beginViewAsUser: (mode: AdminViewMode) => Promise<void>

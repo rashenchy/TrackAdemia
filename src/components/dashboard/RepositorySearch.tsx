@@ -3,7 +3,7 @@
 import { Search, Filter, SlidersHorizontal } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { RESEARCH_TYPE_OPTIONS } from '@/lib/research-types'
+import { RESEARCH_TYPE_OPTIONS } from '@/lib/research/types'
 
 // Search and filter component for the public research repository
 export function RepositorySearch() {

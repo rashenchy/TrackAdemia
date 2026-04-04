@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { Database, Trash2, AlertCircle, Loader2, Archive, CheckCircle } from 'lucide-react'
 import { getAllResearch, forceDeleteResearch, overrideResearchStatus, archiveAllSections } from './actions'
-import { RESEARCH_TYPE_OPTIONS, getResearchTypeLabel } from '@/lib/research-types'
-import { RESEARCH_STATUS_OPTIONS } from '@/lib/research-status'
+import { RESEARCH_TYPE_OPTIONS, getResearchTypeLabel } from '@/lib/research/types'
+import { RESEARCH_STATUS_OPTIONS } from '@/lib/research/status'
 
 interface ResearchRecord {
   id: string

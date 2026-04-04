@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import {
   ADMIN_VIEW_COOKIE,
   type AdminViewMode,
-} from '@/lib/admin-view-mode'
+} from '@/lib/users/admin-view-mode'
 
 async function requireAdmin() {
   const supabase = await createClient()

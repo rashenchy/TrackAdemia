@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { BellRing } from 'lucide-react'
 import { SubmissionsTable } from '@/components/dashboard/SubmissionsTable'
-import { getTeacherSubmissionData } from '@/lib/teacher-submissions'
+import { getTeacherSubmissionData } from '@/lib/users/teacher-submissions'
 
 export default async function StudentSubmissionsPage() {
   const supabase = await createClient()

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { formatStudentNumber, getStudentNumberPattern } from '@/lib/student-number'
+import { formatStudentNumber, getStudentNumberPattern } from '@/lib/core/student-number'
 
 export function RegistrationIdentityFields() {
   const [role, setRole] = useState('student')

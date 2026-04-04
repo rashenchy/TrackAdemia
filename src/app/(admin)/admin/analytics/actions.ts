@@ -7,7 +7,7 @@ import type {
   ResearchTypeDistribution,
   TopResearch,
 } from './types'
-import { RESEARCH_TYPE_OPTIONS, getResearchTypeLabel } from '@/lib/research-types'
+import { RESEARCH_TYPE_OPTIONS, getResearchTypeLabel } from '@/lib/research/types'
 
 function formatPublishedTimestamp(value: string | null) {
   if (!value) return 'N/A'

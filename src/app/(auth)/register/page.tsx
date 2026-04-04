@@ -5,7 +5,7 @@ import { signup } from '../login/actions'
 import { PasswordField } from '@/components/auth/PasswordField'
 import { RegistrationIdentityFields } from '@/components/auth/RegistrationIdentityFields'
 import { SubmitButton } from '@/components/auth/SubmitButton'
-import { ALLOWED_COURSE_PROGRAMS } from '@/lib/course-programs'
+import { ALLOWED_COURSE_PROGRAMS } from '@/lib/core/course-programs'
 
 export default async function RegisterPage({
   searchParams,
