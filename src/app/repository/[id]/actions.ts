@@ -32,7 +32,8 @@ export async function recordResearchView(researchId: string) {
 export async function getPublicSignedUrl(
   fileUrl: string,
   isDownload: boolean = false,
-  researchId?: string
+  researchId?: string,
+  downloadFileName?: string
 ) {
 
   // Initialize Supabase and fetch the current user
@@ -54,7 +55,7 @@ export async function getPublicSignedUrl(
   const { data, error } = await supabase.storage
     .from('trackademiaPapers')
     .createSignedUrl(fileUrl, 3600, {
-      download: isDownload
+      download: isDownload ? (downloadFileName || true) : false
     })
 
   // Handle signed URL generation errors

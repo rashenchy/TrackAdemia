@@ -71,8 +71,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   const handleRefresh = () => {
+    if (isRefreshing) return
+
     setIsRefreshing(true)
-    router.refresh()
+    startNavigation(() => {
+      router.refresh()
+    })
+
     setTimeout(() => setIsRefreshing(false), 700)
   }
 

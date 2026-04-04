@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { ArrowLeft, Calendar, GraduationCap, Edit3, FileText, Users, User } from 'lucide-react'
 import { DocumentDownloadButton } from '@/components/dashboard/DocumentDownloadButton'
 import { updateResearchStatus } from './actions'
+import { ResearchStatusForm } from './research-status-form'
 
 export default async function ViewResearchPage({ params }: { params: Promise<{ id: string }> }) {
 
@@ -113,6 +114,7 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
       ? [{
           id: 'legacy',
           file_url: research.file_url,
+          original_file_name: research.original_file_name,
           version_number: 1,
           created_at: research.created_at
         }]
@@ -138,29 +140,10 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
 
         {/* Status Update Control */}
         {!isViewerOnly && isTeacher ? (
-          <form
+          <ResearchStatusForm
             action={updateStatusAction}
-            className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900/50 p-1.5 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm w-fit"
-          >
-            <select
-              name="status"
-              defaultValue={research.status}
-              className="text-sm font-semibold bg-transparent border-none outline-none cursor-pointer pl-2"
-            >
-              <option value="Pending Review">Pending Review</option>
-              <option value="Resubmitted">Resubmitted</option>
-              <option value="Revision Requested">Revision Requested</option>
-              <option value="Approved">Approved (Internal)</option>
-              <option value="Published">Published (Public Repository)</option>
-              <option value="Rejected">Rejected</option>
-            </select>
-            <button
-              type="submit"
-              className="text-xs font-bold bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Update
-            </button>
-          </form>
+            currentStatus={research.status}
+          />
         ) : (
           <span
             className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase w-fit
@@ -305,9 +288,15 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
                   <p className="text-xs text-gray-500 mt-1">
                     Published on {new Date(displayVersions[0].created_at).toLocaleString()}
                   </p>
+                  <p className="mt-2 text-xs font-medium text-gray-600 dark:text-gray-400">
+                    {displayVersions[0].original_file_name || 'Attached manuscript.pdf'}
+                  </p>
                 </div>
                 <div className="w-full md:w-auto">
-                  <DocumentDownloadButton fileUrl={displayVersions[0].file_url} />
+                  <DocumentDownloadButton
+                    fileUrl={displayVersions[0].file_url}
+                    downloadFileName={displayVersions[0].original_file_name}
+                  />
                 </div>
               </div>
             ) : (
@@ -335,18 +324,24 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
                       <p className="text-xs text-gray-500 mt-1">
                         Uploaded on {new Date(v.created_at).toLocaleString()}
                       </p>
+                      <p className="mt-2 text-xs font-medium text-gray-600 dark:text-gray-400">
+                        {v.original_file_name || 'Attached manuscript.pdf'}
+                      </p>
                     </div>
 
                     <div className="flex items-center gap-2 w-full md:w-auto">
-                      {isLatest && (
-                        <Link
-                          href={`/dashboard/research/${research.id}/annotate`}
-                          className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 rounded-lg font-semibold transition-colors text-sm flex-1"
+                        {(isTeacher || isAuthor) && (
+                          <Link
+                            href={`/dashboard/research/${research.id}/annotate?version=${v.version_number}`}
+                            className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 rounded-lg font-semibold transition-colors text-sm flex-1"
                         >
                           <Edit3 size={16} /> Annotate
                         </Link>
                       )}
-                      <DocumentDownloadButton fileUrl={v.file_url} />
+                      <DocumentDownloadButton
+                        fileUrl={v.file_url}
+                        downloadFileName={v.original_file_name}
+                      />
                     </div>
                   </div>
                 )

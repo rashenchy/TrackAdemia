@@ -194,13 +194,15 @@ export function SubmissionsTable({
                   <Eye size={16} />
                   View
                 </Link>
-                <Link
-                  href={`/dashboard/research/${submission.id}/annotate`}
-                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                >
-                  <MessageCircle size={16} />
-                  Feedback
-                </Link>
+                {'filter_group' in submission && (
+                  <Link
+                    href={`/dashboard/research/${submission.id}/annotate`}
+                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                  >
+                    <MessageCircle size={16} />
+                    Feedback
+                  </Link>
+                )}
               </div>
             </div>
           </article>

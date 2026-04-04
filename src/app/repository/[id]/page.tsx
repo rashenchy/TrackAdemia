@@ -60,7 +60,7 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
   // Fetch the latest manuscript version
   const { data: latestVersion } = await supabase
     .from('research_versions')
-    .select('file_url, created_at')
+    .select('file_url, created_at, original_file_name')
     .eq('research_id', researchId)
     .order('version_number', { ascending: false })
     .limit(1)
@@ -68,6 +68,7 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
 
   // Determine which file URL should be used for download
   const fileUrlToDownload = latestVersion?.file_url || research.file_url
+  const fileNameToDownload = latestVersion?.original_file_name || research.original_file_name
 
   // Render the public research page
   return (
@@ -189,12 +190,16 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
             <p className="text-sm text-blue-700/80 dark:text-blue-300/80 mt-1">
               Download the latest published manuscript.
             </p>
+            <p className="mt-2 text-xs font-medium text-blue-800/80 dark:text-blue-200/80">
+              {fileNameToDownload || 'No file name available'}
+            </p>
           </div>
 
           {fileUrlToDownload ? (
             <PublicDownloadButton
               fileUrl={fileUrlToDownload}
               researchId={research.id}
+              downloadFileName={fileNameToDownload}
             />
           ) : (
             <span className="text-sm text-gray-500 italic">

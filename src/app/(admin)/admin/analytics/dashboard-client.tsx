@@ -68,7 +68,7 @@ export default function AdminDashboardClient({
             Analytics & Reporting
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            System-wide statistics and engagement metrics
+            System-wide statistics, views, and downloads
           </p>
         </div>
       </div>
@@ -227,7 +227,7 @@ export default function AdminDashboardClient({
 
       <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6">
         <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4">
-          Top 10 Most Impactful Research
+          Most Viewed Research
         </h2>
         {topResearch.length > 0 ? (
           <div className="overflow-x-auto">
@@ -248,9 +248,6 @@ export default function AdminDashboardClient({
                   </th>
                   <th className="px-4 py-3 text-center text-xs font-semibold text-gray-900 dark:text-gray-100">
                     Downloads
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-semibold text-gray-900 dark:text-gray-100">
-                    Total Engagement
                   </th>
                 </tr>
               </thead>
@@ -284,9 +281,6 @@ export default function AdminDashboardClient({
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400">
                         Downloads {item.downloads_count}
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-center font-semibold text-gray-900 dark:text-gray-100">
-                      {item.total_engagement}
                     </td>
                   </tr>
                 ))}

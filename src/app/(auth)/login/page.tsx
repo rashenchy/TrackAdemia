@@ -5,12 +5,22 @@ import { login } from './actions'
 import { PasswordField } from '@/components/auth/PasswordField'
 import { SubmitButton } from '@/components/auth/SubmitButton'
 
+const ALLOWED_LOGIN_SUCCESS_MESSAGES = new Set([
+  'Registration submitted successfully. Please verify your email with the code we sent.',
+  'Email verified successfully. You can now sign in.',
+])
+
 export default async function LoginPage({
   searchParams,
 }: {
   searchParams: Promise<{ success?: string; error?: string }>
 }) {
   const resolvedSearchParams = await searchParams
+  const successMessage = resolvedSearchParams.success
+  const safeSuccessMessage =
+    successMessage && ALLOWED_LOGIN_SUCCESS_MESSAGES.has(successMessage)
+      ? successMessage
+      : null
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#eef6ff_0%,#fff7d6_46%,#ffffff_100%)] px-4 py-4 selection:bg-blue-100 md:px-6 md:py-3 lg:px-8">
@@ -116,9 +126,9 @@ export default async function LoginPage({
               </p>
             </div>
 
-            {resolvedSearchParams.success && (
+            {safeSuccessMessage && (
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-                {resolvedSearchParams.success}
+                {safeSuccessMessage}
               </div>
             )}
 

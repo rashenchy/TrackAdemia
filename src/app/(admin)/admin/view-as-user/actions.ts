@@ -74,7 +74,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     const { count: publishedResearch } = await supabase
       .from('research')
       .select('*', { count: 'exact', head: true })
-      .eq('status', 'Approved')
+      .eq('status', 'Published')
 
     // Get total sections
     const { count: totalSections } = await supabase

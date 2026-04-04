@@ -29,6 +29,39 @@ export default async function SubmitResearchPage() {
   let userSections: { id: string, name: string, course_code: string }[] = []
   let adviserOptions: { id: string, name: string }[] = []
   let sectionAdvisers: Record<string, { id: string, name: string }> = {}
+  let draftResearch: {
+    id: string
+    title?: string
+    type?: string
+    abstract?: string
+    keywords?: string[] | string
+    members?: string[]
+    member_roles?: string[]
+    subject_code?: string
+    adviser_id?: string | null
+    research_area?: string | null
+    start_date?: string | null
+    target_defense_date?: string | null
+    current_stage?: string | null
+    file_url?: string | null
+    original_file_name?: string | null
+  } | null = null
+
+  const { data: draftData } = await supabase
+    .from('research')
+    .select(
+      'id, title, type, abstract, keywords, members, member_roles, subject_code, adviser_id, research_area, start_date, target_defense_date, current_stage, file_url'
+      + ', original_file_name'
+    )
+    .eq('user_id', user.id)
+    .eq('status', 'Draft')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (draftData) {
+    draftResearch = draftData
+  }
 
   // If the user belongs to any sections, fetch related data
   if (sectionIds.length > 0) {
@@ -174,6 +207,8 @@ export default async function SubmitResearchPage() {
         sections={userSections}
         adviserOptions={adviserOptions}
         sectionAdvisers={sectionAdvisers}
+        initialData={draftResearch}
+        editId={draftResearch?.id ?? null}
       />
     </div>
   )

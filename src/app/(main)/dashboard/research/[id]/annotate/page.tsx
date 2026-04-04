@@ -1,7 +1,7 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import React, { useState, useEffect, use, useRef, useMemo } from 'react'
 import { Viewer, Worker } from '@react-pdf-viewer/core'
 import {
@@ -13,13 +13,14 @@ import {
 import '@react-pdf-viewer/core/lib/styles/index.css'
 import '@react-pdf-viewer/highlight/lib/styles/index.css'
 
-import { ArrowLeft, CheckCircle, MessageSquare, ChevronLeft, Send, Loader2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle, MessageSquare, ChevronLeft, Send, Loader2, Edit3, Eye } from 'lucide-react'
 import Link from 'next/link'
 
 import {
   addAnnotation,
   getAnnotations,
   getResearchFile,
+  getResearchFileForVersion,
   toggleAnnotationResolved,
   getReplies,
   addReply,
@@ -55,7 +56,10 @@ export default function AnnotatePage({
 
   /* Read optional URL parameters such as deep links to a specific annotation */
   const searchParams = useSearchParams()
+  const router = useRouter()
   const targetAnnotationId = searchParams.get('annotationId')
+  const versionParam = searchParams.get('version')
+  const selectedVersionNumber = versionParam ? Number(versionParam) : null
 
 
   /* --- COMPONENT STATE --- */
@@ -63,6 +67,12 @@ export default function AnnotatePage({
   /* Data storage for document and annotations */
   const [fileUrl, setFileUrl] = useState<string | null>(null)
   const [annotations, setAnnotations] = useState<any[]>([])
+  const [researchTitle, setResearchTitle] = useState('')
+  const [researchFileName, setResearchFileName] = useState('')
+  const [availableVersions, setAvailableVersions] = useState<
+    Array<{ id: string; version_number: number; created_at: string; original_file_name?: string | null }>
+  >([])
+  const [isAuthor, setIsAuthor] = useState(false)
 
   /* UI/Sidebar Control states */
   const [filter, setFilter] = useState<'all' | 'unresolved' | 'resolved'>('all')
@@ -77,6 +87,7 @@ export default function AnnotatePage({
   
   /* User and editing permission states */
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
   const [editingReplyId, setEditingReplyId] = useState<string | null>(null)
   const [editMessage, setEditMessage] = useState('')
 
@@ -91,6 +102,12 @@ export default function AnnotatePage({
 
 
   /* --- DERIVED DATA & COMPUTED VALUES --- */
+  const canReview = currentUserRole === 'mentor' || currentUserRole === 'admin'
+  const canParticipate = canReview || currentUserRole === 'student'
+  const effectiveVersionNumber =
+    selectedVersionNumber ??
+    availableVersions[0]?.version_number ??
+    1
 
   /* Filtered and sorted list of annotations for the sidebar */
   const displayedAnnotations = useMemo(() => {
@@ -143,6 +160,7 @@ export default function AnnotatePage({
 
   /* Creates a new annotation and performs an optimistic UI update */
   const handleAddAnnotation = async (highlightData: any, text: string) => {
+    if (!canReview) return
     if (!highlightData?.selectedText) return
     if (!highlightData?.highlightAreas?.length) return
 
@@ -173,6 +191,7 @@ export default function AnnotatePage({
 
   /* Toggles resolved status and updates server */
   const handleToggleResolve = async (id: string, currentStatus: boolean) => {
+    if (!canParticipate) return
     setAnnotations(prev =>
       prev.map(a => a.id === id ? { ...a, is_resolved: !currentStatus } : a)
     )
@@ -255,7 +274,7 @@ export default function AnnotatePage({
   /* --- HIGHLIGHT PLUGIN CONFIGURATION --- */
 
   const highlightPluginInstance = highlightPlugin({
-    renderHighlightTarget: (renderProps: RenderHighlightTargetProps) => (
+    renderHighlightTarget: (renderProps: RenderHighlightTargetProps) => canReview ? (
       <div
         style={{
           position: 'absolute',
@@ -275,7 +294,7 @@ export default function AnnotatePage({
           Add Feedback
         </button>
       </div>
-    ),
+    ) : <></>,
     renderHighlights: (renderProps: RenderHighlightsProps) => (
       <div>
         {annotations.map(ann => {
@@ -326,13 +345,58 @@ export default function AnnotatePage({
   /* Initial data fetch */
   useEffect(() => {
     async function loadData() {
-      const file = await getResearchFile(researchId)
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+
+      const { data: research } = await supabase
+        .from('research')
+        .select('title, user_id, members, file_url, created_at, original_file_name')
+        .eq('id', researchId)
+        .single()
+
+      if (research) {
+        setResearchTitle(research.title || '')
+        setResearchFileName(research.original_file_name || '')
+        const userIsAuthor =
+          research.user_id === user?.id ||
+          (Array.isArray(research.members) && !!user?.id && research.members.includes(user.id))
+        setIsAuthor(userIsAuthor)
+
+        const { data: versions } = await supabase
+          .from('research_versions')
+          .select('id, version_number, created_at, original_file_name')
+          .eq('research_id', researchId)
+          .order('version_number', { ascending: false })
+
+        if (versions && versions.length > 0) {
+          setAvailableVersions(versions)
+          const activeVersion = selectedVersionNumber
+            ? versions.find((version) => version.version_number === selectedVersionNumber)
+            : versions[0]
+          setResearchFileName(activeVersion?.original_file_name || research.original_file_name || '')
+        } else if (research.file_url) {
+          setAvailableVersions([
+            {
+              id: 'legacy',
+              version_number: 1,
+              created_at: research.created_at,
+              original_file_name: research.original_file_name,
+            },
+          ])
+        } else {
+          setAvailableVersions([])
+        }
+      }
+
+      const file = selectedVersionNumber
+        ? await getResearchFileForVersion(researchId, selectedVersionNumber)
+        : await getResearchFile(researchId)
       if (file) setFileUrl(file)
-      const anns = await getAnnotations(researchId)
+      const anns = await getAnnotations(researchId, selectedVersionNumber)
       setAnnotations(anns)
     }
     loadData()
-  }, [researchId])
+  }, [researchId, selectedVersionNumber])
 
   /* Get user authentication status */
   useEffect(() => {
@@ -340,9 +404,19 @@ export default function AnnotatePage({
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       setCurrentUserId(user?.id || null)
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+
+        setCurrentUserRole(profile?.role || null)
+
+      }
     }
     getUser()
-  }, [])
+  }, [researchId])
 
 
   /* --- RENDER --- */
@@ -367,12 +441,68 @@ export default function AnnotatePage({
           </Link>
           <h1 className="font-bold text-gray-900 text-lg">Review & Annotate</h1>
         </div>
+
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <select
+              value={String(effectiveVersionNumber)}
+              onChange={(e) => {
+                const nextVersion = e.target.value
+                const params = new URLSearchParams(searchParams.toString())
+                params.set('version', nextVersion)
+                router.push(`/dashboard/research/${researchId}/annotate?${params.toString()}`)
+              }}
+              className="min-w-[150px] appearance-none rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 pr-9 text-sm font-semibold text-blue-700 outline-none transition focus:border-blue-400"
+            >
+              {availableVersions.map((version) => (
+                <option key={version.id} value={version.version_number}>
+                  Version {version.version_number}
+                </option>
+              ))}
+            </select>
+            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-blue-700">
+              v
+            </span>
+          </div>
+
+          {(canReview || isAuthor) && (
+            <Link
+              href={`/dashboard/research/${researchId}/edit`}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+            >
+              <Edit3 size={16} />
+              Edit
+            </Link>
+          )}
+
+          <Link
+            href={`/dashboard/research/${researchId}`}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+          >
+            <Eye size={16} />
+            View
+          </Link>
+        </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
         
         {/* --- PDF VIEWER SECTION --- */}
         <div className="flex-1 bg-gray-200/50 p-6 overflow-y-auto">
+          <div className="mx-auto mb-4 max-w-4xl rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-gray-500">
+              Manuscript Title
+            </p>
+            <h2 className="mt-2 text-xl font-bold text-gray-900">
+              {researchTitle || 'Untitled Research'}
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Reviewing Version {effectiveVersionNumber}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              {researchFileName || 'Attached manuscript.pdf'}
+            </p>
+          </div>
           <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
             <div className="max-w-4xl mx-auto shadow-lg bg-white">
               <Viewer fileUrl={fileUrl} plugins={[highlightPluginInstance]} />
@@ -458,13 +588,15 @@ export default function AnnotatePage({
                     <button onClick={closeThread} className="text-sm text-gray-500 hover:text-gray-900 flex items-center gap-1 font-medium transition-colors">
                       <ChevronLeft size={16} /> Back to list
                     </button>
-                    <button
-                      onClick={() => handleToggleResolve(selectedAnnotation.id, selectedAnnotation.is_resolved)}
-                      className={`text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-full font-bold transition-colors ${selectedAnnotation.is_resolved ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                    >
-                      <CheckCircle size={14} />
-                      {selectedAnnotation.is_resolved ? 'Resolved' : 'Mark Resolved'}
-                    </button>
+                    {canParticipate && (
+                      <button
+                        onClick={() => handleToggleResolve(selectedAnnotation.id, selectedAnnotation.is_resolved)}
+                        className={`text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-full font-bold transition-colors ${selectedAnnotation.is_resolved ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                      >
+                        <CheckCircle size={14} />
+                        {selectedAnnotation.is_resolved ? 'Resolved' : 'Mark Resolved'}
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex-1 overflow-y-auto p-5 space-y-6">
@@ -573,7 +705,7 @@ export default function AnnotatePage({
       </div>
 
       {/* --- ADD FEEDBACK MODAL --- */}
-      {showCommentBox && (
+      {canReview && showCommentBox && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">
           <div className="bg-white w-[400px] rounded-2xl shadow-2xl p-6 space-y-4">
             <h3 className="font-bold text-gray-900 text-lg">Add Feedback</h3>

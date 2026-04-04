@@ -5,7 +5,15 @@ import { Download, Eye, Loader2 } from 'lucide-react'
 import { getPublicSignedUrl, recordResearchView } from '@/app/repository/[id]/actions'
 
 // Button component for public repository documents (view + download with analytics)
-export function PublicDownloadButton({ fileUrl, researchId }: { fileUrl: string, researchId: string }) {
+export function PublicDownloadButton({
+  fileUrl,
+  researchId,
+  downloadFileName,
+}: {
+  fileUrl: string
+  researchId: string
+  downloadFileName?: string | null
+}) {
 
   // Loading states for viewing and downloading
   const [isDownloading, setIsDownloading] = useState(false)
@@ -27,7 +35,7 @@ export function PublicDownloadButton({ fileUrl, researchId }: { fileUrl: string,
     setIsDownloading(true)
 
     // Request a signed URL configured for download and track the download
-    const result = await getPublicSignedUrl(fileUrl, true, researchId)
+    const result = await getPublicSignedUrl(fileUrl, true, researchId, downloadFileName || undefined)
 
     setIsDownloading(false)
 

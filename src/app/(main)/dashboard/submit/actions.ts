@@ -1,6 +1,9 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { uploadResearchDocument } from '@/lib/research-files'
+import { getPublishedAtForStatusChange } from '@/lib/research-publication'
+import { notifyTeachersForResearchSubmission } from '@/lib/research-workflow'
 import { redirect } from 'next/navigation'
 
 export async function submitResearch(prevState: any, formData: FormData) {
@@ -64,42 +67,17 @@ export async function submitResearch(prevState: any, formData: FormData) {
   // Secure file upload
   const initialDocument = formData.get('initialDocument') as File | null
   let fileUrl = null
+  let originalFileName = null
 
   if (initialDocument && initialDocument.size > 0) {
-
-    const allowedTypes = ['application/pdf']
-    const MAX_FILE_SIZE = 20 * 1024 * 1024
-
-    // Validate file type
-    if (!allowedTypes.includes(initialDocument.type)) {
-      return { error: 'Only PDF files are allowed.' }
+    try {
+      const uploadedFile = await uploadResearchDocument(supabase, user.id, initialDocument)
+      fileUrl = uploadedFile.filePath
+      originalFileName = uploadedFile.originalFileName
+    } catch (error: any) {
+      console.error('Storage Upload Error:', error)
+      return { error: error?.message || 'Failed to securely upload the document. Please try again.' }
     }
-
-    // Validate file size
-    if (initialDocument.size > MAX_FILE_SIZE) {
-      return { error: 'File must be under 20MB.' }
-    }
-
-    // Generate unique filename
-    const fileExt = initialDocument.name.split('.').pop() || 'pdf'
-    const uniqueFilename = `${Date.now()}_${crypto.randomUUID()}.${fileExt}`
-    const filePath = `${user.id}/${uniqueFilename}`
-
-    // Upload file to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('trackademiaPapers')
-      .upload(filePath, initialDocument, {
-        cacheControl: '3600',
-        upsert: false,
-        contentType: initialDocument.type
-      })
-
-    if (uploadError) {
-      console.error('Storage Upload Error:', uploadError)
-      return { error: 'Failed to securely upload the document. Please try again.' }
-    }
-
-    fileUrl = uploadData.path
   }
 
   // Insert research record
@@ -118,9 +96,11 @@ export async function submitResearch(prevState: any, formData: FormData) {
       target_defense_date: targetDefenseDate,
       current_stage: currentStage,
       status,
+      published_at: getPublishedAtForStatusChange(null, status, null),
       members,
       member_roles: memberRoles,
-      file_url: fileUrl
+      file_url: fileUrl,
+      original_file_name: originalFileName
     })
     .select()
     .single()
@@ -139,6 +119,7 @@ export async function submitResearch(prevState: any, formData: FormData) {
         research_id: newResearch.id,
         uploaded_by: user.id,
         file_url: fileUrl,
+        original_file_name: originalFileName,
         version_number: 1
       })
 
@@ -149,6 +130,14 @@ export async function submitResearch(prevState: any, formData: FormData) {
 
   // Redirect after submission
   if (!isDraft) {
+    await notifyTeachersForResearchSubmission(supabase, {
+      actorId: user.id,
+      researchId: newResearch.id,
+      researchTitle: title,
+      subjectCode,
+      adviserId: adviser,
+      status: 'Pending Review',
+    })
     redirect('/dashboard?success=Research submitted for review')
   }
 

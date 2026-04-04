@@ -22,5 +22,4 @@ export interface TopResearch {
   author_name: string
   views_count: number
   downloads_count: number
-  total_engagement: number
 }

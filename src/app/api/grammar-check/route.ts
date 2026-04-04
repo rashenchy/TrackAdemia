@@ -25,6 +25,7 @@ export async function POST(req: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser()
+  let processedTextLength = 0
 
   const logRequest = async (
     status: 'success' | 'failed' | 'validation_error',
@@ -52,6 +53,7 @@ export async function POST(req: Request) {
     const body: GrammarCheckRequest = await req.json()
     const text = body.text ?? ''
     const trimmedText = text.trim()
+    processedTextLength = trimmedText.length
 
     if (!trimmedText) {
       await logRequest('validation_error', 0, 0, 'Please provide text to check.')
@@ -185,6 +187,7 @@ export async function POST(req: Request) {
     const message =
       error instanceof Error ? error.message : 'Internal Server Error'
     console.error('Grammar Check Error:', error)
+    await logRequest('failed', processedTextLength, 0, message)
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

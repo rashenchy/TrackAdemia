@@ -112,8 +112,13 @@ export default function DashboardLayoutClient({
   }
 
   const handleRefresh = () => {
+    if (isRefreshing) return
+
     setIsRefreshing(true)
-    router.refresh()
+    startNavigation(() => {
+      router.refresh()
+    })
+
     setTimeout(() => setIsRefreshing(false), 700)
   }
 

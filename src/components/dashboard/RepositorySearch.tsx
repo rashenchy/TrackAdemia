@@ -64,7 +64,6 @@ export function RepositorySearch() {
               <option value="case-study">Case Study</option>
               <option value="dissertation">Dissertation</option>
               <option value="research">General Research</option>
-              <option value="proposal">Research Proposal</option>
               <option value="thesis">Thesis</option>
           </select>
         </div>

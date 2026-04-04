@@ -330,13 +330,15 @@ export async function exportMonitoringData(
   endDate: string
 ): Promise<string> {
   const supabase = await createClient()
+  const startAt = new Date(`${startDate}T00:00:00.000Z`).toISOString()
+  const endAt = new Date(`${endDate}T23:59:59.999Z`).toISOString()
   const { data, error } = await supabase
     .from('api_request_logs')
     .select(
       'id, provider, api_name, endpoint, user_id, status, response_time_ms, input_units, output_units, error_message, metadata, created_at'
     )
-    .gte('created_at', startDate)
-    .lte('created_at', endDate)
+    .gte('created_at', startAt)
+    .lte('created_at', endAt)
     .order('created_at', { ascending: false })
 
   if (error) {

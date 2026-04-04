@@ -22,7 +22,7 @@ export async function getSignedViewUrl(filePath: string) {
 }
 
 //Function to FORCE DOWNLOAD the file
-export async function getSignedDownloadUrl(filePath: string) {
+export async function getSignedDownloadUrl(filePath: string, downloadFileName?: string) {
   const supabase = await createClient()
   
   const { data: { user } } = await supabase.auth.getUser()
@@ -31,7 +31,7 @@ export async function getSignedDownloadUrl(filePath: string) {
   // Adding { download: true } forces the browser to trigger a file download
   const { data, error } = await supabase.storage
     .from('trackademiaPapers')
-    .createSignedUrl(filePath, 60, { download: true })
+    .createSignedUrl(filePath, 60, { download: downloadFileName || true })
 
   if (error || !data) {
     console.error('Signed URL Download Error:', error)

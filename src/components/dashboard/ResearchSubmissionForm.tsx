@@ -131,6 +131,7 @@ export function ResearchSubmissionForm({
     target_defense_date?: string | null
     current_stage?: string | null
     file_url?: string | null
+    original_file_name?: string | null
   } | null,
   editId?: string | null
 }) {
@@ -174,6 +175,12 @@ export function ResearchSubmissionForm({
   const [keywordsList, setKeywordsList] = useState<string[]>(defaultKeywords)
   const [selectedSubjectCode, setSelectedSubjectCode] = useState(initialData?.subject_code || '')
   const [selectedAdviserId, setSelectedAdviserId] = useState(initialData?.adviser_id || '')
+  const [targetDefenseDate, setTargetDefenseDate] = useState(
+    initialData?.target_defense_date || ''
+  )
+  const [isTargetDefenseTbd, setIsTargetDefenseTbd] = useState(
+    !initialData?.target_defense_date
+  )
   const [useExternalAdviser, setUseExternalAdviser] = useState(
     Boolean(initialData?.adviser_id)
   )
@@ -225,6 +232,8 @@ export function ResearchSubmissionForm({
     setSelectedResearchType('capstone')
     setSelectedSubjectCode('')
     setSelectedAdviserId('')
+    setTargetDefenseDate('')
+    setIsTargetDefenseTbd(true)
     setUseExternalAdviser(false)
     formRef.current?.reset()
   }
@@ -491,7 +500,34 @@ export function ResearchSubmissionForm({
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-[var(--foreground)]">Target Defense Date</label>
-            <input type="date" name="targetDefenseDate" defaultValue={initialData?.target_defense_date || ""} className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-text" />
+            <input
+              type="date"
+              name="targetDefenseDate"
+              value={targetDefenseDate}
+              onChange={(e) => {
+                setTargetDefenseDate(e.target.value)
+                if (e.target.value) {
+                  setIsTargetDefenseTbd(false)
+                }
+              }}
+              disabled={isTargetDefenseTbd}
+              className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-text disabled:cursor-not-allowed disabled:opacity-60"
+            />
+            <label className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={isTargetDefenseTbd}
+                onChange={(e) => {
+                  const checked = e.target.checked
+                  setIsTargetDefenseTbd(checked)
+                  if (checked) {
+                    setTargetDefenseDate('')
+                  }
+                }}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
+              />
+              To be determined
+            </label>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-[var(--foreground)]">Current Stage</label>
@@ -513,7 +549,7 @@ export function ResearchSubmissionForm({
           </div>
           {initialData?.file_url && (
             <span className="text-xs bg-green-50 text-green-700 px-3 py-1 rounded-full border border-green-200 font-medium">
-              File already attached
+              {initialData.original_file_name || 'File already attached'}
             </span>
           )}
         </div>
@@ -522,6 +558,11 @@ export function ResearchSubmissionForm({
           <label className="text-sm font-semibold text-[var(--foreground)]">
             {editId ? "Update Document (Leave empty to keep existing)" : "Initial Document (Optional)"}
           </label>
+          {initialData?.file_url && (
+            <p className="text-xs text-gray-500">
+              Current file: {initialData.original_file_name || 'Attached PDF'}
+            </p>
+          )}
           <input
             type="file"
             name="initialDocument"

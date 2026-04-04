@@ -7,9 +7,11 @@ import { getSignedViewUrl, getSignedDownloadUrl } from '@/app/(main)/dashboard/f
 // Button component that allows users to view or download a research document
 export function DocumentDownloadButton({
   fileUrl,
+  downloadFileName,
   stopRowClick = false,
 }: {
   fileUrl: string
+  downloadFileName?: string | null
   stopRowClick?: boolean
 }) {
 
@@ -42,7 +44,7 @@ export function DocumentDownloadButton({
     setIsDownloading(true)
 
     // Request a temporary signed URL configured for download
-    const result = await getSignedDownloadUrl(fileUrl)
+    const result = await getSignedDownloadUrl(fileUrl, downloadFileName || undefined)
 
     setIsDownloading(false)
 

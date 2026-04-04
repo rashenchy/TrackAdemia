@@ -3,7 +3,6 @@ export const RESEARCH_TYPE_OPTIONS = [
   { value: 'case-study', label: 'Case Study' },
   { value: 'dissertation', label: 'Dissertation' },
   { value: 'research', label: 'General Research' },
-  { value: 'proposal', label: 'Research Proposal' },
   { value: 'thesis', label: 'Thesis' },
 ] as const
 

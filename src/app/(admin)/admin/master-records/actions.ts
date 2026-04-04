@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getPublishedAtForStatusChange } from '@/lib/research-publication'
 
 export interface ResearchRecord {
   id: string
@@ -219,9 +220,26 @@ export async function overrideResearchStatus(
     }
 
     // Update research status
+    const { data: currentResearch, error: fetchError } = await supabase
+      .from('research')
+      .select('status, published_at')
+      .eq('id', researchId)
+      .single()
+
+    if (fetchError || !currentResearch) {
+      return { success: false, error: 'Research not found' }
+    }
+
     const { error } = await supabase
       .from('research')
-      .update({ status: newStatus })
+      .update({
+        status: newStatus,
+        published_at: getPublishedAtForStatusChange(
+          currentResearch.status,
+          newStatus,
+          currentResearch.published_at
+        ),
+      })
       .eq('id', researchId)
 
     if (error) {

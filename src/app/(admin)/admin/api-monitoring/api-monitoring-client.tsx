@@ -49,6 +49,13 @@ function formatLastActivity(value: string | null) {
   return new Date(value).toLocaleString()
 }
 
+function formatProviderLabel(provider: 'gemini' | 'groq' | 'serpapi' | 'supabase') {
+  if (provider === 'gemini') return 'Gemini'
+  if (provider === 'groq') return 'Groq'
+  if (provider === 'serpapi') return 'SerpAPI'
+  return 'Supabase'
+}
+
 export default function APIMonitoringClient({
   initialData,
 }: APIMonitoringClientProps) {

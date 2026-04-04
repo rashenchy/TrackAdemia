@@ -1,7 +1,10 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { getPublishedAtForStatusChange } from '@/lib/research-publication'
+import { isManualResearchStatus } from '@/lib/research-status'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 
 export async function updateResearchStatus(researchId: string, formData: FormData) {
   const supabase = await createClient()
@@ -28,11 +31,32 @@ export async function updateResearchStatus(researchId: string, formData: FormDat
   const status = formData.get('status') as string
   const fileUrl = formData.get('fileUrl') as string | null
 
+  if (!isManualResearchStatus(status)) {
+    throw new Error('Only final review decisions can be updated manually.')
+  }
+
+  const { data: currentResearch, error: currentResearchError } = await supabase
+    .from('research')
+    .select('status, published_at')
+    .eq('id', researchId)
+    .single()
+
+  if (currentResearchError || !currentResearch) {
+    throw new Error('Research record not found.')
+  }
+
   // DATABASE UPDATE: Apply the new research status
 
   const { error } = await supabase
     .from('research')
-    .update({ status })
+    .update({
+      status,
+      published_at: getPublishedAtForStatusChange(
+        currentResearch.status,
+        status,
+        currentResearch.published_at
+      ),
+    })
     .eq('id', researchId)
 
   if (error) {
@@ -66,18 +90,15 @@ export async function updateResearchStatus(researchId: string, formData: FormDat
       file_url: fileUrl,
       version_number: nextVersion
     })
-
-    // ANNOTATION MANAGEMENT: Mark previous annotations as resolved after a new version upload
-
-    await supabase
-      .from('annotations')
-      .update({ is_resolved: true })
-      .eq('research_id', researchId)
-      .eq('is_resolved', false)
   }
 
   // CACHE REFRESH: Revalidate pages so the updated research status appears immediately
 
   revalidatePath(`/dashboard/research/${researchId}`)
   revalidatePath('/dashboard')
+  revalidatePath('/dashboard', 'layout')
+  revalidatePath('/dashboard/student-submissions')
+  revalidatePath('/dashboard/repository')
+
+  redirect(`/dashboard/research/${researchId}?updated=${Date.now()}`)
 }

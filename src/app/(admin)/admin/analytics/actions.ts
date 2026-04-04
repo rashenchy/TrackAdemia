@@ -9,6 +9,20 @@ import type {
 } from './types'
 import { RESEARCH_TYPE_OPTIONS, getResearchTypeLabel } from '@/lib/research-types'
 
+function formatPublishedTimestamp(value: string | null) {
+  if (!value) return 'N/A'
+
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short',
+  }).format(new Date(value))
+}
+
 export async function getAnalyticsMetrics(): Promise<AnalyticsMetrics> {
   const supabase = await createClient()
 
@@ -26,7 +40,7 @@ export async function getAnalyticsMetrics(): Promise<AnalyticsMetrics> {
     const { count: totalPublishedPapers } = await supabase
       .from('research')
       .select('*', { count: 'exact', head: true })
-      .eq('status', 'Approved')
+      .eq('status', 'Published')
 
     const { count: totalPendingPapers } = await supabase
       .from('research')
@@ -125,6 +139,7 @@ export async function getTopResearch(): Promise<TopResearch[]> {
     const { data: research, error: researchError } = await supabase
       .from('research')
       .select('id, title, user_id, views_count, downloads_count')
+      .eq('status', 'Published')
       .order('views_count', { ascending: false })
       .limit(10)
 
@@ -148,8 +163,6 @@ export async function getTopResearch(): Promise<TopResearch[]> {
           author_name,
           views_count: item.views_count || 0,
           downloads_count: item.downloads_count || 0,
-          total_engagement:
-            (item.views_count || 0) + (item.downloads_count || 0),
         }
       })
     )
@@ -170,7 +183,7 @@ export async function getPublishedResearchForExport() {
       .select(
         'id, title, user_id, adviser_id, type, created_at, published_at, views_count, downloads_count'
       )
-      .eq('status', 'Approved')
+      .eq('status', 'Published')
       .order('published_at', { ascending: false })
 
     if (researchError || !research) return []
@@ -206,9 +219,7 @@ export async function getPublishedResearchForExport() {
           author: author_name,
           adviser: adviser_name,
           type: item.type,
-          date_published: item.published_at
-            ? new Date(item.published_at).toLocaleDateString()
-            : 'N/A',
+          date_published: formatPublishedTimestamp(item.published_at ?? null),
           views: item.views_count || 0,
           downloads: item.downloads_count || 0,
         }

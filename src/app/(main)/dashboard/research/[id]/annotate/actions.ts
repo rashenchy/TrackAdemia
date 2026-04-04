@@ -17,6 +17,73 @@ type AnnotationHighlightData = {
   highlightAreas: HighlightArea[]
 }
 
+async function getAuthenticatedUserContext() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) throw new Error('User not authenticated')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  return { supabase, user, role: profile?.role ?? null }
+}
+
+async function requireReviewer() {
+  const context = await getAuthenticatedUserContext()
+
+  if (context.role !== 'mentor' && context.role !== 'admin') {
+    throw new Error('Only reviewers can perform this action.')
+  }
+
+  return context
+}
+
+async function requireResearchParticipant(researchId: string) {
+  const context = await getAuthenticatedUserContext()
+
+  if (context.role === 'mentor' || context.role === 'admin') {
+    return context
+  }
+
+  const { data: research } = await context.supabase
+    .from('research')
+    .select('user_id, members')
+    .eq('id', researchId)
+    .single()
+
+  const isParticipant =
+    research?.user_id === context.user.id ||
+    (Array.isArray(research?.members) && research.members.includes(context.user.id))
+
+  if (!isParticipant) {
+    throw new Error('You are not allowed to access this research feedback.')
+  }
+
+  return context
+}
+
+async function requireAnnotationParticipant(annotationId: string) {
+  const context = await getAuthenticatedUserContext()
+
+  const { data: annotation } = await context.supabase
+    .from('annotations')
+    .select('id, research_id')
+    .eq('id', annotationId)
+    .single()
+
+  if (!annotation) {
+    throw new Error('Annotation not found.')
+  }
+
+  await requireResearchParticipant(annotation.research_id)
+
+  return { ...context, annotation }
+}
+
 
 // Creates a new annotation linked to a highlighted portion of the research document
 export async function addAnnotation(
@@ -24,14 +91,7 @@ export async function addAnnotation(
   highlightData: AnnotationHighlightData,
   commentText: string
 ) {
-
-  const supabase = await createClient()
-
-
-  // Retrieve the currently authenticated user
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) throw new Error('User not authenticated')
+  const { supabase, user } = await requireReviewer()
 
 
   // Construct the annotation record to be inserted into the database
@@ -56,7 +116,7 @@ export async function addAnnotation(
     throw error
   }
 
-  await syncResearchReviewStatus(supabase, researchId)
+  await syncResearchReviewStatus(supabase, researchId, user.id)
   revalidatePath('/dashboard')
   revalidatePath(`/dashboard/research/${researchId}`)
   revalidatePath('/dashboard/tasks')
@@ -68,8 +128,7 @@ export async function addAnnotation(
 
 // Generates a temporary signed URL allowing secure access to the research file
 export async function getResearchFile(researchId: string) {
-
-  const supabase = await createClient()
+  const { supabase } = await requireResearchParticipant(researchId)
 
 
   // Retrieve the storage path of the research file
@@ -90,22 +149,97 @@ export async function getResearchFile(researchId: string) {
   return data?.signedUrl
 }
 
+async function getVersionWindow(
+  researchId: string,
+  versionNumber?: number | null
+) {
+  const supabase = await createClient()
+
+  if (!versionNumber) {
+    const { data: latestVersion } = await supabase
+      .from('research_versions')
+      .select('created_at')
+      .eq('research_id', researchId)
+      .order('version_number', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    return {
+      versionCreatedAt: latestVersion?.created_at ?? null,
+      nextVersionCreatedAt: null as string | null,
+    }
+  }
+
+  const { data: targetVersion } = await supabase
+    .from('research_versions')
+    .select('created_at, version_number')
+    .eq('research_id', researchId)
+    .eq('version_number', versionNumber)
+    .maybeSingle()
+
+  if (!targetVersion?.created_at) {
+    return {
+      versionCreatedAt: null,
+      nextVersionCreatedAt: null,
+    }
+  }
+
+  const { data: newerVersion } = await supabase
+    .from('research_versions')
+    .select('created_at, version_number')
+    .eq('research_id', researchId)
+    .gt('version_number', versionNumber)
+    .order('version_number', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+
+  return {
+    versionCreatedAt: targetVersion.created_at,
+    nextVersionCreatedAt: newerVersion?.created_at ?? null,
+  }
+}
+
+export async function getResearchFileForVersion(
+  researchId: string,
+  versionNumber?: number | null
+) {
+  const { supabase } = await requireResearchParticipant(researchId)
+
+  if (!versionNumber) {
+    return getResearchFile(researchId)
+  }
+
+  const { data: version } = await supabase
+    .from('research_versions')
+    .select('file_url')
+    .eq('research_id', researchId)
+    .eq('version_number', versionNumber)
+    .maybeSingle()
+
+  if (!version?.file_url) {
+    return getResearchFile(researchId)
+  }
+
+  const { data } = await supabase.storage
+    .from('trackademiaPapers')
+    .createSignedUrl(version.file_url, 3600)
+
+  return data?.signedUrl ?? null
+}
+
 
 
 // Retrieves annotations for a research document while respecting file version changes
-export async function getAnnotations(researchId: string) {
+export async function getAnnotations(
+  researchId: string,
+  versionNumber?: number | null
+) {
+  const { supabase } = await requireResearchParticipant(researchId)
 
-  const supabase = await createClient()
-
-
-  // Fetch the latest uploaded version timestamp of the research file
-  const { data: latestVersion } = await supabase
-    .from('research_versions')
-    .select('created_at')
-    .eq('research_id', researchId)
-    .order('version_number', { ascending: false })
-    .limit(1)
-    .single()
+  const { versionCreatedAt, nextVersionCreatedAt } = await getVersionWindow(
+    researchId,
+    versionNumber
+  )
 
 
   // Build the base query for retrieving annotations
@@ -117,8 +251,12 @@ export async function getAnnotations(researchId: string) {
 
 
   // Filter annotations so only those created after the latest file upload are returned
-  if (latestVersion?.created_at) {
-    query = query.gte('created_at', latestVersion.created_at)
+  if (versionCreatedAt) {
+    query = query.gte('created_at', versionCreatedAt)
+  }
+
+  if (nextVersionCreatedAt) {
+    query = query.lt('created_at', nextVersionCreatedAt)
   }
 
 
@@ -140,8 +278,7 @@ export async function toggleAnnotationResolved(
   annotationId: string,
   newStatus: boolean
 ) {
-
-  const supabase = await createClient()
+  const { supabase } = await requireAnnotationParticipant(annotationId)
 
 
   // Update annotation status and return the updated record
@@ -166,8 +303,7 @@ export async function toggleAnnotationResolved(
 
 // Retrieves all replies associated with a specific annotation
 export async function getReplies(annotationId: string) {
-
-  const supabase = await createClient()
+  const { supabase } = await requireAnnotationParticipant(annotationId)
 
 
   // Fetch replies along with author profile information
@@ -192,14 +328,7 @@ export async function getReplies(annotationId: string) {
 
 // Creates a new reply within an annotation discussion thread
 export async function addReply(annotationId: string, message: string) {
-
-  const supabase = await createClient()
-
-
-  // Ensure the user is authenticated before creating a reply
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) throw new Error('User not authenticated')
+  const { supabase, user } = await requireAnnotationParticipant(annotationId)
 
 
   // Insert the reply into the database
