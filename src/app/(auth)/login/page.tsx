@@ -38,7 +38,6 @@ export default async function LoginPage({
 
           <div className="relative z-10 flex h-full flex-col justify-between p-8 text-white animate-[fade_up_700ms_ease-out] lg:p-9">
             <div className="inline-flex w-fit items-center gap-3 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur">
-              <Sparkles size={16} />
               TrackAdemia
             </div>
 

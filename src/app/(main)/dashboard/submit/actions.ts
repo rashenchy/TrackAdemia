@@ -137,6 +137,7 @@ export async function submitResearch(prevState: any, formData: FormData) {
       subjectCode,
       adviserId: adviser,
       status: 'Pending Review',
+      eventKeySuffix: 'initial-submission',
     })
     redirect('/dashboard?success=Research submitted for review')
   }

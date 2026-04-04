@@ -52,10 +52,31 @@ export default function SectionsPageUI({
   const [state, formAction] = useActionState(createSection, null)
   const [loadingAction, setLoadingAction] = useState<string | null>(null)
   const [rosterModal, setRosterModal] = useState<TeacherSection | null>(null)
+  const [copiedSectionId, setCopiedSectionId] = useState<string | null>(null)
 
-  const handleCopy = async (text: string) => {
-    navigator.clipboard.writeText(text)
-    alert('Join code copied!')
+  const handleCopy = async (sectionId: string, text: string) => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        const textarea = document.createElement('textarea')
+        textarea.value = text
+        textarea.setAttribute('readonly', '')
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+      }
+
+      setCopiedSectionId(sectionId)
+      window.setTimeout(() => {
+        setCopiedSectionId((current) => (current === sectionId ? null : current))
+      }, 1800)
+    } catch {
+      setCopiedSectionId(null)
+    }
   }
 
   const handleRegenerate = async (id: string) => {
@@ -256,7 +277,7 @@ export default function SectionsPageUI({
                         {section.join_code}
                       </span>
                       <button
-                        onClick={() => handleCopy(section.join_code)}
+                        onClick={() => handleCopy(section.id, section.join_code)}
                         className="text-gray-400 transition-colors hover:text-blue-600"
                       >
                         <Copy size={16} />
@@ -269,6 +290,11 @@ export default function SectionsPageUI({
                       Manage Roster &rarr;
                     </button>
                   </div>
+                  {copiedSectionId === section.id && (
+                    <div className="pointer-events-none absolute bottom-4 right-6 z-10 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white shadow-lg animate-in fade-in duration-200">
+                      Join code copied
+                    </div>
+                  )}
                 </div>
               ))
             )}

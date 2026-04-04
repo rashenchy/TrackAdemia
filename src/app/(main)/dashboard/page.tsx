@@ -12,6 +12,7 @@ import {
 import Link from 'next/link'
 import RotatingQuote from '@/components/dashboard/RotatingQuote'
 import HomeSectionRemovalAlerts from '@/components/dashboard/HomeSectionRemovalAlerts'
+import HomeNotificationsPanel from '@/components/dashboard/HomeNotificationsPanel'
 import { getActiveAnnouncements } from '@/app/(admin)/admin/announcements/actions'
 import { getTeacherSubmissionData, type TeacherSubmissionRecord } from '@/lib/teacher-submissions'
 import {
@@ -74,6 +75,7 @@ export default async function DashboardPage({
 
   let displaySubmissions: DashboardSubmission[] = []
   let teacherRecentSubmissions: TeacherSubmissionRecord[] = []
+  let latestNotifications: UserNotification[] = []
   let sectionRemovalNotifications: Array<{
     id: string
     title: string
@@ -176,6 +178,15 @@ export default async function DashboardPage({
     displaySubmissions = submissions || []
   }
 
+  const { data: notificationRows } = await supabase
+    .from('user_notifications')
+    .select('id, title, message, created_at, is_read, notification_type, reason, reference_id')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .limit(5)
+
+  latestNotifications = (notificationRows || []) as UserNotification[]
+
   if (!isTeacher && displaySubmissions.length > 0) {
     const submissionIds = displaySubmissions.map((submission) => submission.id)
 
@@ -218,6 +229,8 @@ export default async function DashboardPage({
           notifications={sectionRemovalNotifications as UserNotification[]}
         />
       )}
+
+      <HomeNotificationsPanel initialNotifications={latestNotifications} />
 
       {activeAnnouncements.length > 0 && (
         <div className="space-y-4">

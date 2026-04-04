@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { syncResearchReviewStatus } from '@/lib/research-review-status'
+import { createNotifications } from '@/lib/notification-service'
 
 // Create a personal task for the current user
 export async function createTask(formData: FormData) {
@@ -101,16 +102,47 @@ export async function toggleTaskStatus(
             .eq('id', taskId)
 
     } else if (source === 'teacher') {
+        const completedAt = !isResolved ? new Date().toISOString() : null
         
         // Update the student's completion record for a teacher-assigned task
         await supabase
             .from('task_completions')
             .update({ 
                 is_completed: !isResolved,
-                completed_at: !isResolved ? new Date().toISOString() : null
+                completed_at: completedAt
             })
             .eq('task_id', taskId)
             .eq('student_id', user.id)
+
+        if (!isResolved) {
+            const [{ data: task }, { data: profile }] = await Promise.all([
+                supabase
+                    .from('tasks')
+                    .select('id, title, created_by')
+                    .eq('id', taskId)
+                    .single(),
+                supabase
+                    .from('profiles')
+                    .select('first_name, last_name')
+                    .eq('id', user.id)
+                    .single(),
+            ])
+
+            if (task?.created_by) {
+                const studentName = `${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim() || 'A student'
+                await createNotifications(supabase, [
+                    {
+                        user_id: task.created_by,
+                        actor_id: user.id,
+                        title: 'Task completed',
+                        message: `${studentName} marked "${task.title}" as completed.`,
+                        notification_type: 'task_completed',
+                        reference_id: task.id,
+                        event_key: `task-completed:${task.id}:${user.id}:${completedAt}`,
+                    },
+                ])
+            }
+        }
 
     } else {
 
@@ -124,7 +156,12 @@ export async function toggleTaskStatus(
 
         if (error) throw error
 
-        await syncResearchReviewStatus(supabase, annotation.research_id)
+        await syncResearchReviewStatus(
+            supabase,
+            annotation.research_id,
+            user.id,
+            !isResolved ? taskId : null
+        )
     }
 
     // Refresh the tasks page
@@ -164,12 +201,24 @@ export async function createSectionTask(formData: FormData) {
     if (taskError) throw taskError
 
     // Fetch all active students in the section
-    const { data: members } = await supabase
+    const [{ data: members }, { data: section }, { data: teacherProfile }] = await Promise.all([
+        supabase
         .from('section_members')
         .select('user_id')
         .eq('section_id', sectionId)
         .eq('status', 'active')
-        .eq('role', 'student')
+        .eq('role', 'student'),
+        supabase
+            .from('sections')
+            .select('name')
+            .eq('id', sectionId)
+            .single(),
+        supabase
+            .from('profiles')
+            .select('first_name, last_name')
+            .eq('id', user.id)
+            .single(),
+    ])
 
     // Initialize completion records for each student
     if (members && members.length > 0) {
@@ -185,6 +234,24 @@ export async function createSectionTask(formData: FormData) {
             .insert(completions)
 
         if (compError) console.error("Error initializing completions:", compError)
+
+        const teacherName =
+            `${teacherProfile?.first_name ?? ''} ${teacherProfile?.last_name ?? ''}`.trim() ||
+            'Your teacher'
+
+        await createNotifications(
+            supabase,
+            members.map((member) => ({
+                user_id: member.user_id,
+                actor_id: user.id,
+                title: 'New assigned task',
+                message: `${teacherName} assigned "${title}"${section?.name ? ` in ${section.name}` : ''}.`,
+                notification_type: 'task_assigned',
+                reference_id: task.id,
+                section_id: sectionId,
+                event_key: `task-assigned:${task.id}:${member.user_id}`,
+            }))
+        )
     }
 
     // Refresh the tasks page

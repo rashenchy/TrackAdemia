@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createNotifications } from '@/lib/notification-service'
 
 export interface Announcement {
   id: string
@@ -103,6 +104,26 @@ export async function createAnnouncement(
       .single()
 
     if (error) throw error
+
+    const { data: recipients } = await supabase
+      .from('profiles')
+      .select('id')
+
+    await createNotifications(
+      supabase,
+      (recipients || [])
+        .filter((recipient) => recipient.id !== user.id)
+        .map((recipient) => ({
+          user_id: recipient.id,
+          actor_id: user.id,
+          title: `Announcement: ${title}`,
+          message,
+          notification_type: 'announcement_created',
+          reference_id: data.id,
+          event_key: `announcement:${data.id}:${recipient.id}`,
+        }))
+    )
+
     return data
   } catch (err) {
     console.error('Error creating announcement:', serializeError(err))

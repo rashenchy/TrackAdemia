@@ -3,8 +3,10 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { sendRegistrationVerificationEmail } from '@/lib/email'
+import { isRegistrationEmailVerificationEnabled } from '@/lib/registration-config'
 import { rethrowIfRedirectError } from '@/lib/redirect-error'
 import { createClient } from '@/lib/supabase/server'
+import { isAllowedCourseProgram } from '@/lib/course-programs'
 import { isValidStudentNumber, normalizeStudentNumber } from '@/lib/student-number'
 import {
   clearPendingRegistration,
@@ -87,7 +89,29 @@ export async function signup(formData: FormData) {
     redirect('/register?error=' + encodeURIComponent('Please complete all required fields.'))
   }
 
+  if (!isAllowedCourseProgram(course)) {
+    redirect(
+      '/register?error=' +
+        encodeURIComponent('Course program must be one of the allowed options: BSIT, BSBA, or BSENTREP.')
+    )
+  }
+
   try {
+    if (!isRegistrationEmailVerificationEnabled()) {
+      const outcome = await finalizeVerifiedSignup({
+        email,
+        password,
+        firstName,
+        middleName,
+        lastName,
+        course,
+        role,
+        studentNumber: role === 'student' ? studentNumber : null,
+      })
+
+      redirect(outcome.redirectPath)
+    }
+
     const { code, expiresAt, maskedEmail } = await createPendingRegistrationSession({
       email,
       password,

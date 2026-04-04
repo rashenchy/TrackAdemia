@@ -1,6 +1,6 @@
 'use server'
 
-import { createAdminClient } from '@/lib/supabase/admin'
+import { createNotifications } from '@/lib/notification-service'
 
 type SupabaseClientLike = any
 
@@ -19,32 +19,6 @@ export async function getUnresolvedAnnotationCount(
   }
 
   return count ?? 0
-}
-
-async function insertWorkflowNotifications(
-  supabase: SupabaseClientLike,
-  notifications: Array<{
-    user_id: string
-    actor_id: string
-    title: string
-    message: string
-    notification_type: string
-    reason: string | null
-    section_id?: string | null
-  }>
-) {
-  if (notifications.length === 0) {
-    return
-  }
-
-  const adminClient = createAdminClient()
-  const writeClient = adminClient ?? supabase
-
-  const { error } = await writeClient.from('user_notifications').insert(notifications)
-
-  if (error) {
-    console.error('Failed to create workflow notifications:', error)
-  }
 }
 
 async function getTeacherRecipientIds(
@@ -83,6 +57,7 @@ export async function notifyTeachersForResearchSubmission(
     subjectCode,
     adviserId,
     status,
+    eventKeySuffix,
   }: {
     actorId: string
     researchId: string
@@ -90,6 +65,7 @@ export async function notifyTeachersForResearchSubmission(
     subjectCode?: string | null
     adviserId?: string | null
     status: 'Pending Review' | 'Resubmitted'
+    eventKeySuffix?: string | null
   }
 ) {
   const recipientIds = await getTeacherRecipientIds(supabase, subjectCode, adviserId)
@@ -105,7 +81,7 @@ export async function notifyTeachersForResearchSubmission(
       ? `"${researchTitle}" is ready for your review.`
       : `"${researchTitle}" was resubmitted after revisions and is ready for review again.`
 
-  await insertWorkflowNotifications(
+  await createNotifications(
     supabase,
     recipientIds
       .filter((recipientId) => recipientId !== actorId)
@@ -116,7 +92,48 @@ export async function notifyTeachersForResearchSubmission(
         message,
         notification_type: notificationType,
         reason: researchId,
+        reference_id: researchId,
+        event_key: `${notificationType}:${researchId}:${eventKeySuffix || status}`,
         section_id: null,
+      }))
+  )
+}
+
+export async function notifyTeachersForResearchVersionUpload(
+  supabase: SupabaseClientLike,
+  {
+    actorId,
+    researchId,
+    researchTitle,
+    subjectCode,
+    adviserId,
+    originalFileName,
+    versionNumber,
+  }: {
+    actorId: string
+    researchId: string
+    researchTitle: string
+    subjectCode?: string | null
+    adviserId?: string | null
+    originalFileName?: string | null
+    versionNumber: number
+  }
+) {
+  const recipientIds = await getTeacherRecipientIds(supabase, subjectCode, adviserId)
+
+  await createNotifications(
+    supabase,
+    recipientIds
+      .filter((recipientId) => recipientId !== actorId)
+      .map((recipientId) => ({
+        user_id: recipientId,
+        actor_id: actorId,
+        title: 'New manuscript version uploaded',
+        message: `"${researchTitle}" now has Version ${versionNumber}${originalFileName ? ` (${originalFileName})` : ''}.`,
+        notification_type: 'research_version_uploaded',
+        reason: researchId,
+        reference_id: researchId,
+        event_key: `research-version:${researchId}:${versionNumber}`,
       }))
   )
 }
@@ -128,18 +145,20 @@ export async function notifyStudentRevisionRequested(
     studentId,
     researchId,
     researchTitle,
+    eventKeySuffix,
   }: {
     actorId: string
     studentId: string
     researchId: string
     researchTitle: string
+    eventKeySuffix?: string | null
   }
 ) {
   if (actorId === studentId) {
     return
   }
 
-  await insertWorkflowNotifications(supabase, [
+  await createNotifications(supabase, [
     {
       user_id: studentId,
       actor_id: actorId,
@@ -147,6 +166,8 @@ export async function notifyStudentRevisionRequested(
       message: `Your research "${researchTitle}" has unresolved feedback that needs your attention.`,
       notification_type: 'revision_requested',
       reason: researchId,
+      reference_id: researchId,
+      event_key: `revision-requested:${researchId}:${eventKeySuffix || actorId}`,
       section_id: null,
     },
   ])
@@ -155,7 +176,8 @@ export async function notifyStudentRevisionRequested(
 export async function syncResearchReviewStatus(
   supabase: SupabaseClientLike,
   researchId: string,
-  actorId?: string | null
+  actorId?: string | null,
+  eventKeySuffix?: string | null
 ) {
   const { data: research, error: researchError } = await supabase
     .from('research')
@@ -185,6 +207,7 @@ export async function syncResearchReviewStatus(
         studentId: research.user_id,
         researchId,
         researchTitle: research.title,
+        eventKeySuffix,
       })
     }
 

@@ -4,6 +4,54 @@ import Link from 'next/link'
 import { RepositorySearch } from '@/components/dashboard/RepositorySearch'
 import { BookOpen, Calendar, Users, Hash, ChevronRight, Search, Eye, Download } from 'lucide-react'
 
+function normalizeSearchValue(value: string | null | undefined) {
+  return value?.toLowerCase().trim() ?? ''
+}
+
+function getPaperSearchText(
+  paper: {
+    title?: string | null
+    abstract?: string | null
+    type?: string | null
+    subject_code?: string | null
+    research_area?: string | null
+    original_file_name?: string | null
+    created_at?: string | null
+    published_at?: string | null
+    keywords?: string[] | string | null
+  },
+  authorNames: string,
+  adviserName: string
+) {
+  const createdYear = paper.created_at
+    ? new Date(paper.created_at).getFullYear().toString()
+    : ''
+  const publishedYear = paper.published_at
+    ? new Date(paper.published_at).getFullYear().toString()
+    : ''
+  const keywords = Array.isArray(paper.keywords)
+    ? paper.keywords.join(' ')
+    : (paper.keywords ?? '')
+
+  return normalizeSearchValue(
+    [
+      paper.title,
+      paper.abstract,
+      paper.type,
+      paper.subject_code,
+      paper.research_area,
+      paper.original_file_name,
+      createdYear,
+      publishedYear,
+      keywords,
+      authorNames,
+      adviserName,
+    ]
+      .filter(Boolean)
+      .join(' ')
+  )
+}
+
 export default async function RepositoryPage({
   searchParams
 }: {
@@ -25,12 +73,6 @@ export default async function RepositoryPage({
     .select('*')
     .eq('status', 'Published')
 
-  if (query) {
-    dbQuery = dbQuery.or(
-      `title.ilike.%${query}%,abstract.ilike.%${query}%`
-    )
-  }
-
   if (typeFilter !== 'all') {
     dbQuery = dbQuery.eq('type', typeFilter)
   }
@@ -46,30 +88,56 @@ export default async function RepositoryPage({
   const { data: papers } = await dbQuery
 
   let authorsMap: Record<string, string> = {}
+  let adviserMap: Record<string, string> = {}
+  let filteredPapers = papers ?? []
 
   if (papers && papers.length > 0) {
 
-    const allMemberIds = new Set<string>()
+    const allProfileIds = new Set<string>()
 
     papers.forEach(p =>
       p.members?.forEach((m: string) =>
-        allMemberIds.add(m)
+        allProfileIds.add(m)
       )
     )
 
-    if (allMemberIds.size > 0) {
+    papers.forEach((paper) => {
+      if (paper.adviser_id) {
+        allProfileIds.add(paper.adviser_id)
+      }
+    })
+
+    if (allProfileIds.size > 0) {
 
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, first_name, last_name')
-        .in('id', Array.from(allMemberIds))
+        .in('id', Array.from(allProfileIds))
 
       profiles?.forEach(p => {
-        authorsMap[p.id] = `${p.first_name} ${p.last_name}`
+        const fullName = `${p.first_name} ${p.last_name}`
+        authorsMap[p.id] = fullName
+        adviserMap[p.id] = fullName
       })
 
     }
 
+  }
+
+  if (query) {
+    const normalizedQuery = normalizeSearchValue(query)
+
+    filteredPapers = filteredPapers.filter((paper) => {
+      const authorNames =
+        paper.members?.map((id: string) =>
+          authorsMap[id] || 'Unknown'
+        ).join(' ') || ''
+      const adviserName = paper.adviser_id
+        ? adviserMap[paper.adviser_id] || ''
+        : ''
+
+      return getPaperSearchText(paper, authorNames, adviserName).includes(normalizedQuery)
+    })
   }
 
   return (
@@ -96,14 +164,14 @@ export default async function RepositoryPage({
       {/* Displays the total number of search results */}
       <div className="flex items-center justify-between text-sm text-gray-500 font-medium px-2">
         <span>
-          Showing {papers?.length || 0} result{(papers?.length || 0) !== 1 ? 's' : ''}
+          Showing {filteredPapers.length || 0} result{(filteredPapers.length || 0) !== 1 ? 's' : ''}
         </span>
       </div>
 
       {/* List of research papers displayed in an academic-style result layout */}
       <div className="space-y-6">
 
-        {papers?.length === 0 ? (
+        {filteredPapers.length === 0 ? (
 
           <div className="text-center py-20 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl text-gray-400 bg-gray-50/50 dark:bg-gray-900/10">
             <Search size={48} className="mx-auto mb-4 opacity-20" />
@@ -119,7 +187,7 @@ export default async function RepositoryPage({
 
         ) : (
 
-          papers?.map((paper) => {
+          filteredPapers.map((paper) => {
 
             const authorNames =
               paper.members?.map((id: string) =>

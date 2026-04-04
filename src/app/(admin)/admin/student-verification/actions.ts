@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createNotification } from '@/lib/notification-service'
 
 interface Student {
   id: string
@@ -89,6 +90,16 @@ export async function verifyStudent(userId: string): Promise<{ success: boolean;
       return { success: false, error: error.message }
     }
 
+    await createNotification(supabase, {
+      user_id: userId,
+      actor_id: currentUser.id,
+      title: 'Account verified',
+      message: 'Your student account has been approved. The academic workspace is now unlocked.',
+      notification_type: 'account_verified',
+      reference_id: userId,
+      event_key: `account-verified:${userId}`,
+    })
+
     return { success: true }
   } catch (error) {
     console.error('Unexpected error verifying student:', error)
@@ -127,6 +138,16 @@ export async function rejectStudent(userId: string): Promise<{ success: boolean;
       console.error('Error rejecting student:', error)
       return { success: false, error: error.message }
     }
+
+    await createNotification(supabase, {
+      user_id: userId,
+      actor_id: currentUser.id,
+      title: 'Account review updated',
+      message: 'Your student account is still pending approval. Contact an administrator if you need help.',
+      notification_type: 'account_rejected',
+      reference_id: userId,
+      event_key: `account-rejected:${userId}:${new Date().toISOString()}`,
+    })
 
     return { success: true }
   } catch (error) {

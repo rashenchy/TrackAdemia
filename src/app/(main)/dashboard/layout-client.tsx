@@ -73,6 +73,7 @@ export default function DashboardLayoutClient({
   const [isNavigating, startNavigation] = useTransition()
   const profileRef = useRef<HTMLDivElement | null>(null)
   const isTeacherRef = useRef(false)
+  const currentUserIdRef = useRef<string | null>(null)
   const [supabase] = useState(() => createClient())
   const effectiveUserName = isAdminPreview ? previewDisplayName : userName
   const effectiveUserRole = isAdminPreview ? previewRole : userRole
@@ -145,6 +146,7 @@ export default function DashboardLayoutClient({
         data: { user },
       } = await supabase.auth.getUser()
       if (!user) return
+      currentUserIdRef.current = user.id
 
       const { data: profile } = await supabase
         .from('profiles')
@@ -180,6 +182,7 @@ export default function DashboardLayoutClient({
         data: { user },
       } = await supabase.auth.getUser()
       if (!user) return
+      currentUserIdRef.current = user.id
 
       const { count: unreadNotificationTotal } = await supabase
         .from('user_notifications')
@@ -317,7 +320,20 @@ export default function DashboardLayoutClient({
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'user_notifications' },
-        fetchCounts
+        (payload: { eventType?: string; new?: { user_id?: string; title?: string; message?: string } }) => {
+          if (
+            payload.eventType === 'INSERT' &&
+            payload.new?.user_id === currentUserIdRef.current &&
+            'Notification' in window &&
+            Notification.permission === 'granted'
+          ) {
+            new Notification(payload.new?.title || 'New notification', {
+              body: payload.new?.message || 'You have a new update in TrackAdemia.',
+              icon: '/logo.png',
+            })
+          }
+          fetchCounts()
+        }
       )
       .subscribe()
 

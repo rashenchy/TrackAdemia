@@ -6,6 +6,7 @@ import { getPublishedAtForStatusChange } from '@/lib/research-publication'
 import {
   getUnresolvedAnnotationCount,
   notifyTeachersForResearchSubmission,
+  notifyTeachersForResearchVersionUpload,
 } from '@/lib/research-workflow'
 import { redirect } from 'next/navigation'
 
@@ -130,6 +131,7 @@ export async function updateResearch(editId: string, prevState: any, formData: F
 
 
   // VERSIONING & ANNOTATION MANAGEMENT
+  let versionNotificationSuffix: string | null = null
 
   if (updatedResearch && !isDraft) {
     // Fetch latest version number
@@ -182,6 +184,18 @@ export async function updateResearch(editId: string, prevState: any, formData: F
         })
 
       if (versionError) console.error('Version Insert Error:', versionError)
+
+      versionNotificationSuffix = `version-${nextVersion}`
+
+      await notifyTeachersForResearchVersionUpload(supabase, {
+        actorId: user.id,
+        researchId: editId,
+        researchTitle: title || current.title,
+        subjectCode: subjectCode || current.subject_code,
+        adviserId: adviser || current.adviser_id,
+        originalFileName,
+        versionNumber: nextVersion,
+      })
     }
   }
 
@@ -196,6 +210,10 @@ export async function updateResearch(editId: string, prevState: any, formData: F
       subjectCode: subjectCode || current.subject_code,
       adviserId: adviser || current.adviser_id,
       status: nextStatus === 'Pending Review' ? 'Pending Review' : 'Resubmitted',
+      eventKeySuffix:
+        nextStatus === 'Pending Review'
+          ? 'initial-from-draft'
+          : versionNotificationSuffix || `resubmission-${Date.now()}`,
     })
 
     const successMessage =

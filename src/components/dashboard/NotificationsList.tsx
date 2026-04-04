@@ -1,7 +1,9 @@
 import { CheckCheck, Circle } from 'lucide-react'
+import Link from 'next/link'
 import { markAllNotificationsAsRead, markNotificationAsRead } from '@/app/(main)/dashboard/notifications/actions'
 import {
   formatNotificationTimestamp,
+  getNotificationRoute,
   getNotificationTypeLabel,
   type UserNotification,
 } from '@/lib/notifications'
@@ -39,65 +41,77 @@ export default function NotificationsList({
       {notifications.length > 0 ? (
         <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200">
           <div className="overflow-x-auto">
-            <div className="min-w-[860px]">
-              <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)_170px_120px_110px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+            <div className="min-w-[980px]">
+              <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.8fr)_150px_160px_110px_110px] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
                 <span>Title</span>
                 <span>Message</span>
+                <span>Type</span>
                 <span>Timestamp</span>
                 <span>Status</span>
-                <span className="text-right">Action</span>
+                <span className="text-right">Actions</span>
               </div>
 
               <div className="divide-y divide-slate-200">
-                {notifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,2fr)_170px_120px_110px] gap-4 px-4 py-4 text-sm text-slate-700"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold text-slate-950">{notification.title}</p>
-                      <p className="mt-1 text-xs font-medium uppercase tracking-wide text-slate-500">
-                        {getNotificationTypeLabel(notification.notification_type)}
-                      </p>
-                    </div>
+                {notifications.map((notification) => {
+                  const route = getNotificationRoute(notification)
 
-                    <p className="leading-6 text-slate-600">{notification.message}</p>
+                  return (
+                    <div
+                      key={notification.id}
+                      className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.8fr)_150px_160px_110px_110px] gap-4 px-4 py-4 text-sm text-slate-700"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-slate-950">{notification.title}</p>
+                      </div>
 
-                    <div className="text-xs font-medium leading-5 text-slate-500">
-                      {formatNotificationTimestamp(notification.created_at)}
-                    </div>
+                      <p className="leading-6 text-slate-600">{notification.message}</p>
 
-                    <div>
-                      <span
-                        className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
-                          notification.is_read
-                            ? 'bg-slate-100 text-slate-600'
-                            : 'bg-blue-100 text-blue-700'
-                        }`}
-                      >
-                        <Circle size={8} className="fill-current" />
-                        {notification.is_read ? 'Read' : 'Unread'}
-                      </span>
-                    </div>
-
-                    <div className="text-right">
-                      {notification.is_read ? (
-                        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                          Read
+                      <div>
+                        <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-slate-600">
+                          {getNotificationTypeLabel(notification.notification_type)}
                         </span>
-                      ) : (
-                        <form action={markNotificationAsRead.bind(null, notification.id)}>
-                          <button
-                            type="submit"
-                            className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                      </div>
+
+                      <div className="text-xs font-medium leading-5 text-slate-500">
+                        {formatNotificationTimestamp(notification.created_at)}
+                      </div>
+
+                      <div>
+                        <span
+                          className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide ${
+                            notification.is_read
+                              ? 'bg-slate-100 text-slate-600'
+                              : 'bg-blue-100 text-blue-700'
+                          }`}
+                        >
+                          <Circle size={8} className="fill-current" />
+                          {notification.is_read ? 'Read' : 'Unread'}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-end gap-2">
+                        {route && (
+                          <Link
+                            href={route}
+                            className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100"
                           >
-                            Mark Read
-                          </button>
-                        </form>
-                      )}
+                            Open
+                          </Link>
+                        )}
+                        {!notification.is_read && (
+                          <form action={markNotificationAsRead.bind(null, notification.id)}>
+                            <button
+                              type="submit"
+                              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
+                            >
+                              Mark Read
+                            </button>
+                          </form>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           </div>

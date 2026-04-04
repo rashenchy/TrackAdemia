@@ -1,4 +1,4 @@
-'use server'
+import 'server-only'
 
 type SupabaseClientLike = any
 
@@ -10,7 +10,7 @@ function getSafeOriginalFileName(file: File) {
   return trimmed.length > 0 ? trimmed : 'research.pdf'
 }
 
-export function validateResearchDocument(file: File) {
+function validateResearchDocument(file: File) {
   if (!ALLOWED_TYPES.has(file.type)) {
     return 'Only PDF files are allowed.'
   }

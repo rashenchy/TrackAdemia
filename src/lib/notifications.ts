@@ -9,6 +9,7 @@ export type UserNotification = {
   is_read: boolean
   notification_type: string
   reason?: string | null
+  reference_id?: string | null
 }
 
 export function getHomeSectionRemovalCutoff(now: Date = new Date()) {
@@ -35,4 +36,36 @@ export function getNotificationTypeLabel(notificationType: string) {
     .split('_')
     .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
     .join(' ')
+}
+
+export function getNotificationRoute(notification: UserNotification) {
+  switch (notification.notification_type) {
+    case 'task_assigned':
+    case 'task_completed':
+      return '/dashboard/tasks'
+    case 'research_submission':
+    case 'research_resubmitted':
+    case 'research_version_uploaded':
+    case 'revision_requested':
+      return notification.reference_id
+        ? `/dashboard/research/${notification.reference_id}`
+        : '/dashboard'
+    case 'annotation_added':
+    case 'annotation_reply':
+      return notification.reference_id
+        ? `/dashboard/research/${notification.reference_id}/annotate`
+        : '/dashboard'
+    case 'section_joined':
+    case 'section_removal':
+    case 'join_request_approved':
+    case 'join_request_rejected':
+      return '/dashboard/sections'
+    case 'account_verified':
+    case 'account_rejected':
+      return '/dashboard/settings'
+    case 'announcement_created':
+      return '/dashboard'
+    default:
+      return null
+  }
 }

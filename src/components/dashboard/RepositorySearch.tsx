@@ -3,6 +3,7 @@
 import { Search, Filter, SlidersHorizontal } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
+import { RESEARCH_TYPE_OPTIONS } from '@/lib/research-types'
 
 // Search and filter component for the public research repository
 export function RepositorySearch() {
@@ -44,7 +45,7 @@ export function RepositorySearch() {
           type="text" 
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by title, abstract, or keywords..." 
+          placeholder="Search by title, author, year, keywords, or subject code..." 
           className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-gray-800 border-none rounded-xl text-[var(--foreground)] outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
         />
       </div>
@@ -60,11 +61,12 @@ export function RepositorySearch() {
             onChange={(e) => setType(e.target.value)}
             className="bg-transparent font-semibold text-gray-700 dark:text-gray-300 outline-none cursor-pointer"
           >
-              <option value="capstone">Capstone Project</option>
-              <option value="case-study">Case Study</option>
-              <option value="dissertation">Dissertation</option>
-              <option value="research">General Research</option>
-              <option value="thesis">Thesis</option>
+              <option value="all">All</option>
+              {RESEARCH_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
           </select>
         </div>
 

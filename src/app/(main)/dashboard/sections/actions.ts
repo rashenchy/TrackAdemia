@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
+import { createNotification } from '@/lib/notification-service'
 
 // Create a new class section (Teacher)
 export async function createSection(
@@ -114,6 +115,33 @@ export async function joinSection(
   // Reset rate limit after successful join
   cookieStore.delete('join_attempts')
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('first_name, last_name')
+    .eq('id', user.id)
+    .single()
+
+  const { data: teacherSection } = await supabase
+    .from('sections')
+    .select('teacher_id')
+    .eq('id', section.id)
+    .single()
+
+  if (teacherSection?.teacher_id) {
+    const studentName = `${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim() || 'A student'
+
+    await createNotification(supabase, {
+      user_id: teacherSection.teacher_id,
+      actor_id: user.id,
+      title: 'Student joined your section',
+      message: `${studentName} joined ${section.name}.`,
+      notification_type: 'section_joined',
+      reference_id: section.id,
+      section_id: section.id,
+      event_key: `section-joined:${section.id}:${user.id}`,
+    })
+  }
+
   revalidatePath('/dashboard/sections')
 
   return { success: `Successfully joined ${section.name}!` }
@@ -217,9 +245,7 @@ export async function removeStudent(sectionId: string, studentId: string, reason
 
   if (error) return { error: 'Failed to remove student.' }
 
-  const { error: notificationError } = await supabase
-    .from('user_notifications')
-    .insert({
+  await createNotification(supabase, {
       user_id: studentId,
       actor_id: user.id,
       section_id: sectionId,
@@ -227,12 +253,9 @@ export async function removeStudent(sectionId: string, studentId: string, reason
       title: `Removed from ${section.name}`,
       message: `You were removed from ${section.name}. Reason: ${trimmedReason}`,
       reason: trimmedReason,
-      is_read: false,
+      reference_id: sectionId,
+      event_key: `section-removal:${sectionId}:${studentId}:${trimmedReason}`,
     })
-
-  if (notificationError) {
-    return { error: 'Student was removed, but the notification could not be created.' }
-  }
 
   revalidatePath('/dashboard/sections')
   revalidatePath('/dashboard')

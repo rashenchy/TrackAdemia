@@ -5,6 +5,7 @@ import { signup } from '../login/actions'
 import { PasswordField } from '@/components/auth/PasswordField'
 import { RegistrationIdentityFields } from '@/components/auth/RegistrationIdentityFields'
 import { SubmitButton } from '@/components/auth/SubmitButton'
+import { ALLOWED_COURSE_PROGRAMS } from '@/lib/course-programs'
 
 export default async function RegisterPage({
   searchParams,
@@ -174,12 +175,21 @@ export default async function RegisterPage({
 
                 <div className="flex flex-col gap-2">
                   <label className="text-sm font-semibold text-slate-700">Course / Program</label>
-                  <input
+                  <select
                     name="course"
                     required
-                    placeholder="e.g. BSIT"
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                  />
+                    defaultValue=""
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-slate-900 outline-none transition-all focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                  >
+                    <option value="" disabled>
+                      Select course program
+                    </option>
+                    {ALLOWED_COURSE_PROGRAMS.map((program) => (
+                      <option key={program} value={program}>
+                        {program}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

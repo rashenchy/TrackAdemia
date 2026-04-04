@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { syncResearchReviewStatus } from '@/lib/research-review-status'
+import { createNotifications } from '@/lib/notification-service'
 
 type HighlightArea = {
   pageIndex: number
@@ -116,7 +117,34 @@ export async function addAnnotation(
     throw error
   }
 
-  await syncResearchReviewStatus(supabase, researchId, user.id)
+  const { data: research } = await supabase
+    .from('research')
+    .select('title, user_id, members')
+    .eq('id', researchId)
+    .single()
+
+  const participantIds = new Set<string>([
+    research?.user_id,
+    ...(Array.isArray(research?.members) ? research.members : []),
+  ])
+
+  await createNotifications(
+    supabase,
+    [...participantIds]
+      .filter((recipientId): recipientId is string => Boolean(recipientId && recipientId !== user.id))
+      .map((recipientId) => ({
+        user_id: recipientId,
+        actor_id: user.id,
+        title: 'New feedback added',
+        message: `A reviewer added feedback to "${research?.title || 'your research'}".`,
+        notification_type: 'annotation_added',
+        reference_id: researchId,
+        reason: data.id,
+        event_key: `annotation-added:${data.id}:${recipientId}`,
+      }))
+  )
+
+  await syncResearchReviewStatus(supabase, researchId, user.id, data.id)
   revalidatePath('/dashboard')
   revalidatePath(`/dashboard/research/${researchId}`)
   revalidatePath('/dashboard/tasks')
@@ -278,7 +306,7 @@ export async function toggleAnnotationResolved(
   annotationId: string,
   newStatus: boolean
 ) {
-  const { supabase } = await requireAnnotationParticipant(annotationId)
+  const { supabase, user } = await requireAnnotationParticipant(annotationId)
 
 
   // Update annotation status and return the updated record
@@ -291,7 +319,7 @@ export async function toggleAnnotationResolved(
 
   if (error) throw error
 
-  await syncResearchReviewStatus(supabase, data.research_id)
+  await syncResearchReviewStatus(supabase, data.research_id, user.id, newStatus ? null : annotationId)
   revalidatePath('/dashboard')
   revalidatePath(`/dashboard/research/${data.research_id}`)
   revalidatePath('/dashboard/tasks')
@@ -330,6 +358,12 @@ export async function getReplies(annotationId: string) {
 export async function addReply(annotationId: string, message: string) {
   const { supabase, user } = await requireAnnotationParticipant(annotationId)
 
+  const { data: annotation } = await supabase
+    .from('annotations')
+    .select('research_id, user_id')
+    .eq('id', annotationId)
+    .single()
+
 
   // Insert the reply into the database
   const { data: reply, error } = await supabase
@@ -354,6 +388,43 @@ export async function addReply(annotationId: string, message: string) {
     .select('first_name, last_name, role')
     .eq('id', user.id)
     .single()
+
+  if (annotation?.research_id) {
+    const [{ data: research }, { data: existingReplies }] = await Promise.all([
+      supabase
+        .from('research')
+        .select('title, user_id, members')
+        .eq('id', annotation.research_id)
+        .single(),
+      supabase
+        .from('annotation_replies')
+        .select('user_id')
+        .eq('annotation_id', annotationId),
+    ])
+
+    const recipientIds = new Set<string>([
+      research?.user_id,
+      ...(Array.isArray(research?.members) ? research.members : []),
+      annotation.user_id,
+      ...(existingReplies || []).map((existingReply: { user_id: string }) => existingReply.user_id),
+    ])
+
+    await createNotifications(
+      supabase,
+      [...recipientIds]
+        .filter((recipientId): recipientId is string => Boolean(recipientId && recipientId !== user.id))
+        .map((recipientId) => ({
+          user_id: recipientId,
+          actor_id: user.id,
+          title: 'New reply in feedback thread',
+          message: `${profile?.first_name || 'Someone'} replied in the feedback thread for "${research?.title || 'your research'}".`,
+          notification_type: 'annotation_reply',
+          reference_id: annotation.research_id,
+          reason: annotationId,
+          event_key: `annotation-reply:${reply.id}:${recipientId}`,
+        }))
+    )
+  }
 
   return { ...reply, profiles: profile }
 }
