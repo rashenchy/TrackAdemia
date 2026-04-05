@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { stopViewAsUser } from '@/app/(admin)/admin/view-as-user/actions'
+import { getTeacherSubmissionData } from '@/lib/users/teacher-submissions'
 import {
   ArrowLeft,
   Menu,
@@ -83,16 +84,17 @@ export default function DashboardLayoutClient({
   const effectiveUnresolvedCount = isAdminPreview ? 0 : unresolvedCount
   const effectiveNotificationCount = isAdminPreview ? 0 : notificationCount
   const effectiveSubmissionAlertCount = isAdminPreview ? 0 : submissionAlertCount
-  const studentAllowedPaths = [
+  const pendingAccessAllowedPaths = [
     '/dashboard/repository',
     '/dashboard/profile',
     '/dashboard/settings',
     '/dashboard/notifications',
   ]
+  const isTeacherPendingApproval = effectiveIsTeacher && !effectiveIsVerified
   const isStudentPendingApproval = effectiveIsStudent && !effectiveIsVerified
-  const isStudentAccessLocked =
-    isStudentPendingApproval &&
-    !studentAllowedPaths.some(
+  const isPendingAccessLocked =
+    (isStudentPendingApproval || isTeacherPendingApproval) &&
+    !pendingAccessAllowedPaths.some(
       (allowedPath) => pathname === allowedPath || pathname.startsWith(`${allowedPath}/`)
     )
 
@@ -163,11 +165,18 @@ export default function DashboardLayoutClient({
 
       if (profile?.role === 'mentor') {
         setIsTeacher(true)
+        setIsStudent(false)
         isTeacherRef.current = true
         setIsVerified(profile.is_verified || false)
       } else if (profile?.role === 'student') {
+        setIsTeacher(false)
         setIsStudent(true)
+        isTeacherRef.current = false
         setIsVerified(profile.is_verified || false)
+      } else {
+        setIsTeacher(false)
+        setIsStudent(false)
+        isTeacherRef.current = false
       }
     }
 
@@ -220,51 +229,10 @@ export default function DashboardLayoutClient({
       setNotificationCount(unreadNotificationTotal || 0)
 
       if (isTeacherRef.current) {
-        const { data: teacherSections } = await supabase
-          .from('sections')
-          .select('id')
-          .eq('teacher_id', user.id)
-
-        const sectionIds = teacherSections?.map((section) => section.id) || []
-
-        let sectionStudentIds: string[] = []
-
-        if (sectionIds.length > 0) {
-          const { data: members } = await supabase
-            .from('section_members')
-            .select('user_id')
-            .in('section_id', sectionIds)
-
-          sectionStudentIds = [...new Set((members || []).map((member) => member.user_id))]
-        }
-
-        const recentIds = new Set<string>()
-
-        if (sectionStudentIds.length > 0) {
-          const { data: sectionResearch } = await supabase
-            .from('research')
-            .select('id, status')
-            .in('user_id', sectionStudentIds)
-
-          for (const item of sectionResearch || []) {
-            if (item.status === 'Resubmitted' || item.status === 'Pending Review') {
-              recentIds.add(item.id)
-            }
-          }
-        }
-
-        const { data: advisoryResearch } = await supabase
-          .from('research')
-          .select('id, status')
-          .eq('adviser_id', user.id)
-
-        for (const item of advisoryResearch || []) {
-          if (item.status === 'Resubmitted' || item.status === 'Pending Review') {
-            recentIds.add(item.id)
-          }
-        }
-
-        setSubmissionAlertCount(recentIds.size)
+        const { attentionCount } = await getTeacherSubmissionData(supabase, user.id)
+        setSubmissionAlertCount(attentionCount)
+      } else {
+        setSubmissionAlertCount(0)
       }
     }
 
@@ -340,7 +308,7 @@ export default function DashboardLayoutClient({
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [isAdminPreview, supabase, router])
+  }, [isAdminPreview, supabase, router, userRole])
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light'
@@ -373,7 +341,7 @@ export default function DashboardLayoutClient({
           },
         ]
       : []),
-    ...(effectiveIsTeacher
+    ...(effectiveIsTeacher && effectiveIsVerified
       ? [
           {
             name: 'Student Submissions',
@@ -657,17 +625,19 @@ export default function DashboardLayoutClient({
           )}
           {children}
 
-          {isStudentAccessLocked && (
+          {isPendingAccessLocked && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-[color:color-mix(in_srgb,var(--background)_84%,white_16%)]/95 p-6 backdrop-blur-sm">
               <div className="w-full max-w-2xl rounded-[1.75rem] border border-blue-200 bg-white p-8 text-center shadow-xl dark:border-blue-900/40 dark:bg-gray-950">
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                   <AlertCircle size={28} />
                 </div>
                 <h2 className="mt-5 text-2xl font-black tracking-tight text-slate-950 dark:text-white">
-                  Approval Pending
+                  {isTeacherPendingApproval ? 'Verification Pending' : 'Approval Pending'}
                 </h2>
                 <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
-                  Your student account is still being reviewed by an administrator. You can explore the repository now, and the rest of the workspace will unlock automatically after approval.
+                  {isTeacherPendingApproval
+                    ? 'Your faculty account is still being reviewed by an administrator. You can check your profile, settings, notifications, and the repository while you wait. Full teacher tools will unlock automatically after approval.'
+                    : 'Your student account is still being reviewed by an administrator. You can explore the repository now, and the rest of the workspace will unlock automatically after approval.'}
                 </p>
                 <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                   <Link

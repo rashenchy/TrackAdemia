@@ -1,7 +1,7 @@
 export const registrationConfig = {
-  emailVerification: 'off',
+  emailVerification: 'on',
 } as const
 
 export function isRegistrationEmailVerificationEnabled() {
-  return registrationConfig.emailVerification === 'off'
+  return registrationConfig.emailVerification === 'on'
 }

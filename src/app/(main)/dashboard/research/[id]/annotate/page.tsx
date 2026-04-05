@@ -95,6 +95,7 @@ export default function AnnotatePage({
   const [showCommentBox, setShowCommentBox] = useState(false)
   const [activeHighlight, setActiveHighlight] = useState<any | null>(null)
   const [commentText, setCommentText] = useState('')
+  const [isSubmittingAnnotation, setIsSubmittingAnnotation] = useState(false)
 
   /* References for scrolling behavior */
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -723,7 +724,26 @@ export default function AnnotatePage({
             />
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => { setShowCommentBox(false); setCommentText(''); setActiveHighlight(null) }} className="text-sm px-4 py-2 rounded-xl font-semibold text-gray-600 hover:bg-gray-100 transition-colors">Cancel</button>
-              <button onClick={async () => { if (!activeHighlight || !commentText.trim()) return; await handleAddAnnotation(activeHighlight, commentText); setShowCommentBox(false); setCommentText(''); setActiveHighlight(null); setFilter('unresolved') }} disabled={!commentText.trim()} className="bg-blue-600 text-white text-sm px-6 py-2 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-lg">Submit</button>
+              <button
+                onClick={async () => {
+                  if (!activeHighlight || !commentText.trim() || isSubmittingAnnotation) return
+                  setIsSubmittingAnnotation(true)
+                  try {
+                    await handleAddAnnotation(activeHighlight, commentText)
+                    setShowCommentBox(false)
+                    setCommentText('')
+                    setActiveHighlight(null)
+                    setFilter('unresolved')
+                  } finally {
+                    setIsSubmittingAnnotation(false)
+                  }
+                }}
+                disabled={!commentText.trim() || isSubmittingAnnotation}
+                className="inline-flex items-center gap-2 bg-blue-600 text-white text-sm px-6 py-2 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg"
+              >
+                {isSubmittingAnnotation && <Loader2 size={16} className="animate-spin" />}
+                {isSubmittingAnnotation ? 'Submitting...' : 'Submit'}
+              </button>
             </div>
           </div>
         </div>
