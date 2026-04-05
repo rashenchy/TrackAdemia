@@ -107,7 +107,10 @@ export default function DashboardLayoutClient({
 
     try {
       await supabase.auth.signOut()
-      window.location.replace('/login')
+      setShowLogoutConfirm(false)
+      setIsProfileOpen(false)
+      router.replace('/login')
+      router.refresh()
     } catch (error) {
       console.error('Logout failed:', error)
       setIsLoggingOut(false)

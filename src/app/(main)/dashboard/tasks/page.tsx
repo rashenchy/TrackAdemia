@@ -90,45 +90,47 @@ const { data: profile } = await supabase
     // TEACHER VIEW
     // ==========================================
     if (isTeacher) {
-        // Fetch managed sections
-        const { data: sectionsData } = await supabase
-            .from('sections')
-            .select('id, name, course_code')
-            .eq('teacher_id', user.id)
+        const [{ data: sectionsData }, { data: assignedTasks }] = await Promise.all([
+            supabase
+                .from('sections')
+                .select('id, name, course_code')
+                .eq('teacher_id', user.id),
+            supabase
+                .from('tasks')
+                .select('*, sections(name), task_completions(is_completed)')
+                .eq('created_by', user.id)
+                .eq('type', 'teacher')
+                .order('created_at', { ascending: false }),
+        ])
 
         const managedSections = sectionsData || []
         const sectionIds = managedSections.map(s => s.id)
         const courseCodes = managedSections.map(s => s.course_code).filter(Boolean)
 
-        // Fetch analytics data
-        let analyticsData: Array<Record<string, unknown>> = []
-        if (sectionIds.length > 0) {
-            const { data: stats } = await supabase
-                .from('student_task_analytics')
-                .select('*')
-                .in('section_id', sectionIds)
-                .order('completion_rate', { ascending: false })
-            analyticsData = stats || []
-        }
+        const [analyticsResult, teacherResearchResult] = await Promise.all([
+            sectionIds.length > 0
+                ? supabase
+                    .from('student_task_analytics')
+                    .select('*')
+                    .in('section_id', sectionIds)
+                    .order('completion_rate', { ascending: false })
+                : Promise.resolve({ data: [] }),
+            courseCodes.length > 0
+                ? supabase
+                    .from('research')
+                    .select('id')
+                    .in('subject_code', courseCodes)
+                : Promise.resolve({ data: [] }),
+        ])
 
-        // Fetch assigned tasks and their completions
-        const { data: assignedTasks } = await supabase
-            .from('tasks')
-            .select('*, sections(name), task_completions(is_completed)')
-            .eq('created_by', user.id)
-            .eq('type', 'teacher')
-            .order('created_at', { ascending: false })
+        const analyticsData = analyticsResult.data || []
 
         const teacherAssignedTasks = assignedTasks || []
 
         // Calculate pending annotations across teacher's sections
         let pendingAnnotations = 0
-        if (courseCodes.length > 0) {
-            const { data: teacherResearch } = await supabase
-                .from('research')
-                .select('id')
-                .in('subject_code', courseCodes)
-
+        const teacherResearch = teacherResearchResult.data || []
+        if (teacherResearch.length > 0) {
             if (teacherResearch && teacherResearch.length > 0) {
                 const { count } = await supabase
                     .from('annotations')
@@ -282,52 +284,49 @@ const { data: profile } = await supabase
     // ==========================================
 
     // Fetch personal tasks (created by student)
-    const { data: personalTasksData } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('created_by', user.id)
-        .eq('type', 'student')
-
-    // Fetch teacher-created tasks assigned to the student's sections
-    const { data: memberships } = await supabase
-        .from('section_members')
-        .select('section_id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
+    const [{ data: personalTasksData }, { data: memberships }, { data: myResearch }] = await Promise.all([
+        supabase
+            .from('tasks')
+            .select('*')
+            .eq('created_by', user.id)
+            .eq('type', 'student'),
+        supabase
+            .from('section_members')
+            .select('section_id')
+            .eq('user_id', user.id)
+            .eq('status', 'active'),
+        supabase
+            .from('research')
+            .select('id, title')
+            .or(`user_id.eq.${user.id},members.cs.{${user.id}}`),
+    ])
 
     const mySectionIds = memberships?.map(m => m.section_id) || []
-
-    // Fetch research records owned by or shared with the student
-    const { data: myResearch } = await supabase
-        .from('research')
-        .select('id, title')
-        .or(`user_id.eq.${user.id},members.cs.{${user.id}}`)
 
     const myResearchIds = myResearch?.map((item) => item.id) || []
     const researchTitleMap = Object.fromEntries(
         (myResearch || []).map((item) => [item.id, item.title || 'Research Paper'])
     )
 
-    let teacherTasksData: TeacherAssignedTask[] = []
-    if (mySectionIds.length > 0) {
-        const { data } = await supabase
-            .from('tasks')
-            .select('*, task_completions(is_completed)')
-            .in('section_id', mySectionIds)
-            .eq('type', 'teacher')
-        teacherTasksData = data || []
-    }
+    const [teacherTasksResult, annotationTasksResult] = await Promise.all([
+        mySectionIds.length > 0
+            ? supabase
+                .from('tasks')
+                .select('*, task_completions(is_completed)')
+                .in('section_id', mySectionIds)
+                .eq('type', 'teacher')
+            : Promise.resolve({ data: [] }),
+        myResearchIds.length > 0
+            ? supabase
+                .from('annotations')
+                .select('id, research_id, comment_text, quote, created_at, is_resolved')
+                .in('research_id', myResearchIds)
+                .order('created_at', { ascending: false })
+            : Promise.resolve({ data: [] }),
+    ])
 
-    let annotationTasksData: AnnotationTaskRecord[] = []
-    if (myResearchIds.length > 0) {
-        const { data } = await supabase
-            .from('annotations')
-            .select('id, research_id, comment_text, quote, created_at, is_resolved')
-            .in('research_id', myResearchIds)
-            .order('created_at', { ascending: false })
-
-        annotationTasksData = data || []
-    }
+    const teacherTasksData: TeacherAssignedTask[] = teacherTasksResult.data || []
+    const annotationTasksData: AnnotationTaskRecord[] = annotationTasksResult.data || []
 
     // Normalize and combine task sources
     let allTasks: StudentTaskItem[] = [

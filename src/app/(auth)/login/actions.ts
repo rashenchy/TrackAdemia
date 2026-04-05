@@ -27,7 +27,7 @@ export async function login(formData: FormData) {
 
 
   // Attempt authentication using Supabase email/password login
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password
   })
@@ -37,11 +37,7 @@ export async function login(formData: FormData) {
   if (error) {
     redirect('/login?error=' + encodeURIComponent(error.message))
   }
-
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = data.user
 
   let redirectPath = '/dashboard'
 
