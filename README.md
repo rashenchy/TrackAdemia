@@ -1,239 +1,294 @@
 # TrackAdemia
 
-TrackAdemia is a web-based Research and Thesis Tracking System built for students, mentors, and administrators. It centralizes research submission, review, section management, task tracking, institutional repository publishing, and writing-assistance tools inside a single Next.js application.
+TrackAdemia is a role-aware research and thesis workflow platform for students, mentors/advisers, and administrators. It centralizes submissions, document review, section management, task tracking, repository publishing, notifications, and academic writing support inside one Next.js application.
 
-## Overview
+## What The App Does Today
 
-The system is designed to reduce manual paperwork and scattered communication during capstone and thesis workflows. Instead of managing files, comments, revisions, and approval status across multiple tools, TrackAdemia keeps them in one authenticated platform.
+The current webapp supports:
 
-At a high level, the platform supports:
+- student and mentor registration with role-specific onboarding fields
+- login with role-based redirects to the dashboard or admin area
+- student-number validation and course-program validation during signup
+- optional email-verification flow for signup, with server-side verification code handling
+- admin approval gates for student and faculty access
+- research submission with draft recovery, metadata, members, adviser selection, and file tracking
+- adviser review workflows with annotations, resubmissions, and unresolved feedback counts
+- student and teacher task management
+- section membership management for students and section administration for mentors
+- a searchable institutional repository for published research
+- grammar and plagiarism tools exposed through API routes
+- realtime in-app updates and browser notifications for tasks, submissions, annotations, and user notifications
+- admin analytics, announcements, API monitoring, student verification, faculty approval, user management, master records, reports, and view-as-user preview mode
 
-- student research submission and revision tracking
-- mentor/adviser review and annotation workflows
-- section-based organization of students and classes
-- task assignment and completion monitoring
-- admin oversight, analytics, and approval tools
-- institutional repository browsing for published research
-- grammar and plagiarism assistance tools for writing support
-
-## Core Roles
+## Roles
 
 ### Student
 
 Students can:
 
 - register and log in
-- submit research records and upload documents
-- belong to one or more sections
-- collaborate with group members
-- view teacher feedback and annotations
-- manage personal and assigned tasks
-- browse the repository of published works
+- maintain a profile and view approval state
+- join and view sections
+- submit and revise research records
+- collaborate with group members listed on a research item
+- track personal tasks, teacher-assigned tasks, and annotation-driven work
+- read announcements and notifications
+- browse the published repository
 - use the grammar checker and plagiarism checker
 
 ### Mentor / Adviser
 
 Mentors can:
 
-- manage their assigned sections
-- monitor student submissions
-- filter submissions by section
-- annotate and review research documents
-- assign tasks to entire sections
-- track unresolved feedback and resubmissions
-- use writing-assistance tools while reviewing student work
+- manage their sections
+- review student submissions across sections and advisory relationships
+- annotate manuscripts and track unresolved feedback
+- assign section-wide tasks with deadlines
+- monitor simple student task analytics
+- use the same writing-assistance tools available in the dashboard
 
 ### Admin
 
 Admins can:
 
-- access a dedicated admin dashboard
-- view institutional analytics
-- manage announcements
-- approve faculty accounts
-- manage users
-- inspect API/system monitoring pages
-- manage master records
-- view the system as a user when needed
-- review reports and platform-wide statistics
+- access the admin workspace and analytics dashboard
+- approve pending faculty accounts
+- verify pending student accounts
+- manage users, announcements, reports, and master records
+- inspect API monitoring data
+- preview the app as a student or mentor with view-as-user mode
 
-## Main System Features
+## Main Product Areas
 
-### 1. Authentication and Access Control
+### Authentication And Onboarding
 
-The app uses Supabase authentication and role-aware routing.
+TrackAdemia uses Supabase authentication with server-side actions and role-aware redirects.
 
-- public pages include the landing page, login, and registration
-- authenticated users are routed into the dashboard
-- admins are redirected into the admin area
-- middleware protects `/dashboard` and `/admin`
-- admin-only route access is verified both in middleware and page-level logic
+- public entry points live at `/`, `/login`, `/register`, and `/verify-email`
+- login redirects admins to `/admin` and other users to `/dashboard`
+- registration validates role, course/program, and student number format
+- there is a pending-registration email-code flow in the codebase
+- student and mentor accounts still rely on admin approval for full access
 
-Relevant files:
+Key files:
 
-- [src/middleware.ts](C:/Users/LENOVO/Documents/programs/capstone/src/middleware.ts)
-- [src/lib/supabase/middleware.ts](C:/Users/LENOVO/Documents/programs/capstone/src/lib/supabase/middleware.ts)
-- [src/lib/supabase/server.ts](C:/Users/LENOVO/Documents/programs/capstone/src/lib/supabase/server.ts)
-- [src/lib/supabase/client.ts](C:/Users/LENOVO/Documents/programs/capstone/src/lib/supabase/client.ts)
+- [src/app/(auth)/login/actions.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(auth)/login/actions.ts)
+- [src/app/(auth)/register/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(auth)/register/page.tsx)
+- [src/app/(auth)/verify-email/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(auth)/verify-email/page.tsx)
+- [src/lib/users/pending-registration.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/lib/users/pending-registration.ts)
+- [src/lib/core/student-number.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/lib/core/student-number.ts)
+- [src/middleware.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/middleware.ts)
 
-### 2. Dashboard Workspace
+Note:
 
-The main dashboard is the day-to-day workspace for students and mentors.
+- the email-verification UI and flow exist, but [src/lib/core/registration-config.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/lib/core/registration-config.ts) currently has email verification turned off by default
 
-It includes:
+### Dashboard Workspace
 
-- submission overview
-- section-aware filtering for mentors
-- live notification counts
-- task management
-- research submission forms
-- repository access
-- settings
-- writing tools
+The main dashboard is the daily workspace for non-admin users.
 
-Relevant files:
+It currently includes:
 
-- [src/app/(main)/dashboard/layout.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/layout.tsx)
-- [src/app/(main)/dashboard/layout-client.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/layout-client.tsx)
-- [src/app/(main)/dashboard/page.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/page.tsx)
+- a role-aware home page
+- announcement cards
+- recent notifications
+- student submission overviews
+- mentor submission previews with a dedicated full submissions page
+- dashboard badges for unresolved work, notifications, and submission alerts
+- pending-access states for unapproved students and mentors
+- admin preview rendering when using view-as-user mode
 
-### 3. Research Submission and Review
+Key files:
 
-Students can submit research information and maintain research records over time. Mentors can review submissions, annotate content, and monitor unresolved comments.
+- [src/app/(main)/dashboard/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/page.tsx)
+- [src/app/(main)/dashboard/layout.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/layout.tsx)
+- [src/app/(main)/dashboard/layout-client.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/layout-client.tsx)
+- [src/app/(main)/dashboard/student-submissions/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/student-submissions/page.tsx)
+- [src/lib/users/admin-view-mode.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/lib/users/admin-view-mode.ts)
 
-This workflow supports:
+### Research Submission And Review
 
-- submission of research title, metadata, and members
-- document uploads and revisions
-- shared group membership
-- annotation-based review threads
-- resubmission tracking
-- status updates for review progress
+Research records are the core unit of work in the app.
 
-Relevant files:
+The workflow currently supports:
 
-- [src/app/(main)/dashboard/submit/page.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/submit/page.tsx)
-- [src/components/dashboard/ResearchSubmissionForm.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/components/dashboard/ResearchSubmissionForm.tsx)
-- [src/app/(main)/dashboard/research/[id]/page.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/research/[id]/page.tsx)
-- [src/app/(main)/dashboard/research/[id]/annotate/page.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/research/[id]/annotate/page.tsx)
-- [src/lib/research-review-status.ts](C:/Users/LENOVO/Documents/programs/capstone/src/lib/research-review-status.ts)
+- draft lookup for the latest in-progress submission
+- metadata capture such as title, abstract, keywords, subject code, research area, stage, dates, and adviser
+- member selection from classmates in shared sections
+- document upload and replacement flows
+- annotation-based feedback and resolution tracking
+- resubmission and status progression
+- publication and repository exposure for published records
 
-### 4. Section Management
+Key files:
 
-Sections connect students to mentors and organize submissions by course or class grouping.
+- [src/app/(main)/dashboard/submit/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/submit/page.tsx)
+- [src/components/dashboard/ResearchSubmissionForm.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/components/dashboard/ResearchSubmissionForm.tsx)
+- [src/app/(main)/dashboard/research/[id]/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/research/[id]/page.tsx)
+- [src/app/(main)/dashboard/research/[id]/annotate/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/research/[id]/annotate/page.tsx)
+- [src/lib/research/workflow.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/lib/research/workflow.ts)
+- [src/lib/research/review.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/lib/research/review.ts)
+- [src/lib/research/status.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/lib/research/status.ts)
+- [src/lib/research/publication.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/lib/research/publication.ts)
+- [src/lib/research/files.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/lib/research/files.ts)
 
-The section system allows:
+### Sections
 
-- student membership in sections
-- mentor-owned sections
-- teacher-side section filtering on the dashboard
-- section-based task broadcasting
-- section join flows
+Sections organize students under mentors and shape task and submission visibility.
 
-Relevant files:
+Current section capabilities include:
 
-- [src/app/(main)/dashboard/sections/page.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/sections/page.tsx)
-- [src/app/(main)/dashboard/sections/join/page.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/sections/join/page.tsx)
-- [src/app/(main)/dashboard/sections/actions.ts](C:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/sections/actions.ts)
-- [src/components/dashboard/StudentSectionsUI.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/components/dashboard/StudentSectionsUI.tsx)
+- mentor-owned section dashboards
+- roster views for each section
+- student membership views
+- section join flow
+- teacher-side analytics summaries for roster and submission activity
 
-### 5. Task Management
+Key files:
 
-TrackAdemia includes a role-aware task manager.
+- [src/app/(main)/dashboard/sections/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/sections/page.tsx)
+- [src/app/(main)/dashboard/sections/join/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/sections/join/page.tsx)
+- [src/app/(main)/dashboard/sections/actions.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/sections/actions.ts)
+- [src/app/(main)/dashboard/sections/SectionsPageUI.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/sections/SectionsPageUI.tsx)
+- [src/components/dashboard/StudentSectionsUI.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/components/dashboard/StudentSectionsUI.tsx)
 
-Students can:
+### Tasks And Feedback Tracking
 
-- create personal tasks
-- track assigned teacher tasks
-- track annotation-driven feedback tasks
-- mark items resolved or unresolved
+The task manager combines multiple sources of work into one place.
 
-Mentors can:
+For students:
 
-- broadcast tasks to sections
-- set due dates
-- monitor completion statistics
-- view simple analytics panels
+- personal tasks
+- teacher-assigned section tasks
+- annotation-derived feedback tasks
+- resolved and unresolved filtering
+- inline edit and delete actions for personal tasks
 
-Relevant files:
+For mentors:
 
-- [src/app/(main)/dashboard/tasks/page.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/tasks/page.tsx)
-- [src/app/(main)/dashboard/tasks/actions.ts](C:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/tasks/actions.ts)
-- [src/components/dashboard/TeacherAnalytics.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/components/dashboard/TeacherAnalytics.tsx)
+- section-wide task broadcasting
+- optional deadlines
+- completion tracking
+- simple section analytics
+- quick visibility into unresolved annotation volume
 
-### 6. Institutional Repository
+Key files:
 
-Published research can be exposed through a searchable repository experience.
+- [src/app/(main)/dashboard/tasks/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/tasks/page.tsx)
+- [src/app/(main)/dashboard/tasks/actions.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/tasks/actions.ts)
+- [src/components/dashboard/TeacherAnalytics.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/components/dashboard/TeacherAnalytics.tsx)
 
-Repository capabilities include:
+### Repository
 
-- keyword search
-- filtering by type
-- sorting by date or title
-- metadata display for authors and course codes
-- abstract previews
-- views/download counters
-- access to full published records
+The institutional repository exposes published research through searchable public-facing and dashboard-accessible pages.
 
-Relevant files:
+Current repository behavior includes:
 
-- [src/app/(main)/dashboard/repository/page.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/repository/page.tsx)
-- [src/app/repository/[id]/page.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/repository/[id]/page.tsx)
-- [src/components/dashboard/RepositorySearch.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/components/dashboard/RepositorySearch.tsx)
+- published-only filtering
+- keyword search across title, abstract, type, subject code, research area, years, keywords, authors, and adviser names
+- filtering by research type
+- sorting by newest, oldest, or title
+- view and download counters
+- public detail pages and dashboard-linked reading flows
 
-### 7. Writing Assistance Tools
+Key files:
 
-The dashboard includes built-in writing support tools:
+- [src/app/(main)/dashboard/repository/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/repository/page.tsx)
+- [src/app/repository/[id]/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/repository/[id]/page.tsx)
+- [src/components/dashboard/RepositorySearch.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/components/dashboard/RepositorySearch.tsx)
+- [src/components/public/PublicDownloadButton.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/components/public/PublicDownloadButton.tsx)
 
-- grammar checker
-- plagiarism checker
+### Notifications And Realtime UX
+
+The dashboard shell listens for live changes and updates the user experience accordingly.
+
+Current behavior includes:
+
+- unread notification counts
+- browser notifications for new tasks, resubmissions, and user notifications
+- live refresh of task, annotation, submission, and notification badges
+- recent notifications on the dashboard home page
+- section-removal notification handling
+
+Key files:
+
+- [src/app/(main)/dashboard/layout-client.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/layout-client.tsx)
+- [src/app/(main)/dashboard/notifications/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/notifications/page.tsx)
+- [src/lib/notifications/service.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/lib/notifications/service.ts)
+- [src/lib/notifications/types.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/lib/notifications/types.ts)
+
+### Writing Support Tools
+
+TrackAdemia ships with two API-backed writing tools.
 
 #### Grammar Checker
 
-The grammar checker sends submitted text to a server-side API route and returns sentence-level corrections.
+- available at `/dashboard/grammar`
+- accepts up to 3000 characters
+- calls Groq from a server route
+- returns sentence-level corrections and explanations
+- logs usage into the API monitoring system
 
-Relevant files:
+Key files:
 
-- [src/app/(main)/dashboard/grammar/page.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/grammar/page.tsx)
-- [src/app/api/grammar-check/route.ts](C:/Users/LENOVO/Documents/programs/capstone/src/app/api/grammar-check/route.ts)
+- [src/app/(main)/dashboard/grammar/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/grammar/page.tsx)
+- [src/app/api/grammar-check/route.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/app/api/grammar-check/route.ts)
 
 #### Plagiarism Checker
 
-The plagiarism checker accepts pasted text, preprocesses it, ranks suspicious fragments, checks for possible online matches, and displays either:
+- available at `/dashboard/plagiarism`
+- preprocesses input text and splits it into candidate sentences
+- selects top fragments, searches them through SerpAPI, and analyzes possible matches
+- returns highlights, candidate matches, and a summary level
+- logs usage into the API monitoring system
 
-- `No matches found`
-- or suspicious text alongside matching text previews
+Key files:
 
-The current implementation uses NLP-based filtering with `compromise`, `natural`, and `stopword` before checking candidate fragments.
+- [src/app/(main)/dashboard/plagiarism/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/plagiarism/page.tsx)
+- [src/app/api/plagiarism-check/route.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/app/api/plagiarism-check/route.ts)
+- [src/lib/plagiarism/service.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/lib/plagiarism/service.ts)
 
-Relevant files:
+### Admin Workspace
 
-- [src/app/(main)/dashboard/plagiarism/page.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/plagiarism/page.tsx)
-- [src/app/api/plagiarism-check/route.ts](C:/Users/LENOVO/Documents/programs/capstone/src/app/api/plagiarism-check/route.ts)
-- [src/lib/plagiarism.ts](C:/Users/LENOVO/Documents/programs/capstone/src/lib/plagiarism.ts)
+The admin area is broader than the old README described. It currently includes:
 
-### 8. Admin Dashboard and Oversight
-
-The admin area provides centralized control and reporting for the platform.
-
-Admin modules currently include:
-
-- overview analytics dashboard
+- overview analytics with total users, pending faculty, published papers, pending papers, research-by-program, research-type distribution, and most-viewed research
 - API monitoring
 - announcements
 - faculty approval
-- master records
+- student verification
 - users management
+- master records
 - reports
-- view-as-user tooling
+- view-as-user preview mode
 
-Relevant files:
+Key files:
 
-- [src/app/(admin)/admin/page.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(admin)/admin/page.tsx)
-- [src/app/(admin)/admin/analytics/dashboard-client.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(admin)/admin/analytics/dashboard-client.tsx)
-- [src/app/(admin)/admin/users/page.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(admin)/admin/users/page.tsx)
-- [src/app/(admin)/admin/faculty-approval/page.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(admin)/admin/faculty-approval/page.tsx)
-- [src/app/(admin)/admin/announcements/page.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(admin)/admin/announcements/page.tsx)
+- [src/app/(admin)/admin/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(admin)/admin/page.tsx)
+- [src/app/(admin)/admin/analytics/dashboard-client.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(admin)/admin/analytics/dashboard-client.tsx)
+- [src/app/(admin)/admin/api-monitoring/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(admin)/admin/api-monitoring/page.tsx)
+- [src/app/(admin)/admin/announcements/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(admin)/admin/announcements/page.tsx)
+- [src/app/(admin)/admin/faculty-approval/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(admin)/admin/faculty-approval/page.tsx)
+- [src/app/(admin)/admin/student-verification/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(admin)/admin/student-verification/page.tsx)
+- [src/app/(admin)/admin/users/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(admin)/admin/users/page.tsx)
+- [src/app/(admin)/admin/master-records/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(admin)/admin/master-records/page.tsx)
+- [src/app/(admin)/admin/reports/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(admin)/admin/reports/page.tsx)
+- [src/app/(admin)/admin/view-as-user/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/(admin)/admin/view-as-user/page.tsx)
+- [src/lib/api-monitoring/service.ts](/c:/Users/LENOVO/Documents/programs/capstone/src/lib/api-monitoring/service.ts)
+
+## Landing Page
+
+The public homepage has already been refreshed to reflect the current product direction. It highlights:
+
+- research record creation
+- chapter and revision tracking
+- annotated adviser feedback
+- task and resubmission visibility
+- separate value propositions for students, advisers, and admins
+
+Key file:
+
+- [src/app/page.tsx](/c:/Users/LENOVO/Documents/programs/capstone/src/app/page.tsx)
 
 ## Tech Stack
 
@@ -243,103 +298,88 @@ Relevant files:
 - React 19
 - TypeScript
 - Tailwind CSS v4
-- Lucide React icons
-- Recharts for analytics visualization
+- Lucide React
+- Recharts
 
-### Backend / Platform Services
+### Backend And Platform
 
-- Supabase Auth
-- Supabase database queries via `@supabase/ssr` and `@supabase/supabase-js`
-- Next.js route handlers for server-side APIs
+- Supabase Auth and database access
+- Next.js Server Components, Server Actions, and Route Handlers
+- Nodemailer for email delivery
 
-### Document and NLP Utilities
+### Document And NLP Utilities
 
-- `@react-pdf-viewer/*` and `pdfjs-dist` for PDF viewing/annotation support
-- `compromise` for sentence and term normalization
-- `natural` for tokenization and NLP helpers
-- `stopword` for additional stopword filtering
+- `@react-pdf-viewer/*`
+- `pdfjs-dist`
+- `compromise`
+- `natural`
+- `stopword`
 
-## System Architecture
+## Routing Overview
 
-The application follows a fairly standard App Router structure:
-
-- `src/app/` contains route segments, pages, layouts, and API routes
-- `src/components/` contains reusable UI components
-- `src/lib/` contains shared server/client helpers and business logic
-- `src/styles/` contains global styling
-- `public/` contains static assets such as the logo and PDF worker
-
-### Routing Model
-
-- `/` is the public landing page
-- `/(auth)` contains login and registration
-- `/(main)/dashboard/*` contains authenticated student/mentor features
-- `/(admin)/admin/*` contains admin-only tools
-- `/api/*` contains server-side API endpoints
-- `/repository/[id]` exposes public repository reading
-
-### Rendering Pattern
-
-The app mixes:
-
-- Server Components for protected data fetching and redirects
-- Client Components for interactive dashboard experiences
-- route handlers for API-backed tools like grammar and plagiarism checking
-
-## Real-Time and Notification Behavior
-
-The dashboard client subscribes to Supabase realtime channels for selected tables so users can see:
-
-- new assigned tasks
-- resubmitted documents
-- annotation updates
-- task completion changes
-
-The app also requests browser notification permission and surfaces notifications for important events.
-
-Relevant file:
-
-- [src/app/(main)/dashboard/layout-client.tsx](C:/Users/LENOVO/Documents/programs/capstone/src/app/(main)/dashboard/layout-client.tsx)
+- `/` public landing page
+- `/login` sign-in page
+- `/register` role-aware signup page
+- `/verify-email` verification-code page for pending registration flow
+- `/dashboard/*` authenticated student and mentor workspace
+- `/admin/*` admin-only workspace
+- `/api/grammar-check` grammar-check route
+- `/api/plagiarism-check` plagiarism-check route
+- `/repository/[id]` public repository detail page
 
 ## Environment Variables
 
-Create a `.env.local` file in the project root with the following values:
+Create a `.env.local` file in the project root.
+
+Required for core auth and database access:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-GEMINI_API_KEY=your_gemini_api_key
+```
+
+Recommended for admin-assisted account creation:
+
+```env
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+```
+
+Required for the writing tools:
+
+```env
+GROQ_API_KEY=your_groq_api_key
 SERPAPI_KEY=your_serpapi_key
 ```
 
-### Variable Usage
+Needed if you want registration email codes enabled in config:
 
-- `NEXT_PUBLIC_SUPABASE_URL`: Supabase project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: client/server Supabase access key used by the app
-- `GEMINI_API_KEY`: used by the grammar checker API route
-- `SERPAPI_KEY`: used by the plagiarism checker route for possible match lookup
+```env
+GMAIL_USER=your_gmail_address
+GMAIL_APP_PASSWORD=your_gmail_app_password
+PENDING_REGISTRATION_SECRET=your_pending_registration_secret
+```
 
 ## Local Development
 
-### 1. Install dependencies
+Install dependencies:
 
 ```bash
 npm install
 ```
 
-### 2. Run the dev server
+Run the development server:
 
 ```bash
 npm run dev
 ```
 
-### 3. Open the app
+Open:
 
-Visit:
+```text
+http://localhost:3000
+```
 
-- `http://localhost:3000`
-
-## Available Scripts
+Available scripts:
 
 ```bash
 npm run dev
@@ -356,14 +396,18 @@ src/
     (auth)/
       login/
       register/
+      verify-email/
     (main)/
       dashboard/
         grammar/
+        notifications/
         plagiarism/
+        profile/
         repository/
         research/
         sections/
         settings/
+        student-submissions/
         submit/
         tasks/
     (admin)/
@@ -374,6 +418,7 @@ src/
         faculty-approval/
         master-records/
         reports/
+        student-verification/
         users/
         view-as-user/
     api/
@@ -386,50 +431,15 @@ src/
     dashboard/
     public/
   lib/
-    plagiarism.ts
-    research-review-status.ts
-    supabase/
-  styles/
-    globals.css
-  types/
-    stopword.d.ts
+    api-monitoring/
+    core/
+    notifications/
+    plagiarism/
+    research/
+    users/
 ```
 
-## Typical User Flows
+## Notes
 
-### Student Flow
-
-1. Register or log in.
-2. Enter the dashboard.
-3. Join a section or verify section membership.
-4. Submit a research record.
-5. Upload and revise documents as feedback arrives.
-6. Track tasks and resolve adviser comments.
-7. Use grammar/plagiarism tools before resubmitting.
-
-### Mentor Flow
-
-1. Log in and access the dashboard.
-2. Manage sections and monitor student work.
-3. Filter submissions by section.
-4. Open a research item and annotate it.
-5. Assign tasks to a section.
-6. Track unresolved feedback and resubmissions.
-
-### Admin Flow
-
-1. Log in as admin.
-2. Open the admin overview dashboard.
-3. Review analytics and system activity.
-4. Manage users, announcements, and faculty approvals.
-5. Audit records and inspect platform usage.
-
-## Notes and Limitations
-
-- The project currently has existing lint issues outside the README and recently updated plagiarism files, so `npm run lint` may report unrelated errors in other parts of the codebase.
-- Supabase table structure is assumed to exist and align with the queries used across the app.
-- Writing-assistance outputs should still be reviewed by humans before being used for formal academic decisions.
-
-## Summary
-
-TrackAdemia is an academic workflow platform that combines research submission, review, task coordination, section management, repository publishing, and admin oversight into a single authenticated system. It is structured as a role-aware Next.js App Router application backed by Supabase and extended with writing-assistance tools for real student and mentor workflows.
+- the existing codebase includes both approval gating and email-verification building blocks, but email verification is currently configured as off by default
+- the app assumes a Supabase schema that matches the tables queried throughout the dashboard, admin, notifications, tasks, research, and repository features
