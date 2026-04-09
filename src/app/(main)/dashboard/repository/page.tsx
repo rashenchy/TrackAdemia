@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { RepositorySearch } from '@/components/dashboard/RepositorySearch'
 import { BookOpen, Calendar, Users, Hash, ChevronRight, Search, Eye, Download } from 'lucide-react'
+import PaginationLinks from '@/components/ui/PaginationLinks'
 
 function normalizeSearchValue(value: string | null | undefined) {
   return value?.toLowerCase().trim() ?? ''
@@ -55,13 +56,16 @@ function getPaperSearchText(
 export default async function RepositoryPage({
   searchParams
 }: {
-  searchParams: Promise<{ q?: string, type?: string, sort?: string }>
+  searchParams: Promise<{ q?: string, type?: string, sort?: string, page?: string }>
 }) {
 
   const resolvedParams = await searchParams
   const query = resolvedParams.q || ''
   const typeFilter = resolvedParams.type || 'all'
   const sortFilter = resolvedParams.sort || 'newest'
+  const rawPage = Number.parseInt(resolvedParams.page || '1', 10)
+  const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
+  const pageSize = 10
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -140,6 +144,9 @@ export default async function RepositoryPage({
     })
   }
 
+  const totalCount = filteredPapers.length
+  const pagedPapers = filteredPapers.slice((page - 1) * pageSize, page * pageSize)
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-12">
 
@@ -164,14 +171,14 @@ export default async function RepositoryPage({
       {/* Displays the total number of search results */}
       <div className="flex items-center justify-between text-sm text-gray-500 font-medium px-2">
         <span>
-          Showing {filteredPapers.length || 0} result{(filteredPapers.length || 0) !== 1 ? 's' : ''}
+          Showing {totalCount || 0} result{(totalCount || 0) !== 1 ? 's' : ''}
         </span>
       </div>
 
       {/* List of research papers displayed in an academic-style result layout */}
       <div className="space-y-6">
 
-        {filteredPapers.length === 0 ? (
+        {totalCount === 0 ? (
 
           <div className="text-center py-20 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-3xl text-gray-400 bg-gray-50/50 dark:bg-gray-900/10">
             <Search size={48} className="mx-auto mb-4 opacity-20" />
@@ -187,7 +194,7 @@ export default async function RepositoryPage({
 
         ) : (
 
-          filteredPapers.map((paper) => {
+          pagedPapers.map((paper) => {
 
             const authorNames =
               paper.members?.map((id: string) =>
@@ -293,6 +300,13 @@ export default async function RepositoryPage({
         )}
 
       </div>
+
+      <PaginationLinks
+        pathname="/dashboard/repository"
+        searchParams={{ ...resolvedParams, page: String(page) }}
+        totalCount={totalCount}
+        pageSize={pageSize}
+      />
 
     </div>
   )

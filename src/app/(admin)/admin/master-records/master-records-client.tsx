@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Database, Trash2, AlertCircle, Loader2, Archive, CheckCircle } from 'lucide-react'
 import { getAllResearch, forceDeleteResearch, overrideResearchStatus, archiveAllSections } from './actions'
 import { RESEARCH_TYPE_OPTIONS, getResearchTypeLabel } from '@/lib/research/types'
 import { RESEARCH_STATUS_OPTIONS } from '@/lib/research/status'
+import PaginationControl from '@/components/ui/PaginationControl'
 
 interface ResearchRecord {
   id: string
@@ -37,6 +38,8 @@ export default function MasterRecordsClient({
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [archivingInProgress, setArchivingInProgress] = useState(false)
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   let filteredResearch = research
 
@@ -47,6 +50,12 @@ export default function MasterRecordsClient({
   if (typeFilter !== 'all') {
     filteredResearch = filteredResearch.filter((r) => r.type === typeFilter)
   }
+
+  useEffect(() => {
+    setPage(1)
+  }, [statusFilter, typeFilter])
+
+  const pagedResearch = filteredResearch.slice((page - 1) * pageSize, page * pageSize)
 
   const loadResearch = async () => {
     setLoading(true)
@@ -173,7 +182,7 @@ export default function MasterRecordsClient({
             <table className="w-full">
               <thead><tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50"><th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">Title</th><th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">Author</th><th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">Type</th><th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">Status</th><th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">Engagement</th><th className="px-6 py-4 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">Actions</th></tr></thead>
               <tbody>
-                {filteredResearch.map((item, index) => (
+                {pagedResearch.map((item, index) => (
                   <tr key={item.id} className={`border-b border-gray-200 dark:border-gray-800 ${index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/30'} hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors`}>
                     <td className="px-6 py-4 text-sm"><div className="max-w-xs"><p className="font-medium text-gray-900 dark:text-gray-100 truncate">{item.title}</p><p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{new Date(item.created_at).toLocaleDateString()}</p></div></td>
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{item.author_name}</td>
@@ -186,7 +195,14 @@ export default function MasterRecordsClient({
               </tbody>
             </table>
           </div>
-          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 text-sm text-gray-600 dark:text-gray-400">Showing {filteredResearch.length} of {research.length} research record{research.length !== 1 ? 's' : ''}</div>
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+            <PaginationControl
+              page={page}
+              pageSize={pageSize}
+              totalCount={filteredResearch.length}
+              onPageChange={setPage}
+            />
+          </div>
         </div>
       )}
     </div>

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Users, CheckCircle, XCircle, Loader2, AlertCircle, IdCard } from 'lucide-react'
 import { getPendingStudents, verifyStudent, rejectStudent } from './actions'
+import PaginationControl from '@/components/ui/PaginationControl'
 
 interface Student {
   id: string
@@ -27,6 +28,10 @@ export default function StudentVerificationClient({
   const [error, setError] = useState<string | null>(null)
   const [processing, setProcessing] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
+
+  const pagedStudents = students.slice((page - 1) * pageSize, page * pageSize)
 
   const loadPendingStudents = async () => {
     setLoading(true)
@@ -133,7 +138,7 @@ export default function StudentVerificationClient({
                 </tr>
               </thead>
               <tbody>
-                {students.map((student, index) => (
+                {pagedStudents.map((student, index) => (
                   <tr
                     key={student.id}
                     className={`border-b border-gray-200 transition-colors hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800 ${
@@ -186,6 +191,14 @@ export default function StudentVerificationClient({
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-800 dark:bg-gray-800/50">
+            <PaginationControl
+              page={page}
+              pageSize={pageSize}
+              totalCount={students.length}
+              onPageChange={setPage}
+            />
           </div>
         </div>
       )}

@@ -17,6 +17,7 @@ import { createTask, toggleTaskStatus, deleteTask, createSectionTask, editTask }
 import { SubmitButton } from '@/components/auth/SubmitButton'
 import Link from 'next/link'
 import { TeacherAnalytics } from '@/components/dashboard/TeacherAnalytics'
+import PaginationLinks from '@/components/ui/PaginationLinks'
 
 type TaskSource = 'teacher' | 'personal' | 'annotation'
 
@@ -60,13 +61,16 @@ type StudentTaskItem = {
 export default async function TaskManagerPage({
     searchParams
 }: {
-    searchParams: Promise<{ filter?: string, edit?: string }>
+    searchParams: Promise<{ filter?: string, edit?: string, page?: string }>
 }) {
 
     // Resolve query params
     const resolvedParams = await searchParams
     const activeFilter = resolvedParams.filter || 'unresolved'
     const editTaskId = resolvedParams.edit
+    const rawPage = Number.parseInt(resolvedParams.page || '1', 10)
+    const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
+    const pageSize = 10
 
     // Initialize Supabase
 const supabase = await createClient()
@@ -126,6 +130,10 @@ const { data: profile } = await supabase
         const analyticsData = analyticsResult.data || []
 
         const teacherAssignedTasks = assignedTasks || []
+        const pagedTeacherAssignedTasks = teacherAssignedTasks.slice(
+            (page - 1) * pageSize,
+            page * pageSize
+        )
 
         // Calculate pending annotations across teacher's sections
         let pendingAnnotations = 0
@@ -235,7 +243,7 @@ const { data: profile } = await supabase
                         </div>
                     ) : (
                         <div className="grid gap-4 sm:grid-cols-2">
-                            {teacherAssignedTasks.map((task: TeacherAssignedTask) => {
+                            {pagedTeacherAssignedTasks.map((task: TeacherAssignedTask) => {
                                 const total = task.task_completions?.length || 0;
                                 const completed = task.task_completions?.filter((c: TaskCompletion) => c.is_completed).length || 0;
 
@@ -275,6 +283,13 @@ const { data: profile } = await supabase
                         </div>
                     )}
                 </div>
+
+                <PaginationLinks
+                    pathname="/dashboard/tasks"
+                    searchParams={{ ...resolvedParams, page: String(page) }}
+                    totalCount={teacherAssignedTasks.length}
+                    pageSize={pageSize}
+                />
             </div>
         )
     }
@@ -376,6 +391,7 @@ const { data: profile } = await supabase
     const completedCount = allTasks.filter(t => t.status === 'resolved').length
     const progressPercentage = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0
     const teacherTasksCount = allTasks.filter(t => t.source === 'teacher' || t.source === 'annotation').length
+    const pagedTasks = allTasks.slice((page - 1) * pageSize, page * pageSize)
 
     return (
         <div className="max-w-4xl mx-auto space-y-8">
@@ -461,7 +477,7 @@ const { data: profile } = await supabase
                         <p className="text-sm">Everything looks organized!</p>
                     </div>
                 ) : (
-                    allTasks.map((task: StudentTaskItem) => {
+                    pagedTasks.map((task: StudentTaskItem) => {
 
                         // Render inline edit form if this task is being edited
                         if (task.id === editTaskId && task.source === 'personal') {
@@ -599,6 +615,13 @@ const { data: profile } = await supabase
                     })
                 )}
             </div>
+
+            <PaginationLinks
+                pathname="/dashboard/tasks"
+                searchParams={{ ...resolvedParams, page: String(page) }}
+                totalCount={allTasks.length}
+                pageSize={pageSize}
+            />
         </div>
     )
 }

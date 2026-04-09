@@ -19,6 +19,7 @@ import {
   toggleAnnouncementStatus,
 } from './actions'
 import type { Announcement } from './actions'
+import PaginationControl from '@/components/ui/PaginationControl'
 
 interface AnnouncementsClientProps {
   initialAnnouncements: Announcement[]
@@ -37,6 +38,8 @@ export default function AnnouncementsClient({
   const [type, setType] = useState<'info' | 'warning' | 'success' | 'urgent'>('info')
   const [expiresAt, setExpiresAt] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   const loadAnnouncements = async () => {
     setLoading(true)
@@ -44,6 +47,7 @@ export default function AnnouncementsClient({
     try {
       const data = await getAnnouncements()
       setAnnouncements(data)
+      setPage(1)
     } catch (err) {
       setError('Failed to load announcements')
       console.error(err)
@@ -218,7 +222,9 @@ export default function AnnouncementsClient({
           <div className="bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-200 dark:border-gray-700 p-12 text-center"><Bell size={48} className="mx-auto mb-4 text-gray-400 dark:text-gray-600" /><p className="text-gray-600 dark:text-gray-400 font-medium">No announcements yet. Create one to get started!</p></div>
         ) : (
           <div className="space-y-4">
-            {announcements.map((announcement) => (
+            {announcements
+              .slice((page - 1) * pageSize, page * pageSize)
+              .map((announcement) => (
               <div key={announcement.id} className={`rounded-2xl border-2 p-6 transition-all ${getTypeColor(announcement.type)}`}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
@@ -244,6 +250,15 @@ export default function AnnouncementsClient({
             ))}
           </div>
         )}
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <PaginationControl
+          page={page}
+          pageSize={pageSize}
+          totalCount={announcements.length}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   )

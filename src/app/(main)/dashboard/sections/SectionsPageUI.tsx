@@ -1,8 +1,9 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useMemo, useState } from 'react'
 import { createSection, regenerateJoinCode, toggleSectionFreeze, removeStudent } from './actions'
 import { SubmitButton } from '@/components/auth/SubmitButton'
+import PaginationControl from '@/components/ui/PaginationControl'
 import {
   Plus,
   GraduationCap,
@@ -53,6 +54,23 @@ export default function SectionsPageUI({
   const [loadingAction, setLoadingAction] = useState<string | null>(null)
   const [rosterModal, setRosterModal] = useState<TeacherSection | null>(null)
   const [copiedSectionId, setCopiedSectionId] = useState<string | null>(null)
+  const [sectionsPage, setSectionsPage] = useState(1)
+  const [rosterPage, setRosterPage] = useState(1)
+  const pageSize = 10
+
+  useEffect(() => {
+    setRosterPage(1)
+  }, [rosterModal?.id])
+
+  const pagedSections = useMemo(
+    () => sections.slice((sectionsPage - 1) * pageSize, sectionsPage * pageSize),
+    [sections, sectionsPage]
+  )
+
+  const pagedRoster = useMemo(() => {
+    const roster = rosterModal?.roster || []
+    return roster.slice((rosterPage - 1) * pageSize, rosterPage * pageSize)
+  }, [rosterModal?.roster, rosterPage])
 
   const handleCopy = async (sectionId: string, text: string) => {
     try {
@@ -187,7 +205,7 @@ export default function SectionsPageUI({
                 No active sections found. Create one to get started.
               </div>
             ) : (
-              sections?.map((section) => (
+              pagedSections.map((section) => (
                 <div
                   key={section.id}
                   className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-[var(--background)] p-6 shadow-sm dark:border-gray-800"
@@ -299,6 +317,15 @@ export default function SectionsPageUI({
               ))
             )}
           </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-[var(--background)] px-5 py-4 shadow-sm dark:border-gray-800">
+            <PaginationControl
+              page={sectionsPage}
+              pageSize={pageSize}
+              totalCount={sections.length}
+              onPageChange={setSectionsPage}
+            />
+          </div>
         </div>
       </div>
 
@@ -330,7 +357,7 @@ export default function SectionsPageUI({
                   <p>No students have joined this section yet.</p>
                 </div>
               ) : (
-                rosterModal.roster?.map((student) => (
+                pagedRoster.map((student) => (
                   <div
                     key={student.user_id}
                     className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all dark:border-gray-700 dark:bg-gray-800"
@@ -363,6 +390,15 @@ export default function SectionsPageUI({
                   </div>
                 ))
               )}
+            </div>
+
+            <div className="border-t border-gray-100 bg-gray-50/50 p-6 dark:border-gray-800 dark:bg-gray-900/50">
+              <PaginationControl
+                page={rosterPage}
+                pageSize={pageSize}
+                totalCount={rosterModal.roster?.length || 0}
+                onPageChange={setRosterPage}
+              />
             </div>
           </div>
         </div>

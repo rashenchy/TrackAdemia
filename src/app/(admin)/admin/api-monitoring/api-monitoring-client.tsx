@@ -18,6 +18,7 @@ import {
   getMonitoringDashboardData,
   type MonitoringDashboardData,
 } from './actions'
+import PaginationControl from '@/components/ui/PaginationControl'
 import {
   CartesianGrid,
   Line,
@@ -64,6 +65,8 @@ export default function APIMonitoringClient({
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [recentPage, setRecentPage] = useState(1)
+  const pageSize = 10
   const [startDate] = useState(() => {
     const date = new Date()
     date.setDate(date.getDate() - 30)
@@ -78,6 +81,7 @@ export default function APIMonitoringClient({
     try {
       const dashboardData = await getMonitoringDashboardData()
       setData(dashboardData)
+      setRecentPage(1)
     } catch (err) {
       setError('Failed to load API monitoring data.')
       console.error(err)
@@ -414,7 +418,9 @@ export default function APIMonitoringClient({
                 </tr>
               </thead>
               <tbody>
-                {data.recentLogs.map((log, index) => (
+                {data.recentLogs
+                  .slice((recentPage - 1) * pageSize, recentPage * pageSize)
+                  .map((log, index) => (
                   <tr
                     key={log.id}
                     className={`border-b border-gray-200 dark:border-gray-800 ${
@@ -469,6 +475,15 @@ export default function APIMonitoringClient({
             </p>
           </div>
         )}
+
+        <div className="mt-4">
+          <PaginationControl
+            page={recentPage}
+            pageSize={pageSize}
+            totalCount={data.recentLogs.length}
+            onPageChange={setRecentPage}
+          />
+        </div>
       </div>
     </div>
   )

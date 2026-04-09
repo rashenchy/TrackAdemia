@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowUpDown,
   Clock3,
@@ -14,6 +14,7 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import type { TeacherSubmissionFilter, TeacherSubmissionRecord, TeacherSubmissionSection } from '@/lib/users/teacher-submissions'
+import PaginationControl from '@/components/ui/PaginationControl'
 
 type BasicSubmission = {
   id: string
@@ -77,6 +78,20 @@ export function SubmissionsTable({
   const [sectionFilter, setSectionFilter] = useState('all')
   const [groupFilter, setGroupFilter] = useState<TeacherSubmissionFilter>('all')
   const [sortBy, setSortBy] = useState<SubmissionSort>('updated-desc')
+  const [page, setPage] = useState(1)
+  const pageSize = 10
+
+  useEffect(() => {
+    if (isTeacherView) {
+      setPage(1)
+    }
+  }, [groupFilter, isTeacherView, sectionFilter, sortBy])
+
+  useEffect(() => {
+    if (!isTeacherView) {
+      setPage(1)
+    }
+  }, [isTeacherView, submissions.length])
 
   const filteredSubmissions = useMemo(() => {
     if (!isTeacherView) {
@@ -213,6 +228,9 @@ export function SubmissionsTable({
   }
 
   if (!isTeacherView) {
+    const totalCount = submissions.length
+    const pagedSubmissions = submissions.slice((page - 1) * pageSize, page * pageSize)
+
     return (
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-[var(--background)] shadow-sm dark:border-gray-800">
         <div className="overflow-x-auto">
@@ -226,7 +244,7 @@ export function SubmissionsTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-              {submissions.map((item) => (
+              {pagedSubmissions.map((item) => (
                 <tr
                   key={item.id}
                   className="transition-colors hover:bg-gray-50/50 dark:hover:bg-gray-800/30"
@@ -282,9 +300,23 @@ export function SubmissionsTable({
             </tbody>
           </table>
         </div>
+        <div className="border-t border-gray-200 bg-gray-50 px-4 py-4 dark:border-gray-800 dark:bg-gray-900">
+          <PaginationControl
+            page={page}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            onPageChange={setPage}
+          />
+        </div>
       </div>
     )
   }
+
+  const totalCount = filteredSubmissions.length
+  const pagedFilteredSubmissions = filteredSubmissions.slice(
+    (page - 1) * pageSize,
+    page * pageSize
+  )
 
   return (
     <div className="space-y-5">
@@ -376,7 +408,7 @@ export function SubmissionsTable({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-gray-800">
-                {filteredSubmissions.map((submission) => {
+                {pagedFilteredSubmissions.map((submission) => {
                   if (!('filter_group' in submission)) {
                     return null
                   }
@@ -467,6 +499,15 @@ export function SubmissionsTable({
             </table>
           </div>
         )}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <PaginationControl
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   )

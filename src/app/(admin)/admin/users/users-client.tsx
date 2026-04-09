@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Users, Search, Loader2, AlertCircle, Trash2, UserCheck } from 'lucide-react'
 import { getAllUsers, deleteOrBanUser } from './actions'
+import PaginationControl from '@/components/ui/PaginationControl'
 
 interface UserProfile {
   id: string
@@ -49,6 +50,8 @@ export default function UserManagementClient({
   const [roleFilter, setRoleFilter] = useState('all')
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
 
   let filteredUsers = users
 
@@ -64,6 +67,12 @@ export default function UserManagementClient({
         u.email?.toLowerCase().includes(lowerSearch)
     )
   }
+
+  useEffect(() => {
+    setPage(1)
+  }, [roleFilter, searchTerm])
+
+  const pagedUsers = filteredUsers.slice((page - 1) * pageSize, page * pageSize)
 
   const loadUsers = async () => {
     setLoading(true)
@@ -182,7 +191,7 @@ export default function UserManagementClient({
                 </tr>
               </thead>
               <tbody>
-                {filteredUsers.map((user, index) => {
+                {pagedUsers.map((user, index) => {
                   const roleColor = roleColors[user.role]
 
                   return (
@@ -244,8 +253,13 @@ export default function UserManagementClient({
               </tbody>
             </table>
           </div>
-          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 text-sm text-gray-600 dark:text-gray-400">
-            Showing {filteredUsers.length} of {users.length} user{users.length !== 1 ? 's' : ''}
+          <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+            <PaginationControl
+              page={page}
+              pageSize={pageSize}
+              totalCount={filteredUsers.length}
+              onPageChange={setPage}
+            />
           </div>
         </div>
       )}

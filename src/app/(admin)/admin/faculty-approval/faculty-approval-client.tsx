@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Users, CheckCircle, XCircle, Loader2, AlertCircle } from 'lucide-react'
 import { getPendingFaculty, verifyFaculty, rejectFaculty } from './actions'
+import PaginationControl from '@/components/ui/PaginationControl'
 
 interface Faculty {
   id: string
@@ -26,6 +27,10 @@ export default function FacultyApprovalClient({
   const [error, setError] = useState<string | null>(null)
   const [verifying, setVerifying] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+  const pageSize = 10
+
+  const pagedFaculty = faculty.slice((page - 1) * pageSize, page * pageSize)
 
   const loadPendingFaculty = async () => {
     setLoading(true)
@@ -133,7 +138,7 @@ export default function FacultyApprovalClient({
                 </tr>
               </thead>
               <tbody>
-                {faculty.map((member, index) => (
+                {pagedFaculty.map((member, index) => (
                   <tr
                     key={member.id}
                     className={`border-b border-gray-200 dark:border-gray-800 ${
@@ -180,6 +185,14 @@ export default function FacultyApprovalClient({
                 ))}
               </tbody>
             </table>
+          </div>
+          <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-800 dark:bg-gray-800/50">
+            <PaginationControl
+              page={page}
+              pageSize={pageSize}
+              totalCount={faculty.length}
+              onPageChange={setPage}
+            />
           </div>
         </div>
       )}
