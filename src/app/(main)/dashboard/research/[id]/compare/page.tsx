@@ -1,9 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, GitCompareArrows } from 'lucide-react'
+import { GitCompareArrows } from 'lucide-react'
 import { buildResearchVersionDiff } from '@/lib/research/version-diff'
 import { getVersionLabel } from '@/lib/research/versioning'
+import { BackButton } from '@/components/navigation/BackButton'
+import { appendFromParam, buildPathWithSearch } from '@/lib/navigation'
 
 type VersionRow = {
   id: string
@@ -39,7 +41,7 @@ export default async function CompareResearchVersionsPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams?: Promise<{ from?: string; to?: string; changed?: string }>
+  searchParams?: Promise<{ from?: string; base?: string; target?: string; changed?: string }>
 }) {
   const resolvedParams = await params
   const resolvedSearchParams = (await searchParams) || {}
@@ -99,14 +101,14 @@ export default async function CompareResearchVersionsPage({
         ]
 
   const toVersionNumber =
-    Number(resolvedSearchParams.to) ||
+    Number(resolvedSearchParams.target) ||
     versions[0]?.version_number ||
     1
   const defaultFromVersion =
     versions.find((version) => version.version_number !== toVersionNumber)?.version_number ||
     toVersionNumber
   const fromVersionNumber =
-    Number(resolvedSearchParams.from) ||
+    Number(resolvedSearchParams.base) ||
     defaultFromVersion
 
   const fromVersion =
@@ -127,12 +129,10 @@ export default async function CompareResearchVersionsPage({
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-12">
       <div className="flex items-center gap-4">
-        <Link
-          href={`/dashboard/research/${researchId}`}
+        <BackButton
+          fallbackHref={`/dashboard/research/${researchId}`}
           className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-        >
-          <ArrowLeft size={20} />
-        </Link>
+        />
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Compare Versions</h1>
           <p className="text-gray-500 mt-1">{research.title}</p>
@@ -142,10 +142,11 @@ export default async function CompareResearchVersionsPage({
       <div className="rounded-xl border border-gray-200 bg-[var(--background)] p-6 shadow-sm">
         <form className="grid gap-4 md:grid-cols-[1fr_1fr_auto_auto] md:items-end">
           <input type="hidden" name="changed" value={showOnlyChanged ? '1' : '0'} />
+          <input type="hidden" name="from" value={resolvedSearchParams.from ?? ''} />
           <div>
             <label className="text-xs font-bold uppercase text-gray-500">From Version</label>
             <select
-              name="from"
+              name="base"
               defaultValue={String(fromVersion.version_number)}
               className="mt-2 w-full rounded-lg border border-gray-300 bg-transparent p-2.5 text-sm"
             >
@@ -159,7 +160,7 @@ export default async function CompareResearchVersionsPage({
           <div>
             <label className="text-xs font-bold uppercase text-gray-500">To Version</label>
             <select
-              name="to"
+              name="target"
               defaultValue={String(toVersion.version_number)}
               className="mt-2 w-full rounded-lg border border-gray-300 bg-transparent p-2.5 text-sm"
             >
@@ -178,7 +179,14 @@ export default async function CompareResearchVersionsPage({
             Compare
           </button>
           <Link
-            href={`/dashboard/research/${researchId}/compare?from=${fromVersion.version_number}&to=${toVersion.version_number}&changed=${showOnlyChanged ? '0' : '1'}`}
+            href={appendFromParam(
+              buildPathWithSearch(`/dashboard/research/${researchId}/compare`, [
+                ['base', String(fromVersion.version_number)],
+                ['target', String(toVersion.version_number)],
+                ['changed', showOnlyChanged ? '0' : '1'],
+              ]),
+              resolvedSearchParams.from ?? `/dashboard/research/${researchId}`
+            )}
             className="inline-flex items-center justify-center rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
           >
             {showOnlyChanged ? 'Show All Sections' : 'Only Changed'}

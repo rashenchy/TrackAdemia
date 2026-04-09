@@ -14,7 +14,6 @@ import '@react-pdf-viewer/core/lib/styles/index.css'
 import '@react-pdf-viewer/highlight/lib/styles/index.css'
 
 import {
-  ArrowLeft,
   BadgeCheck,
   CheckCircle,
   ChevronLeft,
@@ -59,6 +58,8 @@ import {
 } from '@/lib/research/document'
 import { ResearchRichTextEditor } from '@/components/dashboard/ResearchRichTextEditor'
 import { getVersionLabel } from '@/lib/research/versioning'
+import { BackButton } from '@/components/navigation/BackButton'
+import { appendFromParam, buildPathWithSearch } from '@/lib/navigation'
 
 type AnnotationRecord = {
   id: string
@@ -363,6 +364,14 @@ export default function AnnotatePage({
   }, [editableWorkspaceContent])
 
   const visibleSections = getResearchEditorSectionsForStage(researchStage)
+  const currentPageHref = useMemo(
+    () =>
+      buildPathWithSearch(`/dashboard/research/${researchId}/annotate`, [
+        ['version', selectedVersionNumber ? String(selectedVersionNumber) : null],
+        ['from', searchParams.get('from')],
+      ]),
+    [researchId, searchParams, selectedVersionNumber]
+  )
   const hasPdf = submissionFormat === 'pdf' || submissionFormat === 'both'
   const hasText = submissionFormat === 'text' || submissionFormat === 'both'
   const canEditTextWorkspace =
@@ -913,12 +922,7 @@ export default function AnnotatePage({
       <div className="border-b border-gray-200 bg-white px-6 py-4">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-center gap-4">
-            <Link
-              href={`/dashboard/research/${researchId}`}
-              className="rounded-full border border-gray-200 p-2 text-gray-600 transition hover:bg-gray-50"
-            >
-              <ArrowLeft size={18} />
-            </Link>
+            <BackButton className="rounded-full border border-gray-200 p-2 text-gray-600 transition hover:bg-gray-50" />
             <div>
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
                 Unified Review Workspace
@@ -983,7 +987,7 @@ export default function AnnotatePage({
             ) : null}
 
             <Link
-              href={`/dashboard/research/${researchId}`}
+              href={appendFromParam(`/dashboard/research/${researchId}`, currentPageHref)}
               className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
             >
               <Eye size={16} />
@@ -1041,7 +1045,13 @@ export default function AnnotatePage({
           <div className="flex flex-wrap items-center gap-2">
             {previousVersion ? (
               <Link
-                href={`/dashboard/research/${researchId}/compare?from=${previousVersion.version_number}&to=${effectiveVersionNumber}`}
+                href={appendFromParam(
+                  buildPathWithSearch(`/dashboard/research/${researchId}/compare`, [
+                    ['base', String(previousVersion.version_number)],
+                    ['target', String(effectiveVersionNumber)],
+                  ]),
+                  currentPageHref
+                )}
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
               >
                 <GitCompareArrows size={16} />

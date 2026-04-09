@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowUpDown,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import type { TeacherSubmissionFilter, TeacherSubmissionRecord, TeacherSubmissionSection } from '@/lib/users/teacher-submissions'
 import PaginationControl from '@/components/ui/PaginationControl'
+import { appendFromParam, buildPathWithSearch } from '@/lib/navigation'
 
 type BasicSubmission = {
   id: string
@@ -74,12 +75,18 @@ export function SubmissionsTable({
   variant = 'full',
 }: StudentSubmissionBoardProps) {
   const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const isTeacherView = submissions.some((submission) => 'filter_group' in submission)
   const [sectionFilter, setSectionFilter] = useState('all')
   const [groupFilter, setGroupFilter] = useState<TeacherSubmissionFilter>('all')
   const [sortBy, setSortBy] = useState<SubmissionSort>('updated-desc')
   const [page, setPage] = useState(1)
   const pageSize = 10
+  const currentRoute = useMemo(
+    () => buildPathWithSearch(pathname, Array.from(searchParams.entries())),
+    [pathname, searchParams]
+  )
 
   useEffect(() => {
     if (isTeacherView) {
@@ -203,7 +210,7 @@ export function SubmissionsTable({
 
               <div className="flex flex-wrap items-center gap-2">
                 <Link
-                  href={`/dashboard/research/${submission.id}`}
+                  href={appendFromParam(`/dashboard/research/${submission.id}`, currentRoute)}
                   className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-gray-700 dark:text-slate-200 dark:hover:bg-gray-800"
                 >
                   <Eye size={16} />
@@ -211,7 +218,7 @@ export function SubmissionsTable({
                 </Link>
                 {'filter_group' in submission && (
                   <Link
-                    href={`/dashboard/research/${submission.id}/annotate`}
+                    href={appendFromParam(`/dashboard/research/${submission.id}/annotate`, currentRoute)}
                     className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
                   >
                     <MessageCircle size={16} />
@@ -280,14 +287,14 @@ export function SubmissionsTable({
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <Link
-                        href={`/dashboard/research/${item.id}`}
+                        href={appendFromParam(`/dashboard/research/${item.id}`, currentRoute)}
                         title="View Details"
                         className="rounded-lg p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-green-600 dark:hover:bg-gray-700"
                       >
                         <Eye size={16} />
                       </Link>
                       <Link
-                        href={`/dashboard/research/${item.id}/edit`}
+                        href={appendFromParam(`/dashboard/research/${item.id}/edit`, currentRoute)}
                         title="Edit Submission"
                         className="rounded-lg p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-amber-600 dark:hover:bg-gray-700"
                       >
@@ -416,7 +423,11 @@ export function SubmissionsTable({
                   return (
                     <tr
                       key={submission.id}
-                      onClick={() => router.push(`/dashboard/research/${submission.id}`)}
+                      onClick={() =>
+                        router.push(
+                          appendFromParam(`/dashboard/research/${submission.id}`, currentRoute)
+                        )
+                      }
                       className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-gray-950/40"
                     >
                       <td className="px-4 py-3">
@@ -483,7 +494,7 @@ export function SubmissionsTable({
                           onMouseDown={(event) => event.stopPropagation()}
                         >
                           <Link
-                            href={`/dashboard/research/${submission.id}`}
+                            href={appendFromParam(`/dashboard/research/${submission.id}`, currentRoute)}
                             onClick={(event) => event.stopPropagation()}
                             className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-900 dark:text-slate-200 dark:hover:bg-gray-800"
                           >
@@ -491,7 +502,7 @@ export function SubmissionsTable({
                             View
                           </Link>
                           <Link
-                            href={`/dashboard/research/${submission.id}/annotate`}
+                            href={appendFromParam(`/dashboard/research/${submission.id}/annotate`, currentRoute)}
                             onClick={(event) => event.stopPropagation()}
                             className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
                           >

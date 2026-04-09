@@ -18,6 +18,7 @@ import { SubmitButton } from '@/components/auth/SubmitButton'
 import Link from 'next/link'
 import { TeacherAnalytics } from '@/components/dashboard/TeacherAnalytics'
 import PaginationLinks from '@/components/ui/PaginationLinks'
+import { appendFromParam } from '@/lib/navigation'
 
 type TaskSource = 'teacher' | 'personal' | 'annotation'
 
@@ -580,7 +581,10 @@ const { data: profile } = await supabase
                                                 &quot;{task.quote}&quot;
                                             </p>
                                             <Link
-                                                href={`/dashboard/research/${task.research_id}/annotate?annotationId=${task.id}`}
+                                                href={appendFromParam(
+                                                    `/dashboard/research/${task.research_id}/annotate?annotationId=${task.id}`,
+                                                    '/dashboard/tasks'
+                                                )}
                                                 className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 hover:bg-purple-100 dark:hover:bg-purple-900/30 px-3 py-2 rounded-xl transition-colors w-fit"
                                             >
                                                 Open Feedback Thread

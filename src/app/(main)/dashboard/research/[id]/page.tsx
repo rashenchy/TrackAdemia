@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, GraduationCap, Edit3, FileText, GitCompareArrows, Users } from 'lucide-react'
+import { Calendar, GraduationCap, Edit3, FileText, GitCompareArrows, Users } from 'lucide-react'
 import { DocumentDownloadButton } from '@/components/dashboard/DocumentDownloadButton'
 import { updateResearchStatus } from './actions'
 import { ResearchStatusForm } from './research-status-form'
@@ -12,6 +12,8 @@ import {
   resolveResearchSubmissionFormat,
 } from '@/lib/research/document'
 import { getVersionLabel } from '@/lib/research/versioning'
+import { BackButton } from '@/components/navigation/BackButton'
+import { appendFromParam, buildPathWithSearch } from '@/lib/navigation'
 
 type TeamMember = {
   id: string
@@ -39,7 +41,7 @@ export default async function ViewResearchPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams?: Promise<{ view?: string }>
+  searchParams?: Promise<{ view?: string; from?: string }>
 }) {
 
   // Initialization
@@ -180,6 +182,10 @@ export default async function ViewResearchPage({
       : latestHasPdf
         ? 'pdf'
         : 'text'
+  const currentPageHref = buildPathWithSearch(`/dashboard/research/${researchId}`, [
+    ['view', resolvedSearchParams.view],
+    ['from', resolvedSearchParams.from],
+  ])
 
   const updateStatusAction = updateResearchStatus.bind(null, researchId)
 
@@ -190,12 +196,7 @@ export default async function ViewResearchPage({
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-4">
-          <Link
-            href={isViewerOnly ? '/dashboard/repository' : '/dashboard'}
-            className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-          >
-            <ArrowLeft size={20} />
-          </Link>
+          <BackButton fallbackHref={isViewerOnly ? '/dashboard/repository' : '/dashboard'} />
           <h1 className="text-3xl font-bold tracking-tight">Research Details</h1>
         </div>
 
@@ -339,7 +340,7 @@ export default async function ViewResearchPage({
         {!isViewerOnly && displayVersions.length > 1 && (
           <div className="flex justify-end">
             <Link
-              href={`/dashboard/research/${researchId}/compare`}
+              href={appendFromParam(`/dashboard/research/${researchId}/compare`, currentPageHref)}
               className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
             >
                           <GitCompareArrows size={16} />
@@ -353,13 +354,23 @@ export default async function ViewResearchPage({
             {latestSubmissionFormat === 'both' && (
               <div className="flex items-center gap-2">
                 <Link
-                  href={`/dashboard/research/${researchId}?view=pdf`}
+                  href={appendFromParam(
+                    buildPathWithSearch(`/dashboard/research/${researchId}`, [
+                      ['view', 'pdf'],
+                    ]),
+                    resolvedSearchParams.from ?? null
+                  )}
                   className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${activeDocumentView === 'pdf' ? 'bg-blue-600 text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
                 >
                   PDF View
                 </Link>
                 <Link
-                  href={`/dashboard/research/${researchId}?view=text`}
+                  href={appendFromParam(
+                    buildPathWithSearch(`/dashboard/research/${researchId}`, [
+                      ['view', 'text'],
+                    ]),
+                    resolvedSearchParams.from ?? null
+                  )}
                   className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${activeDocumentView === 'text' ? 'bg-blue-600 text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
                 >
                   Text View
@@ -442,7 +453,13 @@ export default async function ViewResearchPage({
                     <div className="flex items-center gap-2 w-full md:w-auto">
                         {previousVersion && (
                           <Link
-                            href={`/dashboard/research/${research.id}/compare?to=${v.version_number}&from=${previousVersion.version_number}`}
+                            href={appendFromParam(
+                              buildPathWithSearch(`/dashboard/research/${research.id}/compare`, [
+                                ['target', String(v.version_number)],
+                                ['base', String(previousVersion.version_number)],
+                              ]),
+                              currentPageHref
+                            )}
                             className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold transition-colors text-sm flex-1"
                           >
                             <GitCompareArrows size={16} /> Compare
@@ -450,7 +467,12 @@ export default async function ViewResearchPage({
                         )}
                         {(isTeacher || isAuthor) && (
                           <Link
-                            href={`/dashboard/research/${research.id}/annotate?version=${v.version_number}`}
+                            href={appendFromParam(
+                              buildPathWithSearch(`/dashboard/research/${research.id}/annotate`, [
+                                ['version', String(v.version_number)],
+                              ]),
+                              currentPageHref
+                            )}
                             className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 rounded-lg font-semibold transition-colors text-sm flex-1"
                         >
                           <Edit3 size={16} /> Annotate
