@@ -1,15 +1,50 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Calendar, GraduationCap, Edit3, FileText, Users, User } from 'lucide-react'
+import { ArrowLeft, Calendar, GraduationCap, Edit3, FileText, GitCompareArrows, Users } from 'lucide-react'
 import { DocumentDownloadButton } from '@/components/dashboard/DocumentDownloadButton'
 import { updateResearchStatus } from './actions'
 import { ResearchStatusForm } from './research-status-form'
+import { ResearchDocumentSections } from '@/components/dashboard/ResearchDocumentSections'
+import {
+  getResearchEditorSectionsForStage,
+  normalizeResearchDocumentContent,
+  resolveResearchSubmissionFormat,
+} from '@/lib/research/document'
+import { getVersionLabel } from '@/lib/research/versioning'
 
-export default async function ViewResearchPage({ params }: { params: Promise<{ id: string }> }) {
+type TeamMember = {
+  id: string
+  name: string
+  course: string
+  role: string
+}
+
+type DisplayVersion = {
+  id: string
+  file_url: string | null
+  original_file_name: string | null
+  content_json?: unknown
+  version_number: number
+  version_major?: number | null
+  version_minor?: number | null
+  version_label?: string | null
+  created_by_role?: string | null
+  change_summary?: string | null
+  created_at: string
+}
+
+export default async function ViewResearchPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<{ view?: string }>
+}) {
 
   // Initialization
   const resolvedParams = await params
+  const resolvedSearchParams = (await searchParams) || {}
   const researchId = resolvedParams.id
   const supabase = await createClient()
 
@@ -33,7 +68,7 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
     .single()
 
   if (!research) {
-    return <div className="p-8">Research not found or you don't have access.</div>
+    return <div className="p-8">Research not found or you don&apos;t have access.</div>
   }
 
   // Access control logic
@@ -80,7 +115,7 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
   }
 
   // Fetch team member profiles
-  let teamMembers: any[] = []
+  let teamMembers: TeamMember[] = []
   if (research.members && research.members.length > 0) {
     const { data: profiles } = await supabase
       .from('profiles')
@@ -108,17 +143,43 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
     .order('version_number', { ascending: false })
 
   // Legacy fallback for older uploads (Version 1)
-  const displayVersions = versions && versions.length > 0
+  const displayVersions: DisplayVersion[] = versions && versions.length > 0
     ? versions
-    : research.file_url
+    : research.file_url || research.content_json
       ? [{
           id: 'legacy',
           file_url: research.file_url,
           original_file_name: research.original_file_name,
+          content_json: research.content_json,
           version_number: 1,
+          version_label: '1',
+          created_by_role: 'student',
           created_at: research.created_at
         }]
       : []
+
+  const latestVersion = displayVersions[0]
+  const latestDocumentContent = normalizeResearchDocumentContent(
+    latestVersion?.content_json ?? research.content_json
+  )
+  const latestHasPdf = Boolean(latestVersion?.file_url || research.file_url)
+  const latestHasText = getResearchEditorSectionsForStage(research.current_stage).some(
+    (section) => latestDocumentContent[section.key].trim().length > 0
+  )
+  const latestSubmissionFormat = resolveResearchSubmissionFormat(
+    research.submission_format,
+    {
+      hasPdf: latestHasPdf,
+      hasText: latestHasText,
+      stage: research.current_stage,
+    }
+  )
+  const activeDocumentView =
+    resolvedSearchParams.view === 'text' && latestHasText
+      ? 'text'
+      : latestHasPdf
+        ? 'pdf'
+        : 'text'
 
   const updateStatusAction = updateResearchStatus.bind(null, researchId)
 
@@ -275,8 +336,48 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
           </p>
         </div>
 
+        {!isViewerOnly && displayVersions.length > 1 && (
+          <div className="flex justify-end">
+            <Link
+              href={`/dashboard/research/${researchId}/compare`}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+            >
+                          <GitCompareArrows size={16} />
+              Compare Versions
+            </Link>
+          </div>
+        )}
+
+        {(latestSubmissionFormat === 'both' || latestSubmissionFormat === 'text') && (
+          <div className="space-y-4">
+            {latestSubmissionFormat === 'both' && (
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/dashboard/research/${researchId}?view=pdf`}
+                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${activeDocumentView === 'pdf' ? 'bg-blue-600 text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                >
+                  PDF View
+                </Link>
+                <Link
+                  href={`/dashboard/research/${researchId}?view=text`}
+                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${activeDocumentView === 'text' ? 'bg-blue-600 text-white' : 'border border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                >
+                  Text View
+                </Link>
+              </div>
+            )}
+
+            {activeDocumentView === 'text' && latestHasText && (
+              <ResearchDocumentSections
+                content={latestDocumentContent}
+                stage={research.current_stage}
+              />
+            )}
+          </div>
+        )}
+
          {/* Viewer Mode: Clean, single document view */}     
-        {displayVersions.length > 0 ? (
+        {displayVersions.length > 0 && activeDocumentView === 'pdf' ? (
           <div className="space-y-3 mt-4">
             {isViewerOnly ? (
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 p-4 rounded-xl border border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/20">
@@ -293,16 +394,19 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
                   </p>
                 </div>
                 <div className="w-full md:w-auto">
-                  <DocumentDownloadButton
-                    fileUrl={displayVersions[0].file_url}
-                    downloadFileName={displayVersions[0].original_file_name}
-                  />
+                  {displayVersions[0].file_url ? (
+                    <DocumentDownloadButton
+                      fileUrl={displayVersions[0].file_url}
+                      downloadFileName={displayVersions[0].original_file_name}
+                    />
+                  ) : null}
                 </div>
               </div>
             ) : (
               // Author/Teacher Mode: Full version history
-              displayVersions.map((v: any, index: number) => {
+              displayVersions.map((v, index: number) => {
                 const isLatest = index === 0
+                const previousVersion = displayVersions[index + 1]
                 return (
                   <div
                     key={v.id}
@@ -315,7 +419,7 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
                     <div>
                       <div className="flex items-center gap-2">
                         <h3 className={`font-bold ${isLatest ? 'text-purple-700 dark:text-purple-400' : 'text-gray-700 dark:text-gray-300'}`}>
-                          Version {v.version_number}
+                          Version {getVersionLabel(v)}
                         </h3>
                         {isLatest && (
                           <span className="bg-purple-600 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded">Latest</span>
@@ -324,35 +428,51 @@ export default async function ViewResearchPage({ params }: { params: Promise<{ i
                       <p className="text-xs text-gray-500 mt-1">
                         Uploaded on {new Date(v.created_at).toLocaleString()}
                       </p>
+                      <p className="mt-1 text-xs font-medium text-gray-500">
+                        {v.created_by_role === 'teacher' ? 'Teacher review edit' : 'Student submission'}
+                      </p>
+                      {v.change_summary ? (
+                        <p className="mt-1 text-xs text-gray-500">{v.change_summary}</p>
+                      ) : null}
                       <p className="mt-2 text-xs font-medium text-gray-600 dark:text-gray-400">
                         {v.original_file_name || 'Attached manuscript.pdf'}
                       </p>
                     </div>
 
                     <div className="flex items-center gap-2 w-full md:w-auto">
+                        {previousVersion && (
+                          <Link
+                            href={`/dashboard/research/${research.id}/compare?to=${v.version_number}&from=${previousVersion.version_number}`}
+                            className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold transition-colors text-sm flex-1"
+                          >
+                            <GitCompareArrows size={16} /> Compare
+                          </Link>
+                        )}
                         {(isTeacher || isAuthor) && (
                           <Link
                             href={`/dashboard/research/${research.id}/annotate?version=${v.version_number}`}
                             className="flex items-center justify-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 rounded-lg font-semibold transition-colors text-sm flex-1"
                         >
                           <Edit3 size={16} /> Annotate
-                        </Link>
+                          </Link>
                       )}
-                      <DocumentDownloadButton
-                        fileUrl={v.file_url}
-                        downloadFileName={v.original_file_name}
-                      />
+                      {v.file_url ? (
+                        <DocumentDownloadButton
+                          fileUrl={v.file_url}
+                          downloadFileName={v.original_file_name}
+                        />
+                      ) : null}
                     </div>
                   </div>
                 )
               })
             )}
           </div>
-        ) : (
+        ) : displayVersions.length === 0 && activeDocumentView === 'pdf' ? (
           <div className="p-8 text-center border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-xl text-gray-400">
             <span className="text-sm italic">No documents attached yet.</span>
           </div>
-        )}
+        ) : null}
       </div>
 
     </div>

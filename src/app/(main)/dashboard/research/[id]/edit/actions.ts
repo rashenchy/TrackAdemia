@@ -4,13 +4,27 @@ import { createClient } from '@/lib/supabase/server'
 import { uploadResearchDocument } from '@/lib/research/files'
 import { getPublishedAtForStatusChange } from '@/lib/research/publication'
 import {
+  extractResearchDocumentContentFromFormData,
+  hasResearchTextContent,
+  resolveResearchSubmissionFormat,
+} from '@/lib/research/document'
+import { getNextStudentVersion } from '@/lib/research/versioning'
+import {
   getUnresolvedAnnotationCount,
   notifyTeachersForResearchSubmission,
   notifyTeachersForResearchVersionUpload,
 } from '@/lib/research/workflow'
 import { redirect } from 'next/navigation'
 
-export async function updateResearch(editId: string, prevState: any, formData: FormData) {
+type FormState = {
+  error?: string
+}
+
+function getErrorMessage(error: unknown, fallbackMessage: string) {
+  return error instanceof Error ? error.message : fallbackMessage
+}
+
+export async function updateResearch(editId: string, prevState: FormState | null, formData: FormData) {
   const supabase = await createClient()
 
   // AUTHENTICATION & PERMISSIONS
@@ -23,7 +37,7 @@ export async function updateResearch(editId: string, prevState: any, formData: F
   // Fetch current record for security validation
   const { data: current } = await supabase
     .from('research')
-    .select('status, published_at, user_id, members, file_url, original_file_name, title, subject_code, adviser_id')
+    .select('status, published_at, user_id, members, file_url, original_file_name, title, subject_code, adviser_id, content_json, submission_format')
     .eq('id', editId)
     .single()
 
@@ -68,6 +82,9 @@ export async function updateResearch(editId: string, prevState: any, formData: F
   const startDate = (formData.get('startDate') as string) || null
   const targetDefenseDate = (formData.get('targetDefenseDate') as string) || null
   const currentStage = (formData.get('currentStage') as string)?.trim()
+  const requestedSubmissionFormat = (formData.get('submissionFormat') as string)?.trim()
+  const documentContent = extractResearchDocumentContentFromFormData(formData, currentStage)
+  const hasTextContent = hasResearchTextContent(documentContent, currentStage)
 
   // Collect member assignments
   const members: string[] = []
@@ -89,16 +106,36 @@ export async function updateResearch(editId: string, prevState: any, formData: F
       const uploadedFile = await uploadResearchDocument(supabase, user.id, initialDocument)
       fileUrl = uploadedFile.filePath
       originalFileName = uploadedFile.originalFileName
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Storage Upload Error:', error)
-      return { error: error?.message || 'Failed to securely upload the new document.' }
+      return { error: getErrorMessage(error, 'Failed to securely upload the new document.') }
+    }
+  }
+
+  const effectiveFileUrl = fileUrl || current.file_url || null
+  const submissionFormat = resolveResearchSubmissionFormat(requestedSubmissionFormat, {
+    hasPdf: Boolean(effectiveFileUrl),
+    hasText: hasTextContent,
+    stage: currentStage,
+  })
+
+  if (!isDraft) {
+    const needsPdf = submissionFormat === 'pdf' || submissionFormat === 'both'
+    const needsText = submissionFormat === 'text' || submissionFormat === 'both'
+
+    if (needsPdf && !effectiveFileUrl) {
+      return { error: 'Please upload a PDF manuscript for the selected submission format.' }
+    }
+
+    if (needsText && !hasTextContent) {
+      return { error: 'Please complete at least one manuscript section in the editor before submitting.' }
     }
   }
 
 
   // DATABASE UPDATE
 
-  const updatePayload: any = {
+  const updatePayload: Record<string, unknown> = {
     title, type, abstract, keywords,
     subject_code: subjectCode,
     adviser_id: adviser,
@@ -112,6 +149,8 @@ export async function updateResearch(editId: string, prevState: any, formData: F
       nextStatus,
       current.published_at
     ),
+    submission_format: submissionFormat,
+    content_json: hasTextContent ? documentContent : null,
     members: members.filter(id => id !== ''),
     member_roles: memberRoles,
     ...(fileUrl && { file_url: fileUrl, original_file_name: originalFileName })
@@ -137,7 +176,7 @@ export async function updateResearch(editId: string, prevState: any, formData: F
     // Fetch latest version number
     const { data: existingVersions } = await supabase
       .from('research_versions')
-      .select('version_number, file_url')
+      .select('version_number, version_major, version_minor, version_label, file_url, content_json')
       .eq('research_id', editId)
       .order('version_number', { ascending: false })
 
@@ -159,13 +198,20 @@ export async function updateResearch(editId: string, prevState: any, formData: F
           uploaded_by: user.id,
           file_url: current.file_url,
           original_file_name: current.original_file_name,
+          content_json: current.content_json,
           version_number: 1,
+          version_major: 1,
+          version_minor: 0,
+          version_label: '1',
+          created_by_role: 'student',
+          change_type: 'student_submit',
         })
 
       if (seedVersionError) console.error('Seed Version Insert Error:', seedVersionError)
     }
 
-    if (fileUrl) {
+    if (fileUrl || hasTextContent) {
+      const versionInfo = getNextStudentVersion(versionRows)
       const nextVersion =
         versionRows.length === 0
           ? current.file_url && current.file_url !== fileUrl
@@ -180,7 +226,13 @@ export async function updateResearch(editId: string, prevState: any, formData: F
           uploaded_by: user.id,
           file_url: fileUrl,
           original_file_name: originalFileName,
-          version_number: nextVersion
+          content_json: hasTextContent ? documentContent : null,
+          version_number: nextVersion,
+          version_major: versionInfo.version_major,
+          version_minor: versionInfo.version_minor,
+          version_label: versionInfo.version_label,
+          created_by_role: 'student',
+          change_type: 'student_submit',
         })
 
       if (versionError) console.error('Version Insert Error:', versionError)

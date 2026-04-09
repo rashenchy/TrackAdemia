@@ -18,6 +18,8 @@ type DraftResearch = {
   current_stage?: string | null
   file_url?: string | null
   original_file_name?: string | null
+  submission_format?: string | null
+  content_json?: unknown
 }
 
 export default async function SubmitResearchPage() {
@@ -53,7 +55,7 @@ export default async function SubmitResearchPage() {
     .from('research')
     .select(
       'id, title, type, abstract, keywords, members, member_roles, subject_code, adviser_id, research_area, start_date, target_defense_date, current_stage, file_url'
-      + ', original_file_name'
+      + ', original_file_name, submission_format, content_json'
     )
     .eq('user_id', user.id)
     .eq('status', 'Draft')

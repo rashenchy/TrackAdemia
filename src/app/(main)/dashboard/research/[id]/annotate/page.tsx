@@ -2,247 +2,595 @@
 
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
-import React, { useState, useEffect, use, useRef, useMemo } from 'react'
+import React, { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Viewer, Worker } from '@react-pdf-viewer/core'
 import {
   highlightPlugin,
-  RenderHighlightTargetProps,
-  RenderHighlightsProps,
+  type RenderHighlightTargetProps,
+  type RenderHighlightsProps,
 } from '@react-pdf-viewer/highlight'
 
 import '@react-pdf-viewer/core/lib/styles/index.css'
 import '@react-pdf-viewer/highlight/lib/styles/index.css'
 
-import { ArrowLeft, CheckCircle, MessageSquare, ChevronLeft, Send, Loader2, Edit3, Eye } from 'lucide-react'
+import {
+  ArrowLeft,
+  BadgeCheck,
+  CheckCircle,
+  ChevronLeft,
+  CircleDashed,
+  Edit3,
+  Eye,
+  FileCode2,
+  GitCompareArrows,
+  Loader2,
+  MessageSquare,
+  Save,
+  Send,
+} from 'lucide-react'
 import Link from 'next/link'
 
 import {
   addAnnotation,
+  addReply,
   getAnnotations,
+  getReplies,
   getResearchFile,
   getResearchFileForVersion,
+  saveStudentWorkspaceDraft,
+  saveTeacherWorkspaceVersion,
+  submitStudentWorkspaceVersion,
   toggleAnnotationResolved,
-  getReplies,
-  addReply,
-  deleteReply,
-  updateReply
+  updateReviewDecision,
 } from './actions'
+import {
+  getPlainTextFromRichText,
+  getResearchEditorSectionsForStage,
+  getResearchSectionLabel,
+  getNormalizedResearchStage,
+  isTextAnnotationPosition,
+  normalizeResearchDocumentContent,
+  resolveResearchSubmissionFormat,
+  type ResearchDocumentContent,
+  type ResearchSectionKey,
+  type ResearchStage,
+  type ResearchSubmissionFormat,
+  type TextAnnotationPosition,
+} from '@/lib/research/document'
+import { ResearchRichTextEditor } from '@/components/dashboard/ResearchRichTextEditor'
+import { getVersionLabel } from '@/lib/research/versioning'
 
+type AnnotationRecord = {
+  id: string
+  research_id: string
+  quote: string
+  comment_text: string
+  position_data: unknown
+  is_resolved: boolean
+  created_at: string
+}
 
-/* --- UTILITIES --- */
+type ReplyRecord = {
+  id: string
+  user_id: string
+  message: string
+  profiles?: {
+    first_name?: string
+    last_name?: string
+    role?: string
+  }
+}
 
-/* Utility function that shortens highlighted text for previews */
+type PdfHighlightArea = {
+  pageIndex: number
+  top: number
+  left: number
+  width: number
+  height: number
+}
+
+type TextSelectionDraft = TextAnnotationPosition & {
+  x: number
+  y: number
+}
+
+type VersionSnapshot = {
+  id: string
+  version_number: number
+  version_major?: number | null
+  version_minor?: number | null
+  version_label?: string | null
+  created_by_role?: string | null
+  change_type?: string | null
+  change_summary?: string | null
+  created_at: string
+  original_file_name?: string | null
+  file_url?: string | null
+  content_json?: unknown
+}
+
+type ResearchDraftRecord = {
+  id?: string
+  research_id: string
+  owner_role: string
+  owner_user_id: string
+  content_json?: unknown
+  updated_at?: string | null
+  change_summary?: string | null
+  base_version_id?: string | null
+}
+
+type ResearchRecord = {
+  id: string
+  title: string
+  user_id: string
+  members?: string[] | null
+  current_stage?: string | null
+  status?: string | null
+  submission_format?: string | null
+  content_json?: unknown
+  file_url?: string | null
+  original_file_name?: string | null
+}
+
 function summarizeQuote(text: string, maxLength = 120) {
   if (!text) return ''
   const cleaned = text.replace(/\s+/g, ' ').trim()
   if (cleaned.length <= maxLength) return cleaned
-  return cleaned.substring(0, maxLength) + '...'
+  return `${cleaned.slice(0, maxLength)}...`
 }
 
+function isPdfAnnotation(annotation: AnnotationRecord) {
+  return Array.isArray(annotation.position_data)
+}
 
-/* --- COMPONENT --- */
+function getAnnotationLocationLabel(annotation: AnnotationRecord) {
+  if (isTextAnnotationPosition(annotation.position_data)) {
+    return getResearchSectionLabel(annotation.position_data.sectionKey)
+  }
+
+  if (Array.isArray(annotation.position_data)) {
+    const pageIndex =
+      annotation.position_data[0] &&
+      typeof annotation.position_data[0] === 'object' &&
+      annotation.position_data[0] !== null &&
+      'pageIndex' in annotation.position_data[0]
+        ? Number((annotation.position_data[0] as { pageIndex?: number }).pageIndex)
+        : 0
+
+    return `Page ${pageIndex + 1}`
+  }
+
+  return 'Document'
+}
+
+function getTextSelectionDetails(
+  selectionRange: Range,
+  container: HTMLElement,
+  sectionKey: ResearchSectionKey
+): TextSelectionDraft | null {
+  const selectedText = selectionRange.toString().replace(/\s+/g, ' ').trim()
+
+  if (!selectedText) return null
+
+  const beforeRange = selectionRange.cloneRange()
+  beforeRange.selectNodeContents(container)
+  beforeRange.setEnd(selectionRange.startContainer, selectionRange.startOffset)
+  const startOffset = beforeRange.toString().length
+  const endOffset = startOffset + selectionRange.toString().length
+  const fullText = container.innerText || ''
+
+  return {
+    type: 'text',
+    sectionKey,
+    selectedText,
+    prefixText: fullText.slice(Math.max(0, startOffset - 40), startOffset),
+    suffixText: fullText.slice(endOffset, Math.min(fullText.length, endOffset + 40)),
+    startOffset,
+    endOffset,
+    x: selectionRange.getBoundingClientRect().left + window.scrollX,
+    y: selectionRange.getBoundingClientRect().bottom + window.scrollY,
+  }
+}
+
+function buildTextRangeFromOffsets(
+  container: HTMLElement,
+  startOffset: number,
+  endOffset: number
+) {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT)
+  let currentOffset = 0
+  let startNode: Node | null = null
+  let endNode: Node | null = null
+  let startNodeOffset = 0
+  let endNodeOffset = 0
+
+  while (walker.nextNode()) {
+    const node = walker.currentNode
+    const textLength = node.textContent?.length ?? 0
+    const nextOffset = currentOffset + textLength
+
+    if (!startNode && startOffset <= nextOffset) {
+      startNode = node
+      startNodeOffset = Math.max(0, startOffset - currentOffset)
+    }
+
+    if (!endNode && endOffset <= nextOffset) {
+      endNode = node
+      endNodeOffset = Math.max(0, endOffset - currentOffset)
+      break
+    }
+
+    currentOffset = nextOffset
+  }
+
+  if (!startNode || !endNode) {
+    return null
+  }
+
+  const range = document.createRange()
+  range.setStart(startNode, startNodeOffset)
+  range.setEnd(endNode, endNodeOffset)
+  return range
+}
 
 export default function AnnotatePage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
-
-  /* --- INITIALIZATION & ROUTING --- */
-
-  /* Resolve the research document ID from the dynamic route */
-  const resolvedParams = use(params)
-  const researchId = resolvedParams.id
-
-  /* Read optional URL parameters such as deep links to a specific annotation */
+  const { id: researchId } = use(params)
   const searchParams = useSearchParams()
   const router = useRouter()
-  const targetAnnotationId = searchParams.get('annotationId')
   const versionParam = searchParams.get('version')
   const selectedVersionNumber = versionParam ? Number(versionParam) : null
 
-
-  /* --- COMPONENT STATE --- */
-
-  /* Data storage for document and annotations */
+  const [research, setResearch] = useState<ResearchRecord | null>(null)
+  const [availableVersions, setAvailableVersions] = useState<VersionSnapshot[]>([])
+  const [workspaceDrafts, setWorkspaceDrafts] = useState<ResearchDraftRecord[]>([])
+  const [annotations, setAnnotations] = useState<AnnotationRecord[]>([])
   const [fileUrl, setFileUrl] = useState<string | null>(null)
-  const [annotations, setAnnotations] = useState<any[]>([])
-  const [researchTitle, setResearchTitle] = useState('')
-  const [researchFileName, setResearchFileName] = useState('')
-  const [availableVersions, setAvailableVersions] = useState<
-    Array<{ id: string; version_number: number; created_at: string; original_file_name?: string | null }>
-  >([])
-  const [isAuthor, setIsAuthor] = useState(false)
+  const [researchStage, setResearchStage] = useState<ResearchStage>('Proposal')
+  const [researchStatus, setResearchStatus] = useState('Pending Review')
+  const [submissionFormat, setSubmissionFormat] = useState<ResearchSubmissionFormat>('pdf')
+  const [activeFormat, setActiveFormat] = useState<'pdf' | 'text'>('pdf')
+  const [workspaceContent, setWorkspaceContent] = useState<ResearchDocumentContent>(
+    normalizeResearchDocumentContent(null)
+  )
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [actionFeedback, setActionFeedback] = useState<string | null>(null)
+  const [changeSummary, setChangeSummary] = useState('')
+  const [isSavingDraft, setIsSavingDraft] = useState(false)
+  const [isSubmittingVersion, setIsSubmittingVersion] = useState(false)
+  const [isSavingReviewEdit, setIsSavingReviewEdit] = useState(false)
+  const [isUpdatingDecision, setIsUpdatingDecision] = useState(false)
 
-  /* UI/Sidebar Control states */
-  const [filter, setFilter] = useState<'all' | 'unresolved' | 'resolved'>('all')
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
+
+  const [filter, setFilter] = useState<'all' | 'unresolved' | 'resolved'>('unresolved')
   const [viewMode, setViewMode] = useState<'list' | 'thread'>('list')
-  const [selectedAnnotation, setSelectedAnnotation] = useState<any | null>(null)
-
-  /* Discussion thread management states */
-  const [threadReplies, setThreadReplies] = useState<any[]>([])
+  const [selectedAnnotation, setSelectedAnnotation] = useState<AnnotationRecord | null>(null)
+  const [threadReplies, setThreadReplies] = useState<ReplyRecord[]>([])
   const [replyText, setReplyText] = useState('')
   const [isSubmittingReply, setIsSubmittingReply] = useState(false)
   const [isLoadingReplies, setIsLoadingReplies] = useState(false)
-  
-  /* User and editing permission states */
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
-  const [editingReplyId, setEditingReplyId] = useState<string | null>(null)
-  const [editMessage, setEditMessage] = useState('')
 
-  /* Modal and creation state */
   const [showCommentBox, setShowCommentBox] = useState(false)
-  const [activeHighlight, setActiveHighlight] = useState<any | null>(null)
+  const [activePdfHighlight, setActivePdfHighlight] = useState<RenderHighlightTargetProps | null>(
+    null
+  )
+  const [activeTextSelection, setActiveTextSelection] = useState<TextSelectionDraft | null>(null)
   const [commentText, setCommentText] = useState('')
   const [isSubmittingAnnotation, setIsSubmittingAnnotation] = useState(false)
 
-  /* References for scrolling behavior */
-  const messagesEndRef = useRef<HTMLDivElement>(null)
   const highlightRefs = useRef<Record<string, HTMLElement | null>>({})
+  const sectionRefs = useRef<Record<ResearchSectionKey, HTMLElement | null>>({
+    abstract: null,
+    chapter1: null,
+    chapter2: null,
+    chapter3: null,
+    chapter4: null,
+    chapter5: null,
+  })
 
-
-  /* --- DERIVED DATA & COMPUTED VALUES --- */
   const canReview = currentUserRole === 'mentor' || currentUserRole === 'admin'
-  const canParticipate = canReview || currentUserRole === 'student'
-  const effectiveVersionNumber =
-    selectedVersionNumber ??
-    availableVersions[0]?.version_number ??
-    1
+  const isAuthor = Boolean(
+    research &&
+      currentUserId &&
+      (research.user_id === currentUserId ||
+        (Array.isArray(research.members) && research.members.includes(currentUserId)))
+  )
+  const canParticipate = canReview || isAuthor
 
-  /* Filtered and sorted list of annotations for the sidebar */
+  const latestVersion = availableVersions[0] ?? null
+  const effectiveVersion =
+    availableVersions.find((version) => version.version_number === selectedVersionNumber) ??
+    latestVersion
+  const effectiveVersionNumber = effectiveVersion?.version_number ?? 1
+  const effectiveVersionLabel = effectiveVersion ? getVersionLabel(effectiveVersion) : '1'
+  const previousVersion =
+    availableVersions.find((version) => version.version_number < effectiveVersionNumber) ?? null
+
+  const studentDraft = workspaceDrafts.find(
+    (draft) => draft.owner_role === 'student' && draft.owner_user_id === currentUserId
+  )
+  const teacherDraft = workspaceDrafts.find(
+    (draft) => draft.owner_role === 'teacher' && draft.owner_user_id === currentUserId
+  )
+
+  const selectedVersionContent = useMemo(
+    () =>
+      normalizeResearchDocumentContent(
+        effectiveVersion?.content_json ?? research?.content_json ?? null
+      ),
+    [effectiveVersion?.content_json, research?.content_json]
+  )
+
+  const editableWorkspaceContent = useMemo(() => {
+    if (canReview) {
+      return normalizeResearchDocumentContent(
+        teacherDraft?.content_json ??
+          effectiveVersion?.content_json ??
+          research?.content_json ??
+          null
+      )
+    }
+
+    if (isAuthor) {
+      return normalizeResearchDocumentContent(
+        studentDraft?.content_json ??
+          research?.content_json ??
+          effectiveVersion?.content_json ??
+          null
+      )
+    }
+
+    return selectedVersionContent
+  }, [
+    canReview,
+    effectiveVersion?.content_json,
+    isAuthor,
+    research?.content_json,
+    selectedVersionContent,
+    studentDraft?.content_json,
+    teacherDraft?.content_json,
+  ])
+
+  useEffect(() => {
+    setWorkspaceContent(editableWorkspaceContent)
+  }, [editableWorkspaceContent])
+
+  const visibleSections = getResearchEditorSectionsForStage(researchStage)
+  const hasPdf = submissionFormat === 'pdf' || submissionFormat === 'both'
+  const hasText = submissionFormat === 'text' || submissionFormat === 'both'
+  const canEditTextWorkspace =
+    activeFormat === 'text' &&
+    hasText &&
+    Boolean(latestVersion) &&
+    effectiveVersionNumber === latestVersion.version_number &&
+    canParticipate
+
+  useEffect(() => {
+    if (activeFormat === 'pdf' && !hasPdf && hasText) {
+      setActiveFormat('text')
+    }
+
+    if (activeFormat === 'text' && !hasText && hasPdf) {
+      setActiveFormat('pdf')
+    }
+  }, [activeFormat, hasPdf, hasText])
+
+  const formatAwareAnnotations = useMemo(() => {
+    return annotations.filter((annotation) =>
+      activeFormat === 'pdf'
+        ? isPdfAnnotation(annotation)
+        : isTextAnnotationPosition(annotation.position_data)
+    )
+  }, [activeFormat, annotations])
+
+  const unresolvedAnnotations = formatAwareAnnotations.filter(
+    (annotation) => !annotation.is_resolved
+  )
+  const resolvedAnnotations = formatAwareAnnotations.filter((annotation) => annotation.is_resolved)
+
   const displayedAnnotations = useMemo(() => {
-    let filtered = annotations
+    let filtered = formatAwareAnnotations
 
     if (filter === 'unresolved') {
-      filtered = annotations.filter(a => !a.is_resolved)
+      filtered = unresolvedAnnotations
     } else if (filter === 'resolved') {
-      filtered = annotations.filter(a => a.is_resolved)
+      filtered = resolvedAnnotations
     }
 
-    return filtered.sort((a, b) => {
-      if (a.is_resolved !== b.is_resolved) return a.is_resolved ? 1 : -1
-      const pageA = a.position_data?.[0]?.pageIndex ?? 0
-      const pageB = b.position_data?.[0]?.pageIndex ?? 0
-      if (pageA !== pageB) return pageA - pageB
-      const topA = a.position_data?.[0]?.top ?? 0
-      const topB = b.position_data?.[0]?.top ?? 0
-      return topA - topB
+    return [...filtered].sort((first, second) => {
+      if (first.is_resolved !== second.is_resolved) {
+        return first.is_resolved ? 1 : -1
+      }
+
+      if (activeFormat === 'text') {
+        const firstOffset = isTextAnnotationPosition(first.position_data)
+          ? first.position_data.startOffset
+          : 0
+        const secondOffset = isTextAnnotationPosition(second.position_data)
+          ? second.position_data.startOffset
+          : 0
+        return firstOffset - secondOffset
+      }
+
+      const pageA = Array.isArray(first.position_data)
+        ? Number((first.position_data[0] as { pageIndex?: number } | undefined)?.pageIndex ?? 0)
+        : 0
+      const pageB = Array.isArray(second.position_data)
+        ? Number((second.position_data[0] as { pageIndex?: number } | undefined)?.pageIndex ?? 0)
+        : 0
+
+      return pageA - pageB
     })
-  }, [annotations, filter])
+  }, [activeFormat, filter, formatAwareAnnotations, resolvedAnnotations, unresolvedAnnotations])
 
-
-  /* --- COORDINATE UTILITIES --- */
-
-  /* Normalizes PDF coordinate values for database storage */
-  function normalizeAreas(areas: any[]) {
-    return areas.map(area => ({
-      pageIndex: area.pageIndex,
-      top: area.top / 100,
-      left: area.left / 100,
-      width: area.width / 100,
-      height: area.height / 100,
-    }))
-  }
-
-  /* Converts stored coordinates back to viewer format */
-  function denormalizeArea(area: any) {
-    return {
-      ...area,
-      top: area.top * 100,
-      left: area.left * 100,
-      width: area.width * 100,
-      height: area.height * 100,
-    }
-  }
-
-
-  /* --- ANNOTATION HANDLERS --- */
-
-  /* Creates a new annotation and performs an optimistic UI update */
-  const handleAddAnnotation = async (highlightData: any, text: string) => {
-    if (!canReview) return
-    if (!highlightData?.selectedText) return
-    if (!highlightData?.highlightAreas?.length) return
-
-    const normalizedAreas = normalizeAreas(highlightData.highlightAreas)
-    const tempId = Math.random().toString()
-
-    const newAnnotation = {
-      id: tempId,
-      research_id: researchId,
-      quote: highlightData.selectedText,
-      comment_text: text,
-      position_data: normalizedAreas,
-      is_resolved: false,
-      created_at: new Date().toISOString()
-    }
-
-    setAnnotations(prev => [...prev, newAnnotation])
+  const loadWorkspaceData = useCallback(async () => {
+    setIsLoading(true)
+    setLoadError(null)
 
     try {
-      const saved = await addAnnotation(researchId, { ...highlightData, highlightAreas: normalizedAreas }, text)
-      if (saved) {
-        setAnnotations(prev => prev.map(a => (a.id === tempId ? saved : a)))
+      const supabase = createClient()
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        router.push('/login')
+        return
       }
-    } catch {
-      setAnnotations(prev => prev.filter(a => a.id !== tempId))
-    }
-  }
 
-  /* Toggles resolved status and updates server */
-  const handleToggleResolve = async (id: string, currentStatus: boolean) => {
-    if (!canParticipate) return
-    setAnnotations(prev =>
-      prev.map(a => a.id === id ? { ...a, is_resolved: !currentStatus } : a)
-    )
+      setCurrentUserId(user.id)
 
-    if (selectedAnnotation?.id === id) {
-      setSelectedAnnotation((prev: any) => ({ ...prev, is_resolved: !currentStatus }))
-    }
+      const [{ data: profile }, { data: researchData, error: researchError }] = await Promise.all([
+        supabase.from('profiles').select('role').eq('id', user.id).single(),
+        supabase
+          .from('research')
+          .select(
+            'id, title, user_id, members, current_stage, status, submission_format, content_json, file_url, original_file_name'
+          )
+          .eq('id', researchId)
+          .single(),
+      ])
 
-    try {
-      await toggleAnnotationResolved(id, !currentStatus)
-    } catch {
-      setAnnotations(prev =>
-        prev.map(a => a.id === id ? { ...a, is_resolved: currentStatus } : a)
+      if (researchError || !researchData) {
+        throw new Error('Research record not found.')
+      }
+
+      setCurrentUserRole(profile?.role ?? null)
+      setResearch(researchData)
+      setResearchStage(getNormalizedResearchStage(researchData.current_stage))
+      setResearchStatus(researchData.status ?? 'Pending Review')
+
+      const { data: versionsData } = await supabase
+        .from('research_versions')
+        .select(
+          'id, version_number, version_major, version_minor, version_label, created_by_role, change_type, change_summary, created_at, original_file_name, file_url, content_json'
+        )
+        .eq('research_id', researchId)
+        .order('version_number', { ascending: false })
+
+      const versionRows: VersionSnapshot[] =
+        versionsData && versionsData.length > 0
+          ? versionsData
+          : [
+              {
+                id: 'legacy',
+                version_number: 1,
+                version_label: '1',
+                created_by_role: 'student',
+                created_at: new Date().toISOString(),
+                original_file_name: researchData.original_file_name,
+                file_url: researchData.file_url,
+                content_json: researchData.content_json,
+              },
+            ]
+
+      setAvailableVersions(versionRows)
+
+      const { data: draftsData, error: draftsError } = await supabase
+        .from('research_drafts')
+        .select(
+          'id, research_id, owner_role, owner_user_id, content_json, updated_at, change_summary, base_version_id'
+        )
+        .eq('research_id', researchId)
+
+      if (!draftsError && draftsData) {
+        setWorkspaceDrafts(draftsData)
+      } else {
+        setWorkspaceDrafts([])
+      }
+
+      const selectedVersion =
+        versionRows.find((version) => version.version_number === selectedVersionNumber) ??
+        versionRows[0]
+      const selectedVersionFileUrl =
+        selectedVersion?.version_number != null
+          ? await getResearchFileForVersion(researchId, selectedVersion.version_number)
+          : await getResearchFile(researchId)
+      setFileUrl(selectedVersionFileUrl ?? null)
+
+      const selectedContent = normalizeResearchDocumentContent(
+        selectedVersion?.content_json ?? researchData.content_json
       )
-      if (selectedAnnotation?.id === id) {
-        setSelectedAnnotation((prev: any) => ({ ...prev, is_resolved: currentStatus }))
-      }
+      const derivedSubmissionFormat = resolveResearchSubmissionFormat(
+        researchData.submission_format,
+        {
+          hasPdf: Boolean(selectedVersion?.file_url ?? researchData.file_url),
+          hasText: getResearchEditorSectionsForStage(researchData.current_stage).some(
+            (section) => getPlainTextFromRichText(selectedContent[section.key]).trim().length > 0
+          ),
+          stage: researchData.current_stage,
+        }
+      )
+      setSubmissionFormat(derivedSubmissionFormat)
+      setActiveFormat((current) => {
+        if (derivedSubmissionFormat === 'text') return 'text'
+        if (derivedSubmissionFormat === 'pdf') return 'pdf'
+        return current
+      })
+
+      const annotationRows = await getAnnotations(researchId, selectedVersion?.version_number ?? null)
+      setAnnotations(annotationRows as AnnotationRecord[])
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unable to load the unified review workspace.'
+      setLoadError(message)
+    } finally {
+      setIsLoading(false)
     }
+  }, [researchId, router, selectedVersionNumber])
+
+  useEffect(() => {
+    void loadWorkspaceData()
+  }, [loadWorkspaceData])
+
+  const registerHighlightRef = (annotationId: string, node: HTMLElement | null) => {
+    highlightRefs.current[annotationId] = node
   }
 
-
-  /* --- SCROLLING & NAVIGATION --- */
-
-  const scrollToHighlight = (id: string) => {
-    setTimeout(() => {
-      const entry = Object.entries(highlightRefs.current).find(([key]) => key.startsWith(id))
-      if (entry?.[1]) {
-        entry[1].scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
-    }, 50)
-  }
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
-
-
-  /* --- THREAD MANAGEMENT --- */
-
-  const openThread = async (ann: any) => {
-    setSelectedAnnotation(ann)
+  const openThread = async (annotation: AnnotationRecord) => {
+    setSelectedAnnotation(annotation)
     setViewMode('thread')
-    scrollToHighlight(ann.id)
     setIsLoadingReplies(true)
     setThreadReplies([])
 
-    const replies = await getReplies(ann.id)
+    if (isTextAnnotationPosition(annotation.position_data)) {
+      const sectionContainer = sectionRefs.current[annotation.position_data.sectionKey]
+      const editorRoot =
+        sectionContainer?.querySelector('.ProseMirror') instanceof HTMLElement
+          ? (sectionContainer.querySelector('.ProseMirror') as HTMLElement)
+          : sectionContainer
+
+      if (editorRoot) {
+        editorRoot.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        const range = buildTextRangeFromOffsets(
+          editorRoot,
+          annotation.position_data.startOffset,
+          annotation.position_data.endOffset
+        )
+
+        if (range) {
+          const selection = window.getSelection()
+          selection?.removeAllRanges()
+          selection?.addRange(range)
+        }
+      }
+    } else {
+      highlightRefs.current[annotation.id]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+    }
+
+    const replies = await getReplies(annotation.id)
     setThreadReplies(replies)
     setIsLoadingReplies(false)
-    setTimeout(scrollToBottom, 100)
   }
 
   const closeThread = () => {
@@ -251,503 +599,896 @@ export default function AnnotatePage({
     setThreadReplies([])
   }
 
-  const handleSendReply = async (e?: React.FormEvent) => {
-    e?.preventDefault()
+  const jumpToNextUnresolved = () => {
+    const currentIndex = unresolvedAnnotations.findIndex(
+      (annotation) => annotation.id === selectedAnnotation?.id
+    )
+    const nextAnnotation =
+      currentIndex >= 0
+        ? unresolvedAnnotations[currentIndex + 1] || unresolvedAnnotations[0]
+        : unresolvedAnnotations[0]
+
+    if (nextAnnotation) {
+      void openThread(nextAnnotation)
+    }
+  }
+
+  const handleTextSelection = (sectionKey: ResearchSectionKey) => {
+    if (!canReview || !canEditTextWorkspace) return
+
+    const selection = window.getSelection()
+    const sectionContainer = sectionRefs.current[sectionKey]
+    const editorRoot =
+      sectionContainer?.querySelector('.ProseMirror') instanceof HTMLElement
+        ? (sectionContainer.querySelector('.ProseMirror') as HTMLElement)
+        : sectionContainer
+
+    if (!selection || selection.rangeCount === 0 || !editorRoot) {
+      setActiveTextSelection(null)
+      return
+    }
+
+    const range = selection.getRangeAt(0)
+    if (range.collapsed || !editorRoot.contains(range.commonAncestorContainer)) {
+      setActiveTextSelection(null)
+      return
+    }
+
+    setActiveTextSelection(getTextSelectionDetails(range, editorRoot, sectionKey))
+  }
+
+  const normalizeAreas = (areas: PdfHighlightArea[]) => {
+    return areas.map((area) => ({
+      pageIndex: area.pageIndex,
+      top: area.top / 100,
+      left: area.left / 100,
+      width: area.width / 100,
+      height: area.height / 100,
+    }))
+  }
+
+  const denormalizeArea = (area: PdfHighlightArea) => ({
+    ...area,
+    top: area.top * 100,
+    left: area.left * 100,
+    width: area.width * 100,
+    height: area.height * 100,
+  })
+
+  const handleAddAnnotation = async () => {
+    if (!canReview || !commentText.trim()) return
+
+    setIsSubmittingAnnotation(true)
+
+    try {
+      if (activeFormat === 'pdf') {
+        if (!activePdfHighlight?.selectedText || !activePdfHighlight.highlightAreas.length) return
+
+        const saved = await addAnnotation(
+          researchId,
+          {
+            selectedText: activePdfHighlight.selectedText,
+            highlightAreas: normalizeAreas(activePdfHighlight.highlightAreas),
+          },
+          commentText
+        )
+
+        setAnnotations((current) => [...current, saved as AnnotationRecord])
+      } else {
+        if (!activeTextSelection?.selectedText) return
+
+        const saved = await addAnnotation(
+          researchId,
+          {
+            selectedText: activeTextSelection.selectedText,
+            highlightAreas: {
+              type: 'text',
+              sectionKey: activeTextSelection.sectionKey,
+              selectedText: activeTextSelection.selectedText,
+              prefixText: activeTextSelection.prefixText,
+              suffixText: activeTextSelection.suffixText,
+              startOffset: activeTextSelection.startOffset,
+              endOffset: activeTextSelection.endOffset,
+            },
+          },
+          commentText
+        )
+
+        setAnnotations((current) => [...current, saved as AnnotationRecord])
+      }
+
+      setCommentText('')
+      setShowCommentBox(false)
+      setActivePdfHighlight(null)
+      setActiveTextSelection(null)
+      setFilter('unresolved')
+    } finally {
+      setIsSubmittingAnnotation(false)
+    }
+  }
+
+  const handleToggleResolve = async (annotationId: string, currentStatus: boolean) => {
+    if (!canParticipate) return
+
+    setAnnotations((current) =>
+      current.map((annotation) =>
+        annotation.id === annotationId
+          ? { ...annotation, is_resolved: !currentStatus }
+          : annotation
+      )
+    )
+
+    if (selectedAnnotation?.id === annotationId) {
+      setSelectedAnnotation((current) =>
+        current ? { ...current, is_resolved: !currentStatus } : current
+      )
+    }
+
+    try {
+      await toggleAnnotationResolved(annotationId, !currentStatus)
+    } catch {
+      setAnnotations((current) =>
+        current.map((annotation) =>
+          annotation.id === annotationId
+            ? { ...annotation, is_resolved: currentStatus }
+            : annotation
+        )
+      )
+    }
+  }
+
+  const handleSendReply = async (event?: React.FormEvent) => {
+    event?.preventDefault()
     if (!replyText.trim() || !selectedAnnotation || isSubmittingReply) return
 
     setIsSubmittingReply(true)
     try {
       const newReply = await addReply(selectedAnnotation.id, replyText)
       if (newReply) {
-        setThreadReplies(prev => [...prev, newReply])
+        setThreadReplies((current) => [...current, newReply])
         setReplyText('')
-        setTimeout(scrollToBottom, 100)
       }
-    } catch (error) {
-      console.error(error)
-      alert("Failed to send reply. Please try again.")
     } finally {
       setIsSubmittingReply(false)
     }
   }
 
+  const updateSectionContent = (sectionKey: ResearchSectionKey, value: string) => {
+    setWorkspaceContent((current) => ({
+      ...current,
+      [sectionKey]: value,
+    }))
+  }
 
-  /* --- HIGHLIGHT PLUGIN CONFIGURATION --- */
+  const handleStudentDraftSave = async () => {
+    setIsSavingDraft(true)
+    setActionFeedback(null)
+
+    try {
+      await saveStudentWorkspaceDraft(researchId, workspaceContent, changeSummary || null)
+      setActionFeedback('Draft saved in the unified editor.')
+      await loadWorkspaceData()
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : 'Failed to save draft.')
+    } finally {
+      setIsSavingDraft(false)
+    }
+  }
+
+  const handleStudentSubmit = async () => {
+    setIsSubmittingVersion(true)
+    setActionFeedback(null)
+
+    try {
+      const result = await submitStudentWorkspaceVersion(
+        researchId,
+        workspaceContent,
+        changeSummary || null
+      )
+      setActionFeedback(`Submitted as version ${result.versionLabel}.`)
+      await loadWorkspaceData()
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : 'Failed to submit version.')
+    } finally {
+      setIsSubmittingVersion(false)
+    }
+  }
+
+  const handleTeacherSave = async () => {
+    setIsSavingReviewEdit(true)
+    setActionFeedback(null)
+
+    try {
+      const result = await saveTeacherWorkspaceVersion(
+        researchId,
+        workspaceContent,
+        changeSummary || null
+      )
+      setActionFeedback(`Review edit saved as version ${result.versionLabel}.`)
+      await loadWorkspaceData()
+    } catch (error) {
+      setActionFeedback(error instanceof Error ? error.message : 'Failed to save review edit.')
+    } finally {
+      setIsSavingReviewEdit(false)
+    }
+  }
+
+  const handleReviewDecision = async (nextStatus: 'Revision Requested' | 'Approved') => {
+    setIsUpdatingDecision(true)
+
+    try {
+      const status = await updateReviewDecision(researchId, nextStatus)
+      setResearchStatus(status)
+      setActionFeedback(`Research status updated to ${status}.`)
+    } finally {
+      setIsUpdatingDecision(false)
+    }
+  }
 
   const highlightPluginInstance = highlightPlugin({
-    renderHighlightTarget: (renderProps: RenderHighlightTargetProps) => canReview ? (
-      <div
-        style={{
-          position: 'absolute',
-          left: `${renderProps.selectionRegion.left}%`,
-          top: `${renderProps.selectionRegion.top + renderProps.selectionRegion.height}%`,
-          zIndex: 10,
-        }}
-      >
+    renderHighlightTarget: (renderProps: RenderHighlightTargetProps) =>
+      canReview ? (
         <button
-          className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-semibold shadow hover:bg-blue-700 transition"
+          type="button"
+          className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-lg"
+          style={{
+            left: `${renderProps.selectionRegion.left}%`,
+            top: `${renderProps.selectionRegion.top + renderProps.selectionRegion.height}%`,
+            position: 'absolute',
+            transform: 'translateY(8px)',
+            zIndex: 20,
+          }}
           onClick={() => {
-            setActiveHighlight(renderProps)
+            setActivePdfHighlight(renderProps)
             setShowCommentBox(true)
-            renderProps.cancel()
+            setActiveTextSelection(null)
           }}
         >
-          Add Feedback
+          Add feedback
         </button>
-      </div>
-    ) : <></>,
+      ) : (
+        <></>
+      ),
     renderHighlights: (renderProps: RenderHighlightsProps) => (
       <div>
-        {annotations.map(ann => {
-          const isSelected = viewMode === 'thread' && selectedAnnotation?.id === ann.id;
-          return (
-            <React.Fragment key={ann.id}>
-              {ann.position_data?.filter((area: any) => area.pageIndex === renderProps.pageIndex).map((area: any, index: number) => {
-                try {
-                  const normalized = denormalizeArea(area)
-                  const css = renderProps.getCssProperties(normalized, renderProps.rotation)
+        {annotations
+          .filter((annotation) => Array.isArray(annotation.position_data))
+          .map((annotation) => (
+            <React.Fragment key={annotation.id}>
+              {(annotation.position_data as PdfHighlightArea[])
+                .filter((area) => area.pageIndex === renderProps.pageIndex)
+                .map((area, index) => {
+                  const highlightArea = denormalizeArea(area)
                   return (
                     <div
-                      key={`${ann.id}-${index}`}
-                      ref={el => { highlightRefs.current[`${ann.id}-${index}`] = el }}
-                      className="cursor-pointer transition-all duration-200"
-                      onClick={() => openThread(ann)}
+                      key={`${annotation.id}-${index}`}
+                      ref={(node) => registerHighlightRef(annotation.id, node)}
+                      onClick={() => void openThread(annotation)}
+                      className="cursor-pointer rounded"
                       style={{
-                        ...css,
-                        background: ann.is_resolved ? '#86efac' : (isSelected ? '#fcd34d' : '#fef08a'),
-                        opacity: ann.is_resolved ? 0.3 : (isSelected ? 0.8 : 0.5),
-                        outline: isSelected ? '2px solid #eab308' : 'none',
-                        zIndex: isSelected ? 5 : 1
+                        ...renderProps.getCssProperties(highlightArea, renderProps.rotation),
+                        background: annotation.is_resolved
+                          ? 'rgba(34, 197, 94, 0.28)'
+                          : 'rgba(250, 204, 21, 0.35)',
                       }}
                     />
                   )
-                } catch { return null }
-              })}
+                })}
             </React.Fragment>
-          )
-        })}
+          ))}
       </div>
     ),
   })
 
-
-  /* --- LIFECYCLE EFFECTS --- */
-
-  /* Handle deeplink to annotation */
-  useEffect(() => {
-    if (targetAnnotationId && annotations.length > 0) {
-      const target = annotations.find(a => a.id === targetAnnotationId)
-      if (target && selectedAnnotation?.id !== target.id) {
-        setTimeout(() => openThread(target), 500)
-      }
-    }
-  }, [targetAnnotationId, annotations])
-
-  /* Initial data fetch */
-  useEffect(() => {
-    async function loadData() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-
-      const { data: research } = await supabase
-        .from('research')
-        .select('title, user_id, members, file_url, created_at, original_file_name')
-        .eq('id', researchId)
-        .single()
-
-      if (research) {
-        setResearchTitle(research.title || '')
-        setResearchFileName(research.original_file_name || '')
-        const userIsAuthor =
-          research.user_id === user?.id ||
-          (Array.isArray(research.members) && !!user?.id && research.members.includes(user.id))
-        setIsAuthor(userIsAuthor)
-
-        const { data: versions } = await supabase
-          .from('research_versions')
-          .select('id, version_number, created_at, original_file_name')
-          .eq('research_id', researchId)
-          .order('version_number', { ascending: false })
-
-        if (versions && versions.length > 0) {
-          setAvailableVersions(versions)
-          const activeVersion = selectedVersionNumber
-            ? versions.find((version) => version.version_number === selectedVersionNumber)
-            : versions[0]
-          setResearchFileName(activeVersion?.original_file_name || research.original_file_name || '')
-        } else if (research.file_url) {
-          setAvailableVersions([
-            {
-              id: 'legacy',
-              version_number: 1,
-              created_at: research.created_at,
-              original_file_name: research.original_file_name,
-            },
-          ])
-        } else {
-          setAvailableVersions([])
-        }
-      }
-
-      const file = selectedVersionNumber
-        ? await getResearchFileForVersion(researchId, selectedVersionNumber)
-        : await getResearchFile(researchId)
-      if (file) setFileUrl(file)
-      const anns = await getAnnotations(researchId, selectedVersionNumber)
-      setAnnotations(anns)
-    }
-    loadData()
-  }, [researchId, selectedVersionNumber])
-
-  /* Get user authentication status */
-  useEffect(() => {
-    async function getUser() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      setCurrentUserId(user?.id || null)
-      if (user?.id) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single()
-
-        setCurrentUserRole(profile?.role || null)
-
-      }
-    }
-    getUser()
-  }, [researchId])
-
-
-  /* --- RENDER --- */
-
-  if (!fileUrl) {
+  if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-gray-50 text-gray-500">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-        Loading manuscript...
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-5 py-4 text-sm font-semibold text-gray-700 shadow-sm">
+          <Loader2 size={18} className="animate-spin text-blue-600" />
+          Loading unified review workspace...
+        </div>
+      </div>
+    )
+  }
+
+  if (loadError || !research) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50 px-6">
+        <div className="max-w-lg rounded-2xl border border-red-200 bg-white p-6 text-center shadow-sm">
+          <p className="text-lg font-bold text-gray-900">Workspace unavailable</p>
+          <p className="mt-2 text-sm text-gray-600">{loadError ?? 'Unable to open this research.'}</p>
+          <Link
+            href="/dashboard"
+            className="mt-4 inline-flex rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white"
+          >
+            Return to dashboard
+          </Link>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-screen">
-      
-      {/* --- HEADER --- */}
-      <div className="h-16 bg-white border-b border-gray-200 px-6 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href={`/dashboard/research/${researchId}`} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-600">
-            <ArrowLeft size={20} />
-          </Link>
-          <h1 className="font-bold text-gray-900 text-lg">Review & Annotate</h1>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <select
-              value={String(effectiveVersionNumber)}
-              onChange={(e) => {
-                const nextVersion = e.target.value
-                const params = new URLSearchParams(searchParams.toString())
-                params.set('version', nextVersion)
-                router.push(`/dashboard/research/${researchId}/annotate?${params.toString()}`)
-              }}
-              className="min-w-[150px] appearance-none rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 pr-9 text-sm font-semibold text-blue-700 outline-none transition focus:border-blue-400"
+    <div className="flex h-screen flex-col bg-gray-50">
+      <div className="border-b border-gray-200 bg-white px-6 py-4">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex items-center gap-4">
+            <Link
+              href={`/dashboard/research/${researchId}`}
+              className="rounded-full border border-gray-200 p-2 text-gray-600 transition hover:bg-gray-50"
             >
-              {availableVersions.map((version) => (
-                <option key={version.id} value={version.version_number}>
-                  Version {version.version_number}
-                </option>
-              ))}
-            </select>
-            <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-blue-700">
-              v
-            </span>
+              <ArrowLeft size={18} />
+            </Link>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
+                Unified Review Workspace
+              </p>
+              <h1 className="text-xl font-bold text-gray-900">{research.title}</h1>
+              <p className="mt-1 text-sm text-gray-500">
+                Version {effectiveVersionLabel}
+                {effectiveVersion?.created_by_role
+                  ? ` • ${effectiveVersion.created_by_role === 'teacher' ? 'Teacher edit' : 'Student submission'}`
+                  : ''}
+              </p>
+            </div>
           </div>
 
-          {(canReview || isAuthor) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {availableVersions.length > 0 ? (
+              <select
+                value={String(effectiveVersionNumber)}
+                onChange={(event) => {
+                  const params = new URLSearchParams(searchParams.toString())
+                  params.set('version', event.target.value)
+                  router.push(`/dashboard/research/${researchId}/annotate?${params.toString()}`)
+                }}
+                className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 outline-none"
+              >
+                {availableVersions.map((version) => (
+                  <option key={version.id} value={version.version_number}>
+                    Version {getVersionLabel(version)}
+                    {version.created_by_role
+                      ? ` (${version.created_by_role === 'teacher' ? 'Teacher' : 'Student'})`
+                      : ''}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+
+            {hasPdf && hasText ? (
+              <div className="flex items-center rounded-lg border border-gray-200 bg-white p-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveFormat('pdf')}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                    activeFormat === 'pdf'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveFormat('text')}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                    activeFormat === 'text'
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  Text
+                </button>
+              </div>
+            ) : null}
+
             <Link
-              href={`/dashboard/research/${researchId}/edit`}
+              href={`/dashboard/research/${researchId}`}
               className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
             >
-              <Edit3 size={16} />
-              Edit
+              <Eye size={16} />
+              Details
             </Link>
-          )}
+          </div>
+        </div>
+      </div>
 
-          <Link
-            href={`/dashboard/research/${researchId}`}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-          >
-            <Eye size={16} />
-            View
-          </Link>
+      <div className="border-b border-gray-200 bg-gradient-to-r from-slate-50 via-white to-blue-50 px-6 py-4">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-gray-500">
+                Review Status
+              </p>
+              <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <BadgeCheck size={16} className="text-blue-600" />
+                {researchStatus}
+              </div>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-gray-500">
+                Unresolved
+              </p>
+              <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <CircleDashed size={16} className="text-amber-500" />
+                {unresolvedAnnotations.length} items
+              </div>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-gray-500">
+                Resolved
+              </p>
+              <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <CheckCircle size={16} className="text-green-600" />
+                {resolvedAnnotations.length} threads
+              </div>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-gray-500">
+                Current Mode
+              </p>
+              <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <FileCode2 size={16} className="text-violet-600" />
+                {activeFormat === 'pdf'
+                  ? 'PDF review'
+                  : canEditTextWorkspace
+                    ? 'Edit + comment'
+                    : 'Version view'}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {previousVersion ? (
+              <Link
+                href={`/dashboard/research/${researchId}/compare?from=${previousVersion.version_number}&to=${effectiveVersionNumber}`}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+              >
+                <GitCompareArrows size={16} />
+                Compare with v{getVersionLabel(previousVersion)}
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              onClick={jumpToNextUnresolved}
+              disabled={unresolvedAnnotations.length === 0}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <MessageSquare size={16} />
+              Next unresolved
+            </button>
+            {canReview ? (
+              <>
+                <button
+                  type="button"
+                  disabled={isUpdatingDecision}
+                  onClick={() => void handleReviewDecision('Revision Requested')}
+                  className="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-600 disabled:opacity-60"
+                >
+                  {isUpdatingDecision ? <Loader2 size={16} className="animate-spin" /> : null}
+                  Request revision
+                </button>
+                <button
+                  type="button"
+                  disabled={isUpdatingDecision || unresolvedAnnotations.length > 0}
+                  onClick={() => void handleReviewDecision('Approved')}
+                  className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isUpdatingDecision ? <Loader2 size={16} className="animate-spin" /> : null}
+                  Approve
+                </button>
+              </>
+            ) : null}
+          </div>
         </div>
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        
-        {/* --- PDF VIEWER SECTION --- */}
-        <div className="flex-1 bg-gray-200/50 p-6 overflow-y-auto">
-          <div className="mx-auto mb-4 max-w-4xl rounded-2xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-gray-500">
-              Manuscript Title
-            </p>
-            <h2 className="mt-2 text-xl font-bold text-gray-900">
-              {researchTitle || 'Untitled Research'}
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Reviewing Version {effectiveVersionNumber}
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              {researchFileName || 'Attached manuscript.pdf'}
-            </p>
-          </div>
-          <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
-            <div className="max-w-4xl mx-auto shadow-lg bg-white">
-              <Viewer fileUrl={fileUrl} plugins={[highlightPluginInstance]} />
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="mx-auto max-w-5xl space-y-5">
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-gray-500">
+                    Shared Workspace
+                  </p>
+                  <h2 className="mt-2 text-2xl font-bold text-gray-900">{research.title}</h2>
+                  <p className="mt-2 text-sm text-gray-500">
+                    {activeFormat === 'pdf'
+                      ? effectiveVersion?.original_file_name || research.original_file_name || 'Attached manuscript.pdf'
+                      : 'Teachers and students work in the same manuscript editor, while history stays in version snapshots.'}
+                  </p>
+                </div>
+                {!canEditTextWorkspace && activeFormat === 'text' && latestVersion ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    You are viewing Version {effectiveVersionLabel}. Switch back to the latest version to keep editing.
+                  </div>
+                ) : null}
+              </div>
+
+              {activeFormat === 'text' && canEditTextWorkspace ? (
+                <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_auto]">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
+                      Change Summary
+                    </label>
+                    <input
+                      value={changeSummary}
+                      onChange={(event) => setChangeSummary(event.target.value)}
+                      placeholder={
+                        canReview
+                          ? 'Summarize the review edits you made...'
+                          : 'Summarize what changed in this draft...'
+                      }
+                      className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500"
+                    />
+                    {actionFeedback ? (
+                      <p className="text-sm font-medium text-blue-700">{actionFeedback}</p>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                    {isAuthor && !canReview ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void handleStudentDraftSave()}
+                          disabled={isSavingDraft}
+                          className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
+                        >
+                          {isSavingDraft ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                          Save draft
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleStudentSubmit()}
+                          disabled={isSubmittingVersion}
+                          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+                        >
+                          {isSubmittingVersion ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                          {researchStatus === 'Draft' ? 'Submit for review' : 'Resubmit version'}
+                        </button>
+                      </>
+                    ) : null}
+                    {canReview ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleTeacherSave()}
+                        disabled={isSavingReviewEdit}
+                        className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
+                      >
+                        {isSavingReviewEdit ? <Loader2 size={16} className="animate-spin" /> : <Edit3 size={16} />}
+                        Save review edit
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : actionFeedback ? (
+                <p className="mt-4 text-sm font-medium text-blue-700">{actionFeedback}</p>
+              ) : null}
             </div>
-          </Worker>
+
+            {activeFormat === 'pdf' ? (
+              fileUrl ? (
+                <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
+                  <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                    <Viewer fileUrl={fileUrl} plugins={[highlightPluginInstance]} />
+                  </div>
+                </Worker>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-12 text-center text-gray-500">
+                  No PDF is available for this version.
+                </div>
+              )
+            ) : (
+              <div className="space-y-5">
+                {visibleSections.map((section) => (
+                  <section
+                    key={section.key}
+                    ref={(node) => {
+                      sectionRefs.current[section.key] = node
+                    }}
+                    className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+                  >
+                    <div className="mb-4 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900">{section.label}</h3>
+                        <p className="mt-1 text-xs uppercase tracking-[0.16em] text-gray-400">
+                          {canEditTextWorkspace ? 'Editable workspace' : 'Historical snapshot'}
+                        </p>
+                      </div>
+                    </div>
+                    <ResearchRichTextEditor
+                      value={
+                        canEditTextWorkspace
+                          ? workspaceContent[section.key]
+                          : selectedVersionContent[section.key]
+                      }
+                      onChange={(nextValue) => updateSectionContent(section.key, nextValue)}
+                      placeholder={`Write the ${section.label.toLowerCase()} here...`}
+                      editable={canEditTextWorkspace}
+                      onMouseUp={() => handleTextSelection(section.key)}
+                    />
+                  </section>
+                ))}
+              </div>
+            )}
+
+            {canReview &&
+            activeFormat === 'text' &&
+            canEditTextWorkspace &&
+            activeTextSelection &&
+            !showCommentBox ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setActivePdfHighlight(null)
+                  setShowCommentBox(true)
+                }}
+                className="fixed z-20 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-700"
+                style={{
+                  left: Math.min(activeTextSelection.x, window.innerWidth - 200),
+                  top: Math.min(activeTextSelection.y + 8, window.innerHeight - 80),
+                }}
+              >
+                Add feedback
+              </button>
+            ) : null}
+
+            {showCommentBox ? (
+              <div className="fixed bottom-6 left-1/2 z-30 w-full max-w-xl -translate-x-1/2 rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
+                      New Feedback
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-gray-700">
+                      {summarizeQuote(
+                        activeFormat === 'pdf'
+                          ? activePdfHighlight?.selectedText || ''
+                          : activeTextSelection?.selectedText || '',
+                        180
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCommentBox(false)
+                      setCommentText('')
+                      setActivePdfHighlight(null)
+                      setActiveTextSelection(null)
+                    }}
+                    className="text-sm font-semibold text-gray-500 transition hover:text-gray-900"
+                  >
+                    Close
+                  </button>
+                </div>
+                <textarea
+                  value={commentText}
+                  onChange={(event) => setCommentText(event.target.value)}
+                  rows={4}
+                  placeholder="Describe the issue or give revision guidance..."
+                  className="mt-4 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500"
+                />
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCommentBox(false)
+                      setCommentText('')
+                    }}
+                    className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSubmittingAnnotation || !commentText.trim()}
+                    onClick={() => void handleAddAnnotation()}
+                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    {isSubmittingAnnotation ? <Loader2 size={16} className="animate-spin" /> : null}
+                    Save feedback
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
 
-        {/* --- SIDEBAR SECTION --- */}
-        <div className="w-[400px] bg-white border-l border-gray-200 flex flex-col shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.05)] z-10 relative overflow-hidden">
-          <div className="absolute inset-0 flex transition-transform duration-300 ease-in-out" style={{ transform: viewMode === 'list' ? 'translateX(0)' : 'translateX(-100%)' }}>
-
-            {/* View Mode: List */}
-            <div className="w-full h-full flex flex-col flex-shrink-0">
-              <div className="p-5 border-b border-gray-100">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-bold text-lg text-gray-900 flex items-center gap-2">
-                    <MessageSquare size={18} className="text-blue-600" /> Feedback
+        <div className="relative flex w-[400px] flex-col overflow-hidden border-l border-gray-200 bg-white">
+          <div
+            className="absolute inset-0 flex transition-transform duration-300 ease-in-out"
+            style={{ transform: viewMode === 'list' ? 'translateX(0)' : 'translateX(-100%)' }}
+          >
+            <div className="flex h-full w-full flex-shrink-0 flex-col">
+              <div className="border-b border-gray-100 p-5">
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
+                    <MessageSquare size={18} className="text-blue-600" />
+                    Feedback
                   </h2>
-                  <span className="text-xs font-bold bg-gray-100 text-gray-500 px-2 py-1 rounded-full">
-                    {annotations.length} total
+                  <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-500">
+                    {formatAwareAnnotations.length} total
                   </span>
                 </div>
-                <div className="flex p-1 bg-gray-100 rounded-lg">
-                  {(['all', 'unresolved', 'resolved'] as const).map(f => (
+                <div className="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1">
+                  {(['all', 'unresolved', 'resolved'] as const).map((nextFilter) => (
                     <button
-                      key={f}
-                      onClick={() => setFilter(f)}
-                      className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold capitalize transition-all duration-200 ${filter === f ? 'bg-white shadow-sm text-blue-600 border border-gray-200/50' : 'text-gray-500 hover:text-gray-700'}`}
+                      key={nextFilter}
+                      type="button"
+                      onClick={() => setFilter(nextFilter)}
+                      className={`rounded-md px-2 py-2 text-xs font-bold capitalize transition ${
+                        filter === nextFilter
+                          ? 'bg-white text-blue-600 shadow-sm'
+                          : 'text-gray-500 hover:text-gray-700'
+                      }`}
                     >
-                      {f}
+                      {nextFilter === 'all'
+                        ? `All (${formatAwareAnnotations.length})`
+                        : nextFilter === 'unresolved'
+                          ? `Open (${unresolvedAnnotations.length})`
+                          : `Done (${resolvedAnnotations.length})`}
                     </button>
                   ))}
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div className="flex-1 space-y-3 overflow-y-auto p-4">
                 {displayedAnnotations.length === 0 ? (
-                  <div className="text-center py-10 px-4 text-gray-400">
-                    <CheckCircle size={32} className="mx-auto mb-3 opacity-20" />
-                    <p className="text-sm">No {filter !== 'all' ? filter : ''} feedback found.</p>
+                  <div className="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-400">
+                    No feedback in this view yet.
                   </div>
                 ) : (
-                  displayedAnnotations.map(ann => (
-                    <div
-                      key={ann.id}
-                      onClick={() => openThread(ann)}
-                      className={`p-4 border rounded-xl cursor-pointer transition-all duration-200 group
-                        ${ann.is_resolved ? 'border-green-100 bg-green-50/30 hover:bg-green-50 hover:border-green-200' : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-md'}
-                      `}
+                  displayedAnnotations.map((annotation) => (
+                    <button
+                      key={annotation.id}
+                      type="button"
+                      onClick={() => void openThread(annotation)}
+                      className={`w-full rounded-xl border p-4 text-left transition ${
+                        annotation.is_resolved
+                          ? 'border-green-100 bg-green-50/30 hover:bg-green-50'
+                          : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-sm'
+                      }`}
                     >
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">
-                          Page {(ann.position_data?.[0]?.pageIndex ?? 0) + 1}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                          {getAnnotationLocationLabel(annotation)}
                         </span>
-                        {ann.is_resolved && (
-                          <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 uppercase">
-                            <CheckCircle size={12} /> Resolved
-                          </span>
-                        )}
+                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-700">
+                          v{effectiveVersionLabel}
+                        </span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
+                            annotation.is_resolved
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-amber-100 text-amber-700'
+                          }`}
+                        >
+                          {annotation.is_resolved ? 'Resolved' : 'Needs review'}
+                        </span>
                       </div>
-                      <p className={`text-sm mb-3 line-clamp-2 ${ann.is_resolved ? 'text-gray-500' : 'text-gray-900 font-medium'}`}>
-                        {ann.comment_text}
+                      <p className="mt-3 text-sm font-medium text-gray-900">
+                        {annotation.comment_text}
                       </p>
-                      <div className="flex items-center justify-between mt-2 pt-3 border-t border-gray-100">
-                        <div className="text-[10px] text-gray-400 italic truncate max-w-[200px]">
-                          "{summarizeQuote(ann.quote, 40)}"
-                        </div>
-                        <span className="text-xs font-semibold text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                          View Thread &rarr;
-                        </span>
-                      </div>
-                    </div>
+                      <p className="mt-3 truncate text-xs italic text-gray-500">
+                        &ldquo;{summarizeQuote(annotation.quote, 56)}&rdquo;
+                      </p>
+                    </button>
                   ))
                 )}
               </div>
             </div>
 
-            {/* View Mode: Thread */}
-            <div className="w-full h-full flex flex-col flex-shrink-0 bg-white">
-              {selectedAnnotation && (
+            <div className="flex h-full w-full flex-shrink-0 flex-col bg-white">
+              {selectedAnnotation ? (
                 <>
-                  <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                    <button onClick={closeThread} className="text-sm text-gray-500 hover:text-gray-900 flex items-center gap-1 font-medium transition-colors">
-                      <ChevronLeft size={16} /> Back to list
+                  <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/70 p-4">
+                    <button
+                      type="button"
+                      onClick={closeThread}
+                      className="flex items-center gap-1 text-sm font-medium text-gray-500 transition hover:text-gray-900"
+                    >
+                      <ChevronLeft size={16} />
+                      Back to list
                     </button>
-                    {canParticipate && (
+                    {canParticipate ? (
                       <button
-                        onClick={() => handleToggleResolve(selectedAnnotation.id, selectedAnnotation.is_resolved)}
-                        className={`text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-full font-bold transition-colors ${selectedAnnotation.is_resolved ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        type="button"
+                        onClick={() =>
+                          void handleToggleResolve(
+                            selectedAnnotation.id,
+                            selectedAnnotation.is_resolved
+                          )
+                        }
+                        className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+                          selectedAnnotation.is_resolved
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-100 text-gray-700'
+                        }`}
                       >
-                        <CheckCircle size={14} />
-                        {selectedAnnotation.is_resolved ? 'Resolved' : 'Mark Resolved'}
+                        {selectedAnnotation.is_resolved ? 'Resolved' : 'Mark resolved'}
                       </button>
-                    )}
+                    ) : null}
                   </div>
 
-                  <div className="flex-1 overflow-y-auto p-5 space-y-6">
-                    <div className="p-4 bg-amber-50/50 rounded-xl border border-amber-100/50 relative">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-amber-400 rounded-l-xl"></div>
-                      <p className="text-[10px] font-bold uppercase text-amber-600 tracking-wider mb-2">Context • Page {(selectedAnnotation.position_data?.[0]?.pageIndex ?? 0) + 1}</p>
-                      <p className="text-sm italic text-gray-700 leading-relaxed">
-                        "{selectedAnnotation.quote}"
+                  <div className="flex-1 space-y-5 overflow-y-auto p-5">
+                    <div className="rounded-xl border border-amber-100 bg-amber-50/70 p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-700">
+                        Context
+                      </p>
+                      <p className="mt-2 text-sm italic leading-relaxed text-gray-700">
+                        &ldquo;{selectedAnnotation.quote}&rdquo;
                       </p>
                     </div>
 
-                    <div className="space-y-5">
-                      <div className="flex flex-col items-center">
-                        <span className="text-[10px] uppercase font-bold text-gray-400 bg-white px-2">Thread Started</span>
-                        <div className="h-4 border-l border-dashed border-gray-200"></div>
-                      </div>
+                    <div className="rounded-xl border border-gray-200 bg-white p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-gray-500">
+                        Feedback
+                      </p>
+                      <p className="mt-2 text-sm leading-relaxed text-gray-800">
+                        {selectedAnnotation.comment_text}
+                      </p>
+                    </div>
 
-                      {/* Original Comment */}
-                      <div className="flex items-start gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-600 flex-shrink-0 text-sm">
-                          {selectedAnnotation.comment_text?.charAt(0).toUpperCase() || 'U'}
-                        </div>
-                        <div>
-                          <div className="flex items-baseline gap-2 mb-1">
-                            <span className="text-xs font-bold text-gray-900">Reviewer</span>
-                            <span className="text-[10px] text-gray-400">
-                              {selectedAnnotation.created_at ? new Date(selectedAnnotation.created_at).toLocaleDateString() : 'Just now'}
-                            </span>
-                          </div>
-                          <div className="bg-gray-100 p-3 rounded-2xl rounded-tl-none text-sm text-gray-800 border border-gray-200/50 shadow-sm">
-                            {selectedAnnotation.comment_text}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Replies */}
+                    <div className="space-y-3">
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
+                        Replies
+                      </p>
                       {isLoadingReplies ? (
-                        <div className="flex justify-center py-4">
-                          <Loader2 size={16} className="animate-spin text-gray-400" />
+                        <div className="flex items-center gap-2 text-sm text-gray-500">
+                          <Loader2 size={16} className="animate-spin" />
+                          Loading replies...
+                        </div>
+                      ) : threadReplies.length === 0 ? (
+                        <div className="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-sm text-gray-400">
+                          No replies yet.
                         </div>
                       ) : (
-                        <>
-                          {threadReplies.map((reply) => (
-                            <div key={reply.id} className="flex items-start gap-3 group">
-                              <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center font-bold text-purple-600 flex-shrink-0 text-sm">
-                                {reply.profiles?.first_name?.charAt(0)?.toUpperCase() || 'U'}
-                              </div>
-
-                              <div className="flex-1">
-                                <div className="flex items-baseline gap-2 mb-1 justify-between">
-                                  <span className="text-xs font-bold text-gray-900">{reply.profiles?.first_name}</span>
-                                  
-                                  {/* Edit/Delete Controls */}
-                                  {reply.user_id === currentUserId && editingReplyId !== reply.id && (
-                                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                      <button onClick={() => { setEditingReplyId(reply.id); setEditMessage(reply.message) }} className="text-[10px] text-blue-600 hover:underline">Edit</button>
-                                      <button onClick={async () => { await deleteReply(reply.id); setThreadReplies((prev) => prev.filter((r) => r.id !== reply.id)) }} className="text-[10px] text-red-600 hover:underline">Delete</button>
-                                    </div>
-                                  )}
-                                </div>
-
-                                {editingReplyId === reply.id ? (
-                                  <div className="flex gap-2">
-                                    <input value={editMessage} onChange={(e) => setEditMessage(e.target.value)} className="flex-1 p-2 text-sm border rounded-lg" />
-                                    <button onClick={async () => { await updateReply(reply.id, editMessage); setThreadReplies((prev) => prev.map((r) => r.id === reply.id ? { ...r, message: editMessage } : r)); setEditingReplyId(null) }} className="text-xs font-bold text-blue-600">Save</button>
-                                  </div>
-                                ) : (
-                                  <div className="bg-white p-3 rounded-2xl rounded-tl-none text-sm text-gray-800 border border-gray-200 shadow-sm">
-                                    {reply.message}
-                                  </div>
-                                )}
-                              </div>
+                        threadReplies.map((reply) => (
+                          <div key={reply.id} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-gray-900">
+                                {reply.profiles?.first_name || 'User'} {reply.profiles?.last_name || ''}
+                              </p>
+                              <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">
+                                {reply.profiles?.role || 'participant'}
+                              </span>
                             </div>
-                          ))}
-                        </>
+                            <p className="mt-2 text-sm leading-relaxed text-gray-700">
+                              {reply.message}
+                            </p>
+                          </div>
+                        ))
                       )}
-                      <div ref={messagesEndRef} />
                     </div>
                   </div>
 
-                  {/* Input Form */}
-                  <form onSubmit={handleSendReply} className="p-4 border-t border-gray-200 bg-gray-50/50">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={replyText}
-                        onChange={(e) => setReplyText(e.target.value)}
-                        placeholder={selectedAnnotation.is_resolved ? "Thread is resolved. Reopen to reply." : "Reply to this thread..."}
-                        disabled={selectedAnnotation.is_resolved || isSubmittingReply}
-                        className="flex-1 rounded-xl border border-gray-300 p-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 disabled:bg-gray-100"
-                      />
+                  <form onSubmit={handleSendReply} className="border-t border-gray-100 p-4">
+                    <textarea
+                      value={replyText}
+                      onChange={(event) => setReplyText(event.target.value)}
+                      rows={3}
+                      placeholder="Reply to this feedback..."
+                      className="w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500"
+                    />
+                    <div className="mt-3 flex justify-end">
                       <button
                         type="submit"
-                        disabled={!replyText.trim() || selectedAnnotation.is_resolved || isSubmittingReply}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700 transition-colors shadow-sm"
+                        disabled={isSubmittingReply || !replyText.trim()}
+                        className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
                       >
-                        {isSubmittingReply ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                        {isSubmittingReply ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                        Send reply
                       </button>
                     </div>
                   </form>
                 </>
-              )}
+              ) : null}
             </div>
           </div>
         </div>
       </div>
-
-      {/* --- ADD FEEDBACK MODAL --- */}
-      {canReview && showCommentBox && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-200">
-          <div className="bg-white w-[400px] rounded-2xl shadow-2xl p-6 space-y-4">
-            <h3 className="font-bold text-gray-900 text-lg">Add Feedback</h3>
-            <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-              <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Highlighted Text</p>
-              <p className="text-xs italic text-gray-600 line-clamp-3">"{summarizeQuote(activeHighlight?.selectedText)}"</p>
-            </div>
-            <textarea
-              value={commentText}
-              onChange={e => setCommentText(e.target.value)}
-              placeholder="What needs to be revised here?"
-              autoFocus
-              className="w-full border border-gray-300 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-              rows={4}
-            />
-            <div className="flex justify-end gap-2 pt-2">
-              <button onClick={() => { setShowCommentBox(false); setCommentText(''); setActiveHighlight(null) }} className="text-sm px-4 py-2 rounded-xl font-semibold text-gray-600 hover:bg-gray-100 transition-colors">Cancel</button>
-              <button
-                onClick={async () => {
-                  if (!activeHighlight || !commentText.trim() || isSubmittingAnnotation) return
-                  setIsSubmittingAnnotation(true)
-                  try {
-                    await handleAddAnnotation(activeHighlight, commentText)
-                    setShowCommentBox(false)
-                    setCommentText('')
-                    setActiveHighlight(null)
-                    setFilter('unresolved')
-                  } finally {
-                    setIsSubmittingAnnotation(false)
-                  }
-                }}
-                disabled={!commentText.trim() || isSubmittingAnnotation}
-                className="inline-flex items-center gap-2 bg-blue-600 text-white text-sm px-6 py-2 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-lg"
-              >
-                {isSubmittingAnnotation && <Loader2 size={16} className="animate-spin" />}
-                {isSubmittingAnnotation ? 'Submitting...' : 'Submit'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

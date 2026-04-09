@@ -83,3 +83,46 @@ body {
 .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 0.55);
 }
+
+.trackademia-editor p.is-editor-empty:first-child::before {
+  color: #9ca3af;
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+.trackademia-editor p,
+.trackademia-editor ul,
+.trackademia-editor ol,
+.trackademia-editor h1,
+.trackademia-editor h2 {
+  margin: 0 0 0.75rem;
+}
+
+.trackademia-editor h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.trackademia-editor h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.trackademia-editor ul,
+.trackademia-editor ol {
+  padding-left: 1.25rem;
+}
+
+.trackademia-editor li {
+  margin: 0.25rem 0;
+}
+
+.trackademia-editor strong {
+  font-weight: 700;
+}
+
+.trackademia-editor em {
+  font-style: italic;
+}

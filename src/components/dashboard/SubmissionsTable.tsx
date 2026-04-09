@@ -404,7 +404,7 @@ export function SubmissionsTable({
                   <th className="px-4 py-3 font-bold">Section</th>
                   <th className="px-4 py-3 font-bold">Status</th>
                   <th className="px-4 py-3 font-bold">Last Updated</th>
-                  <th className="px-4 py-3 text-right font-bold">Actions</th>
+                  <th className="px-4 py-3 text-center font-bold">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-gray-800">
@@ -489,6 +489,14 @@ export function SubmissionsTable({
                           >
                             <Eye size={16} />
                             View
+                          </Link>
+                          <Link
+                            href={`/dashboard/research/${submission.id}/annotate`}
+                            onClick={(event) => event.stopPropagation()}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                          >
+                            <MessageCircle size={16} />
+                            Feedback
                           </Link>
                         </div>
                       </td>

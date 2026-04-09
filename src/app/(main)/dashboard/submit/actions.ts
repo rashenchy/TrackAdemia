@@ -3,10 +3,24 @@
 import { createClient } from '@/lib/supabase/server'
 import { uploadResearchDocument } from '@/lib/research/files'
 import { getPublishedAtForStatusChange } from '@/lib/research/publication'
+import {
+  extractResearchDocumentContentFromFormData,
+  hasResearchTextContent,
+  resolveResearchSubmissionFormat,
+} from '@/lib/research/document'
+import { getNextStudentVersion } from '@/lib/research/versioning'
 import { notifyTeachersForResearchSubmission } from '@/lib/research/workflow'
 import { redirect } from 'next/navigation'
 
-export async function submitResearch(prevState: any, formData: FormData) {
+type FormState = {
+  error?: string
+}
+
+function getErrorMessage(error: unknown, fallbackMessage: string) {
+  return error instanceof Error ? error.message : fallbackMessage
+}
+
+export async function submitResearch(prevState: FormState | null, formData: FormData) {
   const supabase = await createClient()
 
   // Ensure user is authenticated
@@ -55,6 +69,10 @@ export async function submitResearch(prevState: any, formData: FormData) {
   const targetDefenseDate = (formData.get('targetDefenseDate') as string) || null
   const currentStage = (formData.get('currentStage') as string)?.trim()
 
+  const requestedSubmissionFormat = (formData.get('submissionFormat') as string)?.trim()
+  const documentContent = extractResearchDocumentContentFromFormData(formData, currentStage)
+  const hasTextContent = hasResearchTextContent(documentContent, currentStage)
+
   // Collect members and their roles
   const members: string[] = []
   const memberRoles: string[] = []
@@ -74,9 +92,28 @@ export async function submitResearch(prevState: any, formData: FormData) {
       const uploadedFile = await uploadResearchDocument(supabase, user.id, initialDocument)
       fileUrl = uploadedFile.filePath
       originalFileName = uploadedFile.originalFileName
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Storage Upload Error:', error)
-      return { error: error?.message || 'Failed to securely upload the document. Please try again.' }
+      return { error: getErrorMessage(error, 'Failed to securely upload the document. Please try again.') }
+    }
+  }
+
+  const submissionFormat = resolveResearchSubmissionFormat(requestedSubmissionFormat, {
+    hasPdf: Boolean(fileUrl),
+    hasText: hasTextContent,
+    stage: currentStage,
+  })
+
+  if (!isDraft) {
+    const needsPdf = submissionFormat === 'pdf' || submissionFormat === 'both'
+    const needsText = submissionFormat === 'text' || submissionFormat === 'both'
+
+    if (needsPdf && !fileUrl) {
+      return { error: 'Please upload a PDF manuscript for the selected submission format.' }
+    }
+
+    if (needsText && !hasTextContent) {
+      return { error: 'Please complete at least one manuscript section in the editor before submitting.' }
     }
   }
 
@@ -100,7 +137,9 @@ export async function submitResearch(prevState: any, formData: FormData) {
       members,
       member_roles: memberRoles,
       file_url: fileUrl,
-      original_file_name: originalFileName
+      original_file_name: originalFileName,
+      submission_format: submissionFormat,
+      content_json: hasTextContent ? documentContent : null,
     })
     .select()
     .single()
@@ -111,7 +150,8 @@ export async function submitResearch(prevState: any, formData: FormData) {
   }
 
   // Save version history if file exists and it's not a draft
-  if (!isDraft && fileUrl && newResearch) {
+  if (!isDraft && newResearch && (fileUrl || hasTextContent)) {
+    const versionInfo = getNextStudentVersion([])
 
     const { error: versionError } = await supabase
       .from('research_versions')
@@ -120,7 +160,13 @@ export async function submitResearch(prevState: any, formData: FormData) {
         uploaded_by: user.id,
         file_url: fileUrl,
         original_file_name: originalFileName,
-        version_number: 1
+        content_json: hasTextContent ? documentContent : null,
+        version_number: 1,
+        version_major: versionInfo.version_major,
+        version_minor: versionInfo.version_minor,
+        version_label: versionInfo.version_label,
+        created_by_role: 'student',
+        change_type: 'student_submit',
       })
 
     if (versionError) {
