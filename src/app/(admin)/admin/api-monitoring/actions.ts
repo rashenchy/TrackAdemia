@@ -287,11 +287,18 @@ async function getSupabaseMetrics(): Promise<SupabaseMonitoringMetrics> {
 }
 
 function buildDailyActivity(logs: ApiRequestLogRow[]) {
-  const dailyMap = new Map<string, { date: string; groq: number; serpapi: number }>()
+  const dailyMap = new Map<
+    string,
+    { date: string; gemini: number; groq: number; serpapi: number }
+  >()
 
   for (const log of logs) {
     const date = new Date(log.created_at).toISOString().split('T')[0]
-    const current = dailyMap.get(date) || { date, groq: 0, serpapi: 0 }
+    const current = dailyMap.get(date) || { date, gemini: 0, groq: 0, serpapi: 0 }
+
+    if (log.provider === 'gemini') {
+      current.gemini += 1
+    }
 
     if (log.provider === 'groq') {
       current.groq += 1

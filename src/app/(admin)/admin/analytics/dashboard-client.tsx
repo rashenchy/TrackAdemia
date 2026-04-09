@@ -147,6 +147,8 @@ export default function AdminDashboardClient({
                     borderRadius: '8px',
                     color: '#fff',
                   }}
+                  itemStyle={{ color: '#fff' }}
+                  labelStyle={{ color: '#fff' }}
                 />
                 <Bar dataKey="count" fill="#3b82f6" radius={[8, 8, 0, 0]} />
               </BarChart>
@@ -199,6 +201,8 @@ export default function AdminDashboardClient({
                       borderRadius: '8px',
                       color: '#fff',
                     }}
+                    itemStyle={{ color: '#fff' }}
+                    labelStyle={{ color: '#fff' }}
                   />
                 </PieChart>
               </ResponsiveContainer>

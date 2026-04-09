@@ -10,7 +10,7 @@ export async function markNotificationAsRead(notificationId: string) {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return { error: 'You must be logged in to update notifications.' }
+    return
   }
 
   const { error } = await supabase
@@ -20,14 +20,13 @@ export async function markNotificationAsRead(notificationId: string) {
     .eq('user_id', user.id)
 
   if (error) {
-    return { error: 'Failed to mark the notification as read.' }
+    return
   }
 
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard/notifications')
 
-  return { success: 'Notification marked as read.' }
 }
 
 export async function markAllNotificationsAsRead() {
@@ -37,7 +36,7 @@ export async function markAllNotificationsAsRead() {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return { error: 'You must be logged in to update notifications.' }
+    return
   }
 
   const { error } = await supabase
@@ -47,12 +46,11 @@ export async function markAllNotificationsAsRead() {
     .eq('is_read', false)
 
   if (error) {
-    return { error: 'Failed to mark notifications as read.' }
+    return
   }
 
   revalidatePath('/dashboard')
   revalidatePath('/dashboard/settings')
   revalidatePath('/dashboard/notifications')
 
-  return { success: 'All notifications marked as read.' }
 }

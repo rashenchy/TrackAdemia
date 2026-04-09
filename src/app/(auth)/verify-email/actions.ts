@@ -51,6 +51,8 @@ export async function verifyEmailCode(formData: FormData) {
           `That code does not match. You have ${verificationConfig.maxVerifyAttempts} attempts total before a new code is required.`
         )
     }
+
+    throw new Error('Unable to verify the registration code.')
   }
 
   try {
@@ -104,6 +106,8 @@ export async function resendVerificationCode() {
           'Too many resend requests for this registration. Start over to get a fresh session.'
         )
     }
+
+    throw new Error('Unable to resend the verification code.')
   }
 
   try {

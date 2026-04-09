@@ -11,6 +11,9 @@ const nextConfig = {
   },
 
   reactStrictMode: true,
+  turbopack: {
+    root: __dirname,
+  },
 
   webpack: (config) => {
     config.resolve.fallback = {

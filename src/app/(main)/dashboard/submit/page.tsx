@@ -2,6 +2,24 @@ import { createClient } from '@/lib/supabase/server'
 import { ResearchSubmissionForm } from '@/components/dashboard/ResearchSubmissionForm'
 import { redirect } from 'next/navigation'
 
+type DraftResearch = {
+  id: string
+  title?: string
+  type?: string
+  abstract?: string
+  keywords?: string[] | string
+  members?: string[]
+  member_roles?: string[]
+  subject_code?: string
+  adviser_id?: string | null
+  research_area?: string | null
+  start_date?: string | null
+  target_defense_date?: string | null
+  current_stage?: string | null
+  file_url?: string | null
+  original_file_name?: string | null
+}
+
 export default async function SubmitResearchPage() {
 
   // Initialize Supabase and verify authentication
@@ -29,23 +47,7 @@ export default async function SubmitResearchPage() {
   let userSections: { id: string, name: string, course_code: string }[] = []
   let adviserOptions: { id: string, name: string }[] = []
   let sectionAdvisers: Record<string, { id: string, name: string }> = {}
-  let draftResearch: {
-    id: string
-    title?: string
-    type?: string
-    abstract?: string
-    keywords?: string[] | string
-    members?: string[]
-    member_roles?: string[]
-    subject_code?: string
-    adviser_id?: string | null
-    research_area?: string | null
-    start_date?: string | null
-    target_defense_date?: string | null
-    current_stage?: string | null
-    file_url?: string | null
-    original_file_name?: string | null
-  } | null = null
+  let draftResearch: DraftResearch | null = null
 
   const { data: draftData } = await supabase
     .from('research')
@@ -60,7 +62,7 @@ export default async function SubmitResearchPage() {
     .maybeSingle()
 
   if (draftData) {
-    draftResearch = draftData
+    draftResearch = draftData as unknown as DraftResearch
   }
 
   // If the user belongs to any sections, fetch related data

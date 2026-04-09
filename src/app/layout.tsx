@@ -1,9 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "@/styles/globals.css";
-
-// Configure the global Inter font for the entire application
-const inter = Inter({ subsets: ["latin"] });
 
 // Define default metadata for the application
 export const metadata: Metadata = {
@@ -21,7 +17,7 @@ export default function RootLayout({
   // Render the HTML structure used across all pages
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
         {children}
       </body>
     </html>
