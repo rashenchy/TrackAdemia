@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "@/styles/globals.css";
+import { PopupProvider } from '@/components/ui/PopupProvider'
 
 // Define default metadata for the application
 export const metadata: Metadata = {
@@ -18,7 +19,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body style={{ fontFamily: "Arial, Helvetica, sans-serif" }}>
-        {children}
+        <PopupProvider>{children}</PopupProvider>
       </body>
     </html>
   );

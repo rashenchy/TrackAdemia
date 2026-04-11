@@ -5,8 +5,9 @@ import { Calendar, GraduationCap, Edit3, FileText, GitCompareArrows, Users } fro
 import { DocumentDownloadButton } from '@/components/dashboard/DocumentDownloadButton'
 import { updateResearchStatus } from './actions'
 import { ResearchStatusForm } from './research-status-form'
-import { ResearchDocumentSections } from '@/components/dashboard/ResearchDocumentSections'
+import { ResearchTextWorkspaceCard } from '@/components/dashboard/ResearchTextWorkspaceCard'
 import {
+  getPlainTextFromRichText,
   getResearchEditorSectionsForStage,
   normalizeResearchDocumentContent,
   resolveResearchSubmissionFormat,
@@ -166,7 +167,7 @@ export default async function ViewResearchPage({
   )
   const latestHasPdf = Boolean(latestVersion?.file_url || research.file_url)
   const latestHasText = getResearchEditorSectionsForStage(research.current_stage).some(
-    (section) => latestDocumentContent[section.key].trim().length > 0
+    (section) => getPlainTextFromRichText(latestDocumentContent[section.key]).trim().length > 0
   )
   const latestSubmissionFormat = resolveResearchSubmissionFormat(
     research.submission_format,
@@ -186,6 +187,12 @@ export default async function ViewResearchPage({
     ['view', resolvedSearchParams.view],
     ['from', resolvedSearchParams.from],
   ])
+  const latestWorkspaceHref = appendFromParam(
+    buildPathWithSearch(`/dashboard/research/${research.id}/annotate`, [
+      ['version', latestVersion ? String(latestVersion.version_number) : null],
+    ]),
+    currentPageHref
+  )
 
   const updateStatusAction = updateResearchStatus.bind(null, researchId)
 
@@ -379,9 +386,11 @@ export default async function ViewResearchPage({
             )}
 
             {activeDocumentView === 'text' && latestHasText && (
-              <ResearchDocumentSections
+              <ResearchTextWorkspaceCard
                 content={latestDocumentContent}
                 stage={research.current_stage}
+                workspaceHref={latestWorkspaceHref}
+                canEnterWorkspace={!isViewerOnly && (isTeacher || isAuthor)}
               />
             )}
           </div>

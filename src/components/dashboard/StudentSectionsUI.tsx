@@ -3,55 +3,88 @@
 import { useState } from 'react'
 import { JoinSectionForm } from './JoinSectionForm'
 import { leaveSection } from '@/app/(main)/dashboard/sections/actions'
-import { 
-  Users, 
-  User, 
-  GraduationCap, 
-  ChevronDown, 
-  ChevronUp, 
-  AlertCircle, 
-  LogOut, 
-  Loader2 
+import { usePopup } from '@/components/ui/PopupProvider'
+import {
+  Users,
+  User,
+  GraduationCap,
+  ChevronDown,
+  ChevronUp,
+  LogOut,
+  Loader2,
 } from 'lucide-react'
 
-// UI component that displays a student's enrolled sections and classmates
+type StudentSectionTeacher = {
+  first_name?: string | null
+  last_name?: string | null
+}
+
+type StudentSection = {
+  id: string
+  name: string
+  course_code: string
+  profiles?: StudentSectionTeacher | null
+}
+
+type ClassmateProfile = {
+  id: string
+  first_name?: string | null
+  last_name?: string | null
+  course_program?: string | null
+}
+
+type ClassmateRecord = {
+  section_id: string
+  profiles?: ClassmateProfile | null
+}
+
 export default function StudentSectionsUI({
   sections,
   classmates,
-  currentUserId
+  currentUserId,
 }: {
-  sections: any[],
-  classmates: any[],
+  sections: StudentSection[]
+  classmates: ClassmateRecord[]
   currentUserId: string
 }) {
+  const [expandedSection, setExpandedSection] = useState<string | null>(null)
+  const [isLeaving, setIsLeaving] = useState<string | null>(null)
+  const { confirm, notify } = usePopup()
 
-  // Track which section is currently expanded
-  const [expandedSection, setExpandedSection] = useState<string | null>(null);
-
-  // Track which section is currently being left
-  const [isLeaving, setIsLeaving] = useState<string | null>(null);
-
-  // Handle leaving a section with confirmation
   const handleLeave = async (sectionId: string, sectionName: string) => {
+    const confirmed = await confirm({
+      title: `Leave ${sectionName}?`,
+      message:
+        'You will be removed from the section roster and will need a valid join code if you want to join again later.',
+      confirmLabel: 'Leave section',
+      variant: 'danger',
+    })
 
-    const confirmed = confirm(`Are you sure you want to leave ${sectionName}? This will remove you from the class list.`);
-    if (!confirmed) return;
+    if (!confirmed) return
 
-    setIsLeaving(sectionId);
+    setIsLeaving(sectionId)
 
-    const result = await leaveSection(sectionId);
-    
+    const result = await leaveSection(sectionId)
+
     if (result?.error) {
-      alert(result.error);
+      notify({
+        title: 'Unable to leave section',
+        message: result.error,
+        variant: 'error',
+      })
+    } else {
+      notify({
+        title: 'Section left',
+        message: result?.success ?? `You left ${sectionName}.`,
+        variant: 'success',
+      })
     }
 
-    setIsLeaving(null);
-  };
+    setIsLeaving(null)
+  }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-10">
-
-      {/* Page Header */}
+    <div className="mx-auto max-w-5xl space-y-10">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold tracking-tight text-[var(--foreground)]">
           My Sections
@@ -61,89 +94,74 @@ export default function StudentSectionsUI({
         </p>
       </div>
 
-      {/* Main Layout Grid */}
-      <div className="grid lg:grid-cols-3 gap-8">
-
-        {/* Left Column: Section Cards */}
-        <div className="lg:col-span-2 space-y-4">
-
-          {/* Empty State */}
+      <div className="grid gap-8 lg:grid-cols-3">
+        <div className="space-y-4 lg:col-span-2">
           {sections.length === 0 ? (
-            <div className="p-12 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-2xl text-center text-gray-400 bg-gray-50/50 dark:bg-gray-900/10">
+            <div className="rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/50 p-12 text-center text-gray-400 dark:border-gray-800 dark:bg-gray-900/10">
               <GraduationCap size={48} className="mx-auto mb-4 opacity-20" />
               <p className="font-medium text-gray-500">
-                You haven't joined any sections yet.
+                You haven&apos;t joined any sections yet.
               </p>
-              <p className="text-xs">
-                Use the form on the right to join your first class.
-              </p>
+              <p className="text-xs">Use the form on the right to join your first class.</p>
             </div>
           ) : (
-
-            // Render each section card
-            sections.map((section: any) => {
-
-              const teacher = section.profiles ?? null;
-
-              // Filter classmates belonging to this section (excluding current user)
+            sections.map((section) => {
+              const teacher = section.profiles ?? null
               const sectionClassmates = classmates.filter(
-                (c: any) =>
-                  c.section_id === section.id &&
-                  c.profiles?.id !== currentUserId
-              );
+                (classmate) =>
+                  classmate.section_id === section.id &&
+                  classmate.profiles?.id !== currentUserId
+              )
 
               return (
                 <div
                   key={section.id}
-                  className="bg-[var(--background)] border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden shadow-sm hover:border-blue-500/50 transition-all"
+                  className="overflow-hidden rounded-2xl border border-gray-200 bg-[var(--background)] shadow-sm transition-all hover:border-blue-500/50 dark:border-gray-800"
                 >
-
-                  {/* Section Header Content */}
-                  <div className="p-6 flex items-start justify-between">
-
+                  <div className="flex items-start justify-between p-6">
                     <div>
                       <h3 className="text-xl font-bold text-[var(--foreground)]">
                         {section.name}
                       </h3>
 
-                      <p className="text-sm text-blue-600 font-mono font-bold">
+                      <p className="font-mono text-sm font-bold text-blue-600">
                         {section.course_code}
                       </p>
 
-                      {/* Adviser Information */}
                       <div className="mt-4 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                         <User size={16} className="text-blue-500" />
                         <span className="font-medium">Adviser:</span>
                         <span>
                           {teacher
-                            ? `${teacher.first_name} ${teacher.last_name}`
+                            ? `${teacher.first_name ?? ''} ${teacher.last_name ?? ''}`.trim() ||
+                              'Unknown Adviser'
                             : 'Unknown Adviser'}
                         </span>
                       </div>
                     </div>
 
-                    {/* Section Actions */}
                     <div className="flex flex-col items-end gap-3">
-
-                      {/* Toggle Classmates Button */}
                       <button
                         onClick={() =>
                           setExpandedSection(
                             expandedSection === section.id ? null : section.id
                           )
                         }
-                        className="flex items-center gap-2 text-xs font-bold text-gray-400 hover:text-blue-600 transition-colors bg-gray-50 dark:bg-gray-800 px-3 py-2 rounded-lg"
+                        className="flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs font-bold text-gray-400 transition-colors hover:text-blue-600 dark:bg-gray-800"
                       >
                         <Users size={16} />
                         {sectionClassmates.length} Classmates
-                        {expandedSection === section.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        {expandedSection === section.id ? (
+                          <ChevronUp size={14} />
+                        ) : (
+                          <ChevronDown size={14} />
+                        )}
                       </button>
 
-                      {/* Leave Section Button */}
                       <button
                         onClick={() => handleLeave(section.id, section.name)}
                         disabled={isLeaving === section.id}
-                        className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest font-bold text-red-400 hover:text-red-600 transition-colors px-2 py-1 disabled:opacity-50"
+                        className="flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-red-400 transition-colors hover:text-red-600 disabled:opacity-50"
                       >
                         {isLeaving === section.id ? (
                           <Loader2 size={12} className="animate-spin" />
@@ -152,68 +170,54 @@ export default function StudentSectionsUI({
                         )}
                         {isLeaving === section.id ? 'Leaving...' : 'Leave Section'}
                       </button>
-
                     </div>
                   </div>
 
-                  {/* Expanded Classmates List */}
-                  {expandedSection === section.id && (
-                    <div className="px-6 pb-6 pt-2 border-t border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-2">
-
-                      <div className="grid sm:grid-cols-2 gap-3 mt-4">
-
-                        {/* Empty classmates state */}
+                  {expandedSection === section.id ? (
+                    <div className="animate-in fade-in slide-in-from-top-2 border-t border-gray-100 px-6 pb-6 pt-2 dark:border-gray-800">
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
                         {sectionClassmates.length === 0 ? (
-                          <p className="text-xs text-gray-500 italic col-span-2">
+                          <p className="col-span-2 text-xs italic text-gray-500">
                             No other classmates joined yet.
                           </p>
                         ) : (
-
-                          // Render classmates
-                          sectionClassmates.map((c: any) => (
+                          sectionClassmates.map((classmate) => (
                             <div
-                              key={c.profiles?.id}
-                              className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-800"
+                              key={classmate.profiles?.id ?? `${section.id}-unknown`}
+                              className="flex items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/50"
                             >
-
-                              {/* Avatar Initials */}
-                              <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center text-[10px] font-bold border border-blue-200 dark:border-blue-800">
-                                {c.profiles?.first_name?.[0] ?? "?"}
-                                {c.profiles?.last_name?.[0] ?? "?"}
+                              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-blue-200 bg-blue-100 text-[10px] font-bold text-blue-600 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                {classmate.profiles?.first_name?.[0] ?? '?'}
+                                {classmate.profiles?.last_name?.[0] ?? '?'}
                               </div>
 
-                              {/* Student Information */}
                               <div>
                                 <p className="text-xs font-bold text-[var(--foreground)]">
-                                  {c.profiles
-                                    ? `${c.profiles.first_name} ${c.profiles.last_name}`
+                                  {classmate.profiles
+                                    ? `${classmate.profiles.first_name ?? ''} ${classmate.profiles.last_name ?? ''}`.trim() ||
+                                      'Unknown Student'
                                     : 'Unknown Student'}
                                 </p>
                                 <p className="text-[10px] text-gray-500">
-                                  {c.profiles?.course_program ?? ''}
+                                  {classmate.profiles?.course_program ?? ''}
                                 </p>
                               </div>
-
                             </div>
                           ))
                         )}
-
                       </div>
                     </div>
-                  )}
-
+                  ) : null}
                 </div>
-              );
+              )
             })
           )}
         </div>
 
-        {/* Right Column: Join Section Form */}
         <div className="space-y-6">
           <JoinSectionForm />
         </div>
-
       </div>
     </div>
-  );
+  )
 }

@@ -126,3 +126,22 @@ body {
 .trackademia-editor em {
   font-style: italic;
 }
+
+.trackademia-editor [data-research-subsection='true'] {
+  margin: 0 0 1.5rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 1rem;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.trackademia-editor [data-research-subsection-title='true'] {
+  margin: 0 0 0.85rem;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.trackademia-editor [data-research-subsection-body='true'] > :last-child {
+  margin-bottom: 0;
+}

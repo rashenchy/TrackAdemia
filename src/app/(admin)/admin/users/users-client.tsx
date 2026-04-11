@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Users, Search, Loader2, AlertCircle, Trash2, UserCheck } from 'lucide-react'
 import { getAllUsers, deleteOrBanUser } from './actions'
 import PaginationControl from '@/components/ui/PaginationControl'
+import { usePopup } from '@/components/ui/PopupProvider'
 
 interface UserProfile {
   id: string
@@ -51,6 +52,7 @@ export default function UserManagementClient({
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+  const { confirm, notify } = usePopup()
   const pageSize = 10
 
   let filteredUsers = users
@@ -68,11 +70,8 @@ export default function UserManagementClient({
     )
   }
 
-  useEffect(() => {
-    setPage(1)
-  }, [roleFilter, searchTerm])
-
-  const pagedUsers = filteredUsers.slice((page - 1) * pageSize, page * pageSize)
+  const normalizedPage = Math.min(page, Math.max(1, Math.ceil(filteredUsers.length / pageSize)))
+  const pagedUsers = filteredUsers.slice((normalizedPage - 1) * pageSize, normalizedPage * pageSize)
 
   const loadUsers = async () => {
     setLoading(true)
@@ -83,7 +82,14 @@ export default function UserManagementClient({
   }
 
   const handleDeleteUser = async (userId: string, userName: string) => {
-    if (!confirm(`Are you sure you want to delete ${userName}? This cannot be undone.`)) {
+    const confirmed = await confirm({
+      title: `Delete ${userName}?`,
+      message: 'This action cannot be undone and will permanently remove the user account.',
+      confirmLabel: 'Delete user',
+      variant: 'danger',
+    })
+
+    if (!confirmed) {
       return
     }
 
@@ -92,10 +98,20 @@ export default function UserManagementClient({
 
     if (result.success) {
       setSuccessMessage(`${userName} has been deleted`)
+      notify({
+        title: 'User deleted',
+        message: `${userName} has been deleted.`,
+        variant: 'success',
+      })
       setUsers((currentUsers) => currentUsers.filter((u) => u.id !== userId))
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {
       setError(result.error || 'Failed to delete user')
+      notify({
+        title: 'Delete failed',
+        message: result.error || 'Failed to delete user',
+        variant: 'error',
+      })
     }
 
     setActionInProgress(null)
@@ -138,14 +154,20 @@ export default function UserManagementClient({
             type="text"
             placeholder="Search by name or email..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value)
+              setPage(1)
+            }}
             className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
           />
         </div>
 
         <select
           value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value)}
+          onChange={(e) => {
+            setRoleFilter(e.target.value)
+            setPage(1)
+          }}
           className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
         >
           <option value="all">All Roles</option>
@@ -255,7 +277,7 @@ export default function UserManagementClient({
           </div>
           <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
             <PaginationControl
-              page={page}
+              page={normalizedPage}
               pageSize={pageSize}
               totalCount={filteredUsers.length}
               onPageChange={setPage}

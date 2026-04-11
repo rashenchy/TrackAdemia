@@ -8,6 +8,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { stopViewAsUser } from '@/app/(admin)/admin/view-as-user/actions'
 import { getTeacherSubmissionData } from '@/lib/users/teacher-submissions'
+import { usePopup } from '@/components/ui/PopupProvider'
 import {
   ArrowLeft,
   Menu,
@@ -72,6 +73,7 @@ export default function DashboardLayoutClient({
   const [submissionAlertCount, setSubmissionAlertCount] = useState(0)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isNavigating, startNavigation] = useTransition()
+  const { notify } = usePopup()
   const profileRef = useRef<HTMLDivElement | null>(null)
   const isTeacherRef = useRef(false)
   const currentUserIdRef = useRef<string | null>(null)
@@ -121,11 +123,23 @@ export default function DashboardLayoutClient({
     if (isRefreshing) return
 
     setIsRefreshing(true)
+    notify({
+      title: 'Refreshing dashboard',
+      message: 'Loading the latest page data.',
+      variant: 'info',
+    })
     startNavigation(() => {
       router.refresh()
     })
 
-    setTimeout(() => setIsRefreshing(false), 700)
+    setTimeout(() => {
+      setIsRefreshing(false)
+      notify({
+        title: 'Dashboard refreshed',
+        message: 'Your workspace is up to date.',
+        variant: 'success',
+      })
+    }, 700)
   }
 
   useEffect(() => {

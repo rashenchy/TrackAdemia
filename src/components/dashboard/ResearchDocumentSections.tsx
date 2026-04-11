@@ -1,4 +1,5 @@
 import {
+  getPlainTextFromRichText,
   getResearchEditorSectionsForStage,
   normalizeRichTextEditorValue,
   type ResearchDocumentContent,
@@ -23,7 +24,7 @@ export function ResearchDocumentSections({
           <h3 className="text-sm font-bold uppercase tracking-wide text-gray-500">
             {section.label}
           </h3>
-          {content[section.key] ? (
+          {getPlainTextFromRichText(content[section.key]).trim().length > 0 ? (
             <div
               className="trackademia-editor mt-3 text-sm leading-7 text-[var(--foreground)]"
               dangerouslySetInnerHTML={{

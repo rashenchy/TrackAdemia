@@ -1,9 +1,10 @@
 'use client'
 
-import { useActionState, useEffect, useMemo, useState } from 'react'
+import { useActionState, useMemo, useState } from 'react'
 import { createSection, regenerateJoinCode, toggleSectionFreeze, removeStudent } from './actions'
 import { SubmitButton } from '@/components/auth/SubmitButton'
 import PaginationControl from '@/components/ui/PaginationControl'
+import { usePopup } from '@/components/ui/PopupProvider'
 import {
   Plus,
   GraduationCap,
@@ -56,11 +57,8 @@ export default function SectionsPageUI({
   const [copiedSectionId, setCopiedSectionId] = useState<string | null>(null)
   const [sectionsPage, setSectionsPage] = useState(1)
   const [rosterPage, setRosterPage] = useState(1)
+  const { confirm, notify, prompt } = usePopup()
   const pageSize = 10
-
-  useEffect(() => {
-    setRosterPage(1)
-  }, [rosterModal?.id])
 
   const pagedSections = useMemo(
     () => sections.slice((sectionsPage - 1) * pageSize, sectionsPage * pageSize),
@@ -98,43 +96,116 @@ export default function SectionsPageUI({
   }
 
   const handleRegenerate = async (id: string) => {
-    if (!confirm('Generate a new code? Old codes will immediately stop working.')) return
+    const confirmed = await confirm({
+      title: 'Generate a new join code?',
+      message: 'Students will need to use the new code immediately. The current join code will stop working as soon as you continue.',
+      confirmLabel: 'Generate code',
+    })
+
+    if (!confirmed) return
     setLoadingAction(`regen-${id}`)
-    await regenerateJoinCode(id)
+    const result = await regenerateJoinCode(id)
+    if (result?.error) {
+      notify({
+        title: 'Unable to generate code',
+        message: result.error,
+        variant: 'error',
+      })
+    } else {
+      notify({
+        title: 'Join code updated',
+        message: result?.success ?? 'A new join code is now active for this section.',
+        variant: 'success',
+      })
+    }
     setLoadingAction(null)
   }
 
   const handleFreeze = async (id: string, isFrozen: boolean) => {
-    setLoadingAction(`freeze-${id}`)
-    await toggleSectionFreeze(id, isFrozen)
+    const confirmed = await confirm({
+      title: isFrozen ? 'Unlock this section?' : 'Lock this section?',
+      message: isFrozen
+        ? 'Students will be able to join this section again using the current join code.'
+        : 'This will prevent new students from joining this section until you unlock it again.',
+      confirmLabel: isFrozen ? 'Unlock section' : 'Lock section',
+    })
 
-    if (rosterModal?.id === id) {
+    if (!confirmed) return
+
+    setLoadingAction(`freeze-${id}`)
+    const result = await toggleSectionFreeze(id, isFrozen)
+
+    if (!result?.error && rosterModal?.id === id) {
       setRosterModal({ ...rosterModal, is_frozen: !isFrozen })
     }
+
+    notify(
+      result?.error
+        ? {
+            title: 'Section update failed',
+            message: result.error,
+            variant: 'error' as const,
+          }
+        : {
+            title: isFrozen ? 'Section unlocked' : 'Section locked',
+            message:
+              result?.success ??
+              (isFrozen
+                ? 'Students can join this section again.'
+                : 'New joins are now prevented for this section.'),
+            variant: 'success' as const,
+          }
+    )
 
     setLoadingAction(null)
   }
 
   const handleRemove = async (sectionId: string, studentId: string, studentName: string) => {
-    const reason = prompt(`Enter the reason for removing ${studentName} from this section:`)?.trim()
+    const reason = await prompt({
+      title: 'Remove student from section',
+      message: `Add a short reason for removing ${studentName}. This will be sent to the student as part of the notification.`,
+      confirmLabel: 'Continue',
+      inputLabel: 'Removal reason',
+      inputPlaceholder: 'Explain why the student is being removed...',
+      validate: (value) =>
+        value.trim().length === 0 ? 'A removal reason is required.' : null,
+      variant: 'danger',
+    })
 
     if (!reason) return
 
-    const confirmed = confirm(`Confirm removal of ${studentName}?\n\nReason: ${reason}`)
+    const confirmed = await confirm({
+      title: `Remove ${studentName}?`,
+      message: `The student will be removed from this roster and notified with your reason: "${reason.trim()}".`,
+      confirmLabel: 'Remove student',
+      variant: 'danger',
+    })
 
     if (!confirmed) return
 
     setLoadingAction(`remove-${studentId}`)
-    const result = await removeStudent(sectionId, studentId, reason)
+    const result = await removeStudent(sectionId, studentId, reason.trim())
 
     if (!result?.error && rosterModal) {
       setRosterModal({
         ...rosterModal,
         roster: rosterModal.roster.filter((student) => student.user_id !== studentId),
       })
-    } else if (result?.error) {
-      alert(result.error)
     }
+
+    notify(
+      result?.error
+        ? {
+            title: 'Student removal failed',
+            message: result.error,
+            variant: 'error' as const,
+          }
+        : {
+            title: 'Student removed',
+            message: result?.success ?? `${studentName} has been removed from the section.`,
+            variant: 'success' as const,
+          }
+    )
 
     setLoadingAction(null)
   }
@@ -302,7 +373,10 @@ export default function SectionsPageUI({
                       </button>
                     </div>
                     <button
-                      onClick={() => setRosterModal(section)}
+                      onClick={() => {
+                        setRosterPage(1)
+                        setRosterModal(section)
+                      }}
                       className="text-sm font-semibold text-blue-600 transition-all hover:text-blue-700 hover:underline"
                     >
                       Manage Roster &rarr;
@@ -343,7 +417,10 @@ export default function SectionsPageUI({
                 </p>
               </div>
               <button
-                onClick={() => setRosterModal(null)}
+                onClick={() => {
+                  setRosterModal(null)
+                  setRosterPage(1)
+                }}
                 className="rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-200 dark:hover:bg-gray-700"
               >
                 <X size={20} />

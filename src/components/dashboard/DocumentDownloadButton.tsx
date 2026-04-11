@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Download, Eye, Loader2 } from 'lucide-react'
 import { getSignedViewUrl, getSignedDownloadUrl } from '@/app/(main)/dashboard/fileActions'
+import { usePopup } from '@/components/ui/PopupProvider'
 
 // Button component that allows users to view or download a research document
 export function DocumentDownloadButton({
@@ -18,6 +19,7 @@ export function DocumentDownloadButton({
   // UI loading states for viewing and downloading
   const [isViewing, setIsViewing] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
+  const { notify } = usePopup()
 
   // Handle viewing the document (opens PDF in a new browser tab)
   const handleView = async () => {
@@ -29,7 +31,11 @@ export function DocumentDownloadButton({
     setIsViewing(false)
 
     if (result?.error) {
-      alert(result.error)
+      notify({
+        title: 'Unable to open file',
+        message: result.error,
+        variant: 'error',
+      })
       return
     }
 
@@ -49,7 +55,11 @@ export function DocumentDownloadButton({
     setIsDownloading(false)
 
     if (result?.error) {
-      alert(result.error)
+      notify({
+        title: 'Unable to download file',
+        message: result.error,
+        variant: 'error',
+      })
       return
     }
 

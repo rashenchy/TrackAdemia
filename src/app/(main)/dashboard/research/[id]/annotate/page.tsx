@@ -47,6 +47,7 @@ import {
   getResearchEditorSectionsForStage,
   getResearchSectionLabel,
   getNormalizedResearchStage,
+  isResearchChapterSectionKey,
   isTextAnnotationPosition,
   normalizeResearchDocumentContent,
   resolveResearchSubmissionFormat,
@@ -57,6 +58,7 @@ import {
   type TextAnnotationPosition,
 } from '@/lib/research/document'
 import { ResearchRichTextEditor } from '@/components/dashboard/ResearchRichTextEditor'
+import { ResearchChapterSectionsEditor } from '@/components/dashboard/ResearchChapterSectionsEditor'
 import { getVersionLabel } from '@/lib/research/versioning'
 import { BackButton } from '@/components/navigation/BackButton'
 import { appendFromParam, buildPathWithSearch } from '@/lib/navigation'
@@ -174,12 +176,10 @@ function getTextSelectionDetails(
 
   if (!selectedText) return null
 
-  const beforeRange = selectionRange.cloneRange()
-  beforeRange.selectNodeContents(container)
-  beforeRange.setEnd(selectionRange.startContainer, selectionRange.startOffset)
-  const startOffset = beforeRange.toString().length
+  const startOffset = getOffsetWithinSection(container, selectionRange, 'start')
+  if (startOffset == null) return null
   const endOffset = startOffset + selectionRange.toString().length
-  const fullText = container.innerText || ''
+  const fullText = getSectionTextContent(container)
 
   return {
     type: 'text',
@@ -194,12 +194,90 @@ function getTextSelectionDetails(
   }
 }
 
+function getAnnotationTextRoots(container: HTMLElement) {
+  const roots = Array.from(
+    container.querySelectorAll<HTMLElement>('[data-annotation-text-root="true"]')
+  )
+
+  return roots.length > 0 ? roots : [container]
+}
+
+function getSectionTextContent(container: HTMLElement) {
+  return getAnnotationTextRoots(container)
+    .map((root) => root.innerText || '')
+    .join('')
+}
+
+function getOffsetWithinSection(
+  container: HTMLElement,
+  selectionRange: Range,
+  edge: 'start' | 'end'
+) {
+  const roots = getAnnotationTextRoots(container)
+  let totalOffset = 0
+
+  for (const root of roots) {
+    const boundaryNode =
+      edge === 'start' ? selectionRange.startContainer : selectionRange.endContainer
+
+    if (!root.contains(boundaryNode)) {
+      totalOffset += root.innerText.length
+      continue
+    }
+
+    const beforeRange = selectionRange.cloneRange()
+    beforeRange.selectNodeContents(root)
+
+    if (edge === 'start') {
+      beforeRange.setEnd(selectionRange.startContainer, selectionRange.startOffset)
+    } else {
+      beforeRange.setEnd(selectionRange.endContainer, selectionRange.endOffset)
+    }
+
+    return totalOffset + beforeRange.toString().length
+  }
+
+  return null
+}
+
 function buildTextRangeFromOffsets(
   container: HTMLElement,
   startOffset: number,
   endOffset: number
 ) {
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT)
+  const roots = getAnnotationTextRoots(container)
+  let cumulativeOffset = 0
+
+  for (const root of roots) {
+    const rootTextLength = (root.innerText || '').length
+    const rootStartOffset = cumulativeOffset
+    const rootEndOffset = cumulativeOffset + rootTextLength
+
+    if (endOffset <= rootStartOffset || startOffset > rootEndOffset) {
+      cumulativeOffset = rootEndOffset
+      continue
+    }
+
+    const localStart = Math.max(0, startOffset - rootStartOffset)
+    const localEnd = Math.min(rootTextLength, endOffset - rootStartOffset)
+    const range = buildTextRangeWithinRoot(root, localStart, localEnd)
+
+    if (range) {
+      return range
+    }
+
+    cumulativeOffset = rootEndOffset
+  }
+
+  return null
+}
+
+function buildTextRangeWithinRoot(
+  root: HTMLElement,
+  startOffset: number,
+  endOffset: number
+) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   let currentOffset = 0
   let startNode: Node | null = null
   let endNode: Node | null = null
@@ -233,6 +311,102 @@ function buildTextRangeFromOffsets(
   range.setStart(startNode, startNodeOffset)
   range.setEnd(endNode, endNodeOffset)
   return range
+}
+
+type HighlightConstructor = new (...ranges: Range[]) => {
+  add: (...ranges: Range[]) => void
+  clear: () => void
+}
+
+type HighlightRegistryLike = {
+  set: (name: string, highlight: InstanceType<HighlightConstructor>) => void
+  delete: (name: string) => void
+}
+
+function getEditorRoot(container: HTMLElement | null) {
+  if (!container) return null
+
+  return container
+}
+
+function normalizeComparableText(value: string) {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function resolveTextAnnotationRange(
+  container: HTMLElement,
+  position: TextAnnotationPosition
+) {
+  const directRange = buildTextRangeFromOffsets(
+    container,
+    position.startOffset,
+    position.endOffset
+  )
+
+  if (
+    directRange &&
+    normalizeComparableText(directRange.toString()) ===
+      normalizeComparableText(position.selectedText)
+  ) {
+    return directRange
+  }
+
+  const fullText = getSectionTextContent(container)
+  const matches: number[] = []
+  let cursor = 0
+
+  while (cursor <= fullText.length) {
+    const foundIndex = fullText.indexOf(position.selectedText, cursor)
+    if (foundIndex === -1) break
+    matches.push(foundIndex)
+    cursor = foundIndex + Math.max(position.selectedText.length, 1)
+  }
+
+  if (matches.length === 0) {
+    return directRange
+  }
+
+  const scoredMatches = matches
+    .map((startOffset) => {
+      const endOffset = startOffset + position.selectedText.length
+      const prefix = fullText.slice(Math.max(0, startOffset - position.prefixText.length), startOffset)
+      const suffix = fullText.slice(endOffset, endOffset + position.suffixText.length)
+      const score =
+        (normalizeComparableText(prefix) === normalizeComparableText(position.prefixText) ? 3 : 0) +
+        (normalizeComparableText(suffix) === normalizeComparableText(position.suffixText) ? 3 : 0) +
+        Math.max(0, 2 - Math.min(Math.abs(startOffset - position.startOffset), 2))
+
+      return { startOffset, endOffset, score }
+    })
+    .sort((first, second) => {
+      if (second.score !== first.score) {
+        return second.score - first.score
+      }
+
+      return Math.abs(first.startOffset - position.startOffset) - Math.abs(second.startOffset - position.startOffset)
+    })
+
+  const bestMatch = scoredMatches[0]
+
+  return buildTextRangeFromOffsets(container, bestMatch.startOffset, bestMatch.endOffset)
+}
+
+function getHighlightRegistry() {
+  return (
+    (globalThis as typeof globalThis & {
+      CSS?: {
+        highlights?: HighlightRegistryLike
+      }
+    }).CSS?.highlights ?? null
+  )
+}
+
+function getHighlightConstructor() {
+  return (
+    (globalThis as typeof globalThis & {
+      Highlight?: HighlightConstructor
+    }).Highlight ?? null
+  )
 }
 
 export default function AnnotatePage({
@@ -273,6 +447,7 @@ export default function AnnotatePage({
   const [filter, setFilter] = useState<'all' | 'unresolved' | 'resolved'>('unresolved')
   const [viewMode, setViewMode] = useState<'list' | 'thread'>('list')
   const [selectedAnnotation, setSelectedAnnotation] = useState<AnnotationRecord | null>(null)
+  const [activeTextAnnotationId, setActiveTextAnnotationId] = useState<string | null>(null)
   const [threadReplies, setThreadReplies] = useState<ReplyRecord[]>([])
   const [replyText, setReplyText] = useState('')
   const [isSubmittingReply, setIsSubmittingReply] = useState(false)
@@ -287,6 +462,8 @@ export default function AnnotatePage({
   const [isSubmittingAnnotation, setIsSubmittingAnnotation] = useState(false)
 
   const highlightRefs = useRef<Record<string, HTMLElement | null>>({})
+  const textAnnotationRangesRef = useRef<Record<string, Range>>({})
+  const didOpenAnnotationFromQueryRef = useRef(false)
   const sectionRefs = useRef<Record<ResearchSectionKey, HTMLElement | null>>({
     abstract: null,
     chapter1: null,
@@ -439,6 +616,103 @@ export default function AnnotatePage({
     })
   }, [activeFormat, filter, formatAwareAnnotations, resolvedAnnotations, unresolvedAnnotations])
 
+  useEffect(() => {
+    if (activeFormat !== 'text') {
+      setActiveTextAnnotationId(null)
+      return
+    }
+
+    const highlightRegistry = getHighlightRegistry()
+    const Highlight = getHighlightConstructor()
+
+    if (!highlightRegistry || !Highlight) {
+      return
+    }
+
+    const openRanges: Range[] = []
+    const resolvedRanges: Range[] = []
+    let activeRange: Range | null = null
+    const nextRanges: Record<string, Range> = {}
+
+    for (const annotation of annotations) {
+      if (!isTextAnnotationPosition(annotation.position_data)) {
+        continue
+      }
+
+      const editorRoot = getEditorRoot(sectionRefs.current[annotation.position_data.sectionKey])
+
+      if (!editorRoot) {
+        continue
+      }
+
+      const range = resolveTextAnnotationRange(editorRoot, annotation.position_data)
+
+      if (!range) {
+        continue
+      }
+
+      nextRanges[annotation.id] = range
+
+      if (annotation.id === activeTextAnnotationId) {
+        activeRange = range
+      } else if (annotation.is_resolved) {
+        resolvedRanges.push(range)
+      } else {
+        openRanges.push(range)
+      }
+    }
+
+    textAnnotationRangesRef.current = nextRanges
+
+    if (openRanges.length > 0) {
+      highlightRegistry.set('trackademia-text-feedback-open', new Highlight(...openRanges))
+    } else {
+      highlightRegistry.delete('trackademia-text-feedback-open')
+    }
+
+    if (resolvedRanges.length > 0) {
+      highlightRegistry.set('trackademia-text-feedback-resolved', new Highlight(...resolvedRanges))
+    } else {
+      highlightRegistry.delete('trackademia-text-feedback-resolved')
+    }
+
+    if (activeRange) {
+      highlightRegistry.set('trackademia-text-feedback-active', new Highlight(activeRange))
+    } else {
+      highlightRegistry.delete('trackademia-text-feedback-active')
+    }
+
+    return () => {
+      highlightRegistry.delete('trackademia-text-feedback-open')
+      highlightRegistry.delete('trackademia-text-feedback-resolved')
+      highlightRegistry.delete('trackademia-text-feedback-active')
+    }
+  }, [
+    activeFormat,
+    activeTextAnnotationId,
+    annotations,
+    canEditTextWorkspace,
+    selectedVersionContent,
+    workspaceContent,
+  ])
+
+  useEffect(() => {
+    const annotationId = searchParams.get('annotationId')
+
+    if (!annotationId || didOpenAnnotationFromQueryRef.current || annotations.length === 0) {
+      return
+    }
+
+    const annotation = annotations.find((item) => item.id === annotationId)
+
+    if (!annotation) {
+      return
+    }
+
+    didOpenAnnotationFromQueryRef.current = true
+    void openThread(annotation)
+  }, [annotations, searchParams])
+
   const loadWorkspaceData = useCallback(async () => {
     setIsLoading(true)
     setLoadError(null)
@@ -570,27 +844,30 @@ export default function AnnotatePage({
     setThreadReplies([])
 
     if (isTextAnnotationPosition(annotation.position_data)) {
+      setActiveTextAnnotationId(annotation.id)
+
       const sectionContainer = sectionRefs.current[annotation.position_data.sectionKey]
-      const editorRoot =
-        sectionContainer?.querySelector('.ProseMirror') instanceof HTMLElement
-          ? (sectionContainer.querySelector('.ProseMirror') as HTMLElement)
-          : sectionContainer
+      const editorRoot = getEditorRoot(sectionContainer)
+      const range =
+        textAnnotationRangesRef.current[annotation.id] ??
+        (editorRoot ? resolveTextAnnotationRange(editorRoot, annotation.position_data) : null)
 
-      if (editorRoot) {
-        editorRoot.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        const range = buildTextRangeFromOffsets(
-          editorRoot,
-          annotation.position_data.startOffset,
-          annotation.position_data.endOffset
-        )
+      if (sectionContainer) {
+        sectionContainer.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
 
-        if (range) {
-          const selection = window.getSelection()
-          selection?.removeAllRanges()
-          selection?.addRange(range)
-        }
+      if (range) {
+        requestAnimationFrame(() => {
+          const rect = range.getBoundingClientRect()
+          const targetTop = window.scrollY + rect.top - window.innerHeight * 0.28
+          window.scrollTo({
+            top: Math.max(0, targetTop),
+            behavior: 'smooth',
+          })
+        })
       }
     } else {
+      setActiveTextAnnotationId(null)
       highlightRefs.current[annotation.id]?.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
@@ -604,6 +881,7 @@ export default function AnnotatePage({
 
   const closeThread = () => {
     setSelectedAnnotation(null)
+    setActiveTextAnnotationId(null)
     setViewMode('list')
     setThreadReplies([])
   }
@@ -627,10 +905,7 @@ export default function AnnotatePage({
 
     const selection = window.getSelection()
     const sectionContainer = sectionRefs.current[sectionKey]
-    const editorRoot =
-      sectionContainer?.querySelector('.ProseMirror') instanceof HTMLElement
-        ? (sectionContainer.querySelector('.ProseMirror') as HTMLElement)
-        : sectionContainer
+    const editorRoot = getEditorRoot(sectionContainer)
 
     if (!selection || selection.rangeCount === 0 || !editorRoot) {
       setActiveTextSelection(null)
@@ -876,9 +1151,16 @@ export default function AnnotatePage({
                       className="cursor-pointer rounded"
                       style={{
                         ...renderProps.getCssProperties(highlightArea, renderProps.rotation),
-                        background: annotation.is_resolved
-                          ? 'rgba(34, 197, 94, 0.28)'
-                          : 'rgba(250, 204, 21, 0.35)',
+                        background:
+                          selectedAnnotation?.id === annotation.id
+                            ? 'rgba(37, 99, 235, 0.42)'
+                            : annotation.is_resolved
+                              ? 'rgba(34, 197, 94, 0.28)'
+                              : 'rgba(250, 204, 21, 0.35)',
+                        boxShadow:
+                          selectedAnnotation?.id === annotation.id
+                            ? '0 0 0 2px rgba(37, 99, 235, 0.5)'
+                            : 'none',
                       }}
                     />
                   )
@@ -919,6 +1201,19 @@ export default function AnnotatePage({
 
   return (
     <div className="flex h-screen flex-col bg-gray-50">
+      <style jsx global>{`
+        ::highlight(trackademia-text-feedback-open) {
+          background: rgba(250, 204, 21, 0.38);
+        }
+
+        ::highlight(trackademia-text-feedback-resolved) {
+          background: rgba(34, 197, 94, 0.22);
+        }
+
+        ::highlight(trackademia-text-feedback-active) {
+          background: rgba(59, 130, 246, 0.4);
+        }
+      `}</style>
       <div className="border-b border-gray-200 bg-white px-6 py-4">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-center gap-4">
@@ -1207,17 +1502,32 @@ export default function AnnotatePage({
                         </p>
                       </div>
                     </div>
-                    <ResearchRichTextEditor
-                      value={
-                        canEditTextWorkspace
-                          ? workspaceContent[section.key]
-                          : selectedVersionContent[section.key]
-                      }
-                      onChange={(nextValue) => updateSectionContent(section.key, nextValue)}
-                      placeholder={`Write the ${section.label.toLowerCase()} here...`}
-                      editable={canEditTextWorkspace}
-                      onMouseUp={() => handleTextSelection(section.key)}
-                    />
+                    {isResearchChapterSectionKey(section.key) ? (
+                      <ResearchChapterSectionsEditor
+                        sectionKey={section.key}
+                        value={
+                          canEditTextWorkspace
+                            ? workspaceContent[section.key]
+                            : selectedVersionContent[section.key]
+                        }
+                        onChange={(nextValue) => updateSectionContent(section.key, nextValue)}
+                        placeholder={`Write the ${section.label.toLowerCase()} content`}
+                        editable={canEditTextWorkspace}
+                        onMouseUp={() => handleTextSelection(section.key)}
+                      />
+                    ) : (
+                      <ResearchRichTextEditor
+                        value={
+                          canEditTextWorkspace
+                            ? workspaceContent[section.key]
+                            : selectedVersionContent[section.key]
+                        }
+                        onChange={(nextValue) => updateSectionContent(section.key, nextValue)}
+                        placeholder={`Write the ${section.label.toLowerCase()} here...`}
+                        editable={canEditTextWorkspace}
+                        onMouseUp={() => handleTextSelection(section.key)}
+                      />
+                    )}
                   </section>
                 ))}
               </div>
@@ -1356,9 +1666,11 @@ export default function AnnotatePage({
                       type="button"
                       onClick={() => void openThread(annotation)}
                       className={`w-full rounded-xl border p-4 text-left transition ${
-                        annotation.is_resolved
-                          ? 'border-green-100 bg-green-50/30 hover:bg-green-50'
-                          : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-sm'
+                        selectedAnnotation?.id === annotation.id
+                          ? 'border-blue-400 bg-blue-50 shadow-sm ring-2 ring-blue-100'
+                          : annotation.is_resolved
+                            ? 'border-green-100 bg-green-50/30 hover:bg-green-50'
+                            : 'border-gray-200 bg-white hover:border-blue-300 hover:shadow-sm'
                       }`}
                     >
                       <div className="flex flex-wrap items-center gap-2">

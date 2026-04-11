@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Download, Eye, Loader2 } from 'lucide-react'
 import { getPublicSignedUrl, recordResearchView } from '@/app/repository/[id]/actions'
+import { usePopup } from '@/components/ui/PopupProvider'
 
 // Button component for public repository documents (view + download with analytics)
 export function PublicDownloadButton({
@@ -18,6 +19,7 @@ export function PublicDownloadButton({
   // Loading states for viewing and downloading
   const [isDownloading, setIsDownloading] = useState(false)
   const [isViewing, setIsViewing] = useState(false)
+  const { notify } = usePopup()
   
   // Ref used to prevent duplicate view tracking in React Strict Mode
   const hasViewed = useRef(false)
@@ -40,7 +42,11 @@ export function PublicDownloadButton({
     setIsDownloading(false)
 
     if (result?.error) {
-      alert(result.error)
+      notify({
+        title: 'Unable to download document',
+        message: result.error,
+        variant: 'error',
+      })
       return
     }
 
@@ -66,7 +72,11 @@ export function PublicDownloadButton({
     setIsViewing(false)
 
     if (result?.error) {
-      alert(result.error)
+      notify({
+        title: 'Unable to open document',
+        message: result.error,
+        variant: 'error',
+      })
       return
     }
 

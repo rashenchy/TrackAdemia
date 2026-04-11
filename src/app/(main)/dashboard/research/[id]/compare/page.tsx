@@ -1,8 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { GitCompareArrows } from 'lucide-react'
-import { buildResearchVersionDiff } from '@/lib/research/version-diff'
+import { ArrowRight, GitCompareArrows } from 'lucide-react'
+import { buildResearchVersionDiff, type VersionDiffPart } from '@/lib/research/version-diff'
 import { getVersionLabel } from '@/lib/research/versioning'
 import { BackButton } from '@/components/navigation/BackButton'
 import { appendFromParam, buildPathWithSearch } from '@/lib/navigation'
@@ -20,20 +20,29 @@ type VersionRow = {
   original_file_name?: string | null
 }
 
-function renderDiffParts(parts: ReturnType<typeof buildResearchVersionDiff>[number]['parts']) {
+function renderLineParts(parts: VersionDiffPart[]) {
+  if (parts.length === 0) {
+    return <span className="text-gray-300"> </span>
+  }
+
   return parts.map((part, index) => {
-    const className = part.added
-      ? 'bg-green-100 text-green-900'
-      : part.removed
-        ? 'bg-red-100 text-red-800 line-through'
-        : 'text-[var(--foreground)]'
+    const className =
+      part.kind === 'added'
+        ? 'rounded bg-green-200/80 text-green-950'
+        : part.kind === 'removed'
+          ? 'rounded bg-rose-200/80 text-rose-950'
+          : 'text-slate-700'
 
     return (
-      <span key={`${index}-${part.value.slice(0, 10)}`} className={className}>
-        {part.value}
+      <span key={`${index}-${part.value.slice(0, 12)}`} className={className}>
+        {part.value || ' '}
       </span>
     )
   })
+}
+
+function renderLineNumber(lineNumber: number | null) {
+  return lineNumber ? String(lineNumber).padStart(2, '0') : ' '
 }
 
 export default async function CompareResearchVersionsPage({
@@ -54,11 +63,7 @@ export default async function CompareResearchVersionsPage({
 
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
 
   const { data: research } = await supabase
     .from('research')
@@ -81,7 +86,9 @@ export default async function CompareResearchVersionsPage({
 
   const { data: versionsData } = await supabase
     .from('research_versions')
-    .select('id, version_number, version_major, version_minor, version_label, created_by_role, change_summary, created_at, content_json, original_file_name')
+    .select(
+      'id, version_number, version_major, version_minor, version_label, created_by_role, change_summary, created_at, content_json, original_file_name'
+    )
     .eq('research_id', researchId)
     .order('version_number', { ascending: false })
 
@@ -100,21 +107,15 @@ export default async function CompareResearchVersionsPage({
           },
         ]
 
-  const toVersionNumber =
-    Number(resolvedSearchParams.target) ||
-    versions[0]?.version_number ||
-    1
+  const toVersionNumber = Number(resolvedSearchParams.target) || versions[0]?.version_number || 1
   const defaultFromVersion =
     versions.find((version) => version.version_number !== toVersionNumber)?.version_number ||
     toVersionNumber
-  const fromVersionNumber =
-    Number(resolvedSearchParams.base) ||
-    defaultFromVersion
+  const fromVersionNumber = Number(resolvedSearchParams.base) || defaultFromVersion
 
   const fromVersion =
     versions.find((version) => version.version_number === fromVersionNumber) || versions[0]
-  const toVersion =
-    versions.find((version) => version.version_number === toVersionNumber) || versions[0]
+  const toVersion = versions.find((version) => version.version_number === toVersionNumber) || versions[0]
 
   const diffSections = buildResearchVersionDiff(
     fromVersion?.content_json,
@@ -127,28 +128,30 @@ export default async function CompareResearchVersionsPage({
     : diffSections
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-12">
+    <div className="mx-auto max-w-7xl space-y-6 pb-12">
       <div className="flex items-center gap-4">
         <BackButton
           fallbackHref={`/dashboard/research/${researchId}`}
-          className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          className="rounded-full bg-gray-100 p-2 transition-colors hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700"
         />
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Compare Versions</h1>
-          <p className="text-gray-500 mt-1">{research.title}</p>
+          <p className="mt-1 text-gray-500">{research.title}</p>
         </div>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-[var(--background)] p-6 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <form className="grid gap-4 md:grid-cols-[1fr_1fr_auto_auto] md:items-end">
           <input type="hidden" name="changed" value={showOnlyChanged ? '1' : '0'} />
           <input type="hidden" name="from" value={resolvedSearchParams.from ?? ''} />
           <div>
-            <label className="text-xs font-bold uppercase text-gray-500">From Version</label>
+            <label className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+              Original Version
+            </label>
             <select
               name="base"
               defaultValue={String(fromVersion.version_number)}
-              className="mt-2 w-full rounded-lg border border-gray-300 bg-transparent p-2.5 text-sm"
+              className="mt-2 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"
             >
               {versions.map((version) => (
                 <option key={`from-${version.id}`} value={version.version_number}>
@@ -158,11 +161,13 @@ export default async function CompareResearchVersionsPage({
             </select>
           </div>
           <div>
-            <label className="text-xs font-bold uppercase text-gray-500">To Version</label>
+            <label className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+              Updated Version
+            </label>
             <select
               name="target"
               defaultValue={String(toVersion.version_number)}
-              className="mt-2 w-full rounded-lg border border-gray-300 bg-transparent p-2.5 text-sm"
+              className="mt-2 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"
             >
               {versions.map((version) => (
                 <option key={`to-${version.id}`} value={version.version_number}>
@@ -173,7 +178,7 @@ export default async function CompareResearchVersionsPage({
           </div>
           <button
             type="submit"
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700"
           >
             <GitCompareArrows size={16} />
             Compare
@@ -187,45 +192,117 @@ export default async function CompareResearchVersionsPage({
               ]),
               resolvedSearchParams.from ?? `/dashboard/research/${researchId}`
             )}
-            className="inline-flex items-center justify-center rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            className="inline-flex items-center justify-center rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             {showOnlyChanged ? 'Show All Sections' : 'Only Changed'}
           </Link>
         </form>
       </div>
 
-      <div className="grid gap-4">
+      <div className="grid gap-5">
         {displayedSections.length > 0 ? (
           displayedSections.map((section) => (
-            <section
-              key={section.key}
-              className="rounded-xl border border-gray-200 bg-[var(--background)] p-6 shadow-sm"
-            >
-              <div className="flex items-center justify-between gap-4 border-b border-gray-100 pb-4">
+            <section key={section.key} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 px-6 py-5">
                 <div>
-                  <h2 className="text-lg font-bold">{section.label}</h2>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Comparing Version {getVersionLabel(fromVersion)} to Version {getVersionLabel(toVersion)}
+                  <h2 className="text-lg font-bold text-slate-900">{section.label}</h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Version {getVersionLabel(fromVersion)} to Version {getVersionLabel(toVersion)}
                   </p>
                 </div>
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${
-                    section.changed
-                      ? 'bg-amber-100 text-amber-700'
-                      : 'bg-green-100 text-green-700'
-                  }`}
-                >
-                  {section.changed ? 'Changed' : 'Unchanged'}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-bold uppercase ${
+                      section.changed ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                    }`}
+                  >
+                    {section.changed ? `${section.changedLineCount} changed line${section.changedLineCount === 1 ? '' : 's'}` : 'Unchanged'}
+                  </span>
+                </div>
               </div>
 
-              <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm leading-7 whitespace-pre-wrap">
-                {section.parts.length > 0 ? renderDiffParts(section.parts) : 'No content in either version.'}
+              <div className="overflow-x-auto">
+                <div className="min-w-[1100px]">
+                  <div className="grid grid-cols-2 border-b border-slate-200 bg-slate-50">
+                    <div className="border-r border-slate-200 px-6 py-4">
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Original</p>
+                      <p className="mt-1 text-sm text-slate-600">Removed content only appears here.</p>
+                    </div>
+                    <div className="px-6 py-4">
+                      <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Updated</p>
+                      <p className="mt-1 text-sm text-slate-600">Added content and change markers appear here.</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2">
+                    <div className="border-r border-slate-200 bg-slate-50/45">
+                      {section.lines.map((line) => (
+                        <div
+                          key={`old-${line.key}`}
+                          className={`grid min-h-12 grid-cols-[3rem_minmax(0,1fr)] border-b border-slate-200/70 ${
+                            line.type === 'removed'
+                              ? 'bg-rose-50/80'
+                              : line.type === 'modified'
+                                ? 'bg-amber-50/70'
+                                : 'bg-transparent'
+                          }`}
+                        >
+                          <div className="border-r border-slate-200 px-3 py-3 text-right font-mono text-xs text-slate-400">
+                            {renderLineNumber(line.oldLineNumber)}
+                          </div>
+                          <div className="px-4 py-3 font-mono text-[13px] leading-6 whitespace-pre-wrap break-words text-slate-800">
+                            {line.oldParts.length > 0
+                              ? renderLineParts(line.oldParts)
+                              : <span className="text-slate-300"> </span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="bg-white">
+                      {section.lines.map((line) => (
+                        <div
+                          key={`new-${line.key}`}
+                          className={`grid min-h-12 grid-cols-[5.25rem_3rem_minmax(0,1fr)] border-b border-slate-200/70 ${
+                            line.type === 'added'
+                              ? 'bg-emerald-50/80'
+                              : line.type === 'modified'
+                                ? 'bg-sky-50/75'
+                                : line.type === 'removed'
+                                  ? 'bg-rose-50/35'
+                                  : 'bg-transparent'
+                          }`}
+                        >
+                          <div className="flex items-center justify-center border-r border-slate-200 px-2 py-3">
+                            {line.type === 'unchanged' ? null : (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wide text-white">
+                                <ArrowRight size={12} />
+                                {line.oldLineNumber ? `L${line.oldLineNumber}` : 'New'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="border-r border-slate-200 px-3 py-3 text-right font-mono text-xs text-slate-400">
+                            {renderLineNumber(line.newLineNumber)}
+                          </div>
+                          <div className="px-4 py-3 font-mono text-[13px] leading-6 whitespace-pre-wrap break-words text-slate-800">
+                            {line.newParts.length > 0 ? (
+                              renderLineParts(line.newParts)
+                            ) : line.type === 'removed' ? (
+                              <span className="italic text-slate-400">No line in updated version</span>
+                            ) : (
+                              <span className="text-slate-300"> </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </section>
           ))
         ) : (
-          <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500">
+          <div className="rounded-2xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-500">
             No changed sections for the selected versions.
           </div>
         )}

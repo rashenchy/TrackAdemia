@@ -20,6 +20,7 @@ import {
 } from './actions'
 import type { Announcement } from './actions'
 import PaginationControl from '@/components/ui/PaginationControl'
+import { usePopup } from '@/components/ui/PopupProvider'
 
 interface AnnouncementsClientProps {
   initialAnnouncements: Announcement[]
@@ -39,6 +40,7 @@ export default function AnnouncementsClient({
   const [expiresAt, setExpiresAt] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [page, setPage] = useState(1)
+  const { confirm, notify } = usePopup()
   const pageSize = 10
 
   const loadAnnouncements = async () => {
@@ -69,6 +71,11 @@ export default function AnnouncementsClient({
       const result = await createAnnouncement(title, message, type, expiresAt || undefined)
       if (result) {
         setSuccessMessage('Announcement created successfully!')
+        notify({
+          title: 'Announcement created',
+          message: 'Your announcement is now available in the system.',
+          variant: 'success',
+        })
         setTitle('')
         setMessage('')
         setType('info')
@@ -81,6 +88,11 @@ export default function AnnouncementsClient({
       }
     } catch (err) {
       setError('Error creating announcement')
+      notify({
+        title: 'Create failed',
+        message: 'Error creating announcement',
+        variant: 'error',
+      })
       console.error(err)
     } finally {
       setSubmitting(false)
@@ -88,17 +100,34 @@ export default function AnnouncementsClient({
   }
 
   const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this announcement?')) {
-      try {
-        const success = await deleteAnnouncement(id)
-        if (success) {
-          await loadAnnouncements()
-          setSuccessMessage('Announcement deleted successfully!')
-          setTimeout(() => setSuccessMessage(null), 3000)
-        }
-      } catch {
-        setError('Failed to delete announcement')
+    const confirmed = await confirm({
+      title: 'Delete this announcement?',
+      message: 'This announcement will be removed for all users and cannot be restored.',
+      confirmLabel: 'Delete announcement',
+      variant: 'danger',
+    })
+
+    if (!confirmed) return
+
+    try {
+      const success = await deleteAnnouncement(id)
+      if (success) {
+        await loadAnnouncements()
+        setSuccessMessage('Announcement deleted successfully!')
+        notify({
+          title: 'Announcement deleted',
+          message: 'The announcement has been removed.',
+          variant: 'success',
+        })
+        setTimeout(() => setSuccessMessage(null), 3000)
       }
+    } catch {
+      setError('Failed to delete announcement')
+      notify({
+        title: 'Delete failed',
+        message: 'Failed to delete announcement',
+        variant: 'error',
+      })
     }
   }
 
@@ -108,10 +137,22 @@ export default function AnnouncementsClient({
       if (success) {
         await loadAnnouncements()
         setSuccessMessage(`Announcement ${!isActive ? 'activated' : 'deactivated'}!`)
+        notify({
+          title: !isActive ? 'Announcement activated' : 'Announcement deactivated',
+          message: !isActive
+            ? 'The announcement is now visible to users.'
+            : 'The announcement is now hidden from users.',
+          variant: 'success',
+        })
         setTimeout(() => setSuccessMessage(null), 3000)
       }
     } catch {
       setError('Failed to toggle announcement')
+      notify({
+        title: 'Update failed',
+        message: 'Failed to toggle announcement',
+        variant: 'error',
+      })
     }
   }
 

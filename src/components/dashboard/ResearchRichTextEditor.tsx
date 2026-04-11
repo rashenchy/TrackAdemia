@@ -155,7 +155,7 @@ export function ResearchRichTextEditor({
             {placeholder}
           </div>
         )}
-        <div onMouseUp={onMouseUp}>
+        <div data-editor-content-root data-annotation-text-root="true" onMouseUp={onMouseUp}>
           <EditorContent editor={editor} />
         </div>
       </div>

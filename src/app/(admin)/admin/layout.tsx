@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef, useTransition } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { usePopup } from '@/components/ui/PopupProvider'
 import {
   Menu,
   Shield,
@@ -46,6 +47,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [userName, setUserName] = useState('')
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isNavigating, startNavigation] = useTransition()
+  const { notify } = usePopup()
 
   const profileRef = useRef<HTMLDivElement | null>(null)
 
@@ -75,11 +77,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (isRefreshing) return
 
     setIsRefreshing(true)
+    notify({
+      title: 'Refreshing admin workspace',
+      message: 'Loading the latest system data.',
+      variant: 'info',
+    })
     startNavigation(() => {
       router.refresh()
     })
 
-    setTimeout(() => setIsRefreshing(false), 700)
+    setTimeout(() => {
+      setIsRefreshing(false)
+      notify({
+        title: 'Admin workspace refreshed',
+        message: 'The latest admin data is now loaded.',
+        variant: 'success',
+      })
+    }, 700)
   }
 
   // Close profile dropdown when clicking outside

@@ -6,12 +6,14 @@ import { SubmitButton } from '@/components/auth/SubmitButton'
 import { submitResearch } from '@/app/(main)/dashboard/submit/actions'
 import { updateResearch } from '@/app/(main)/dashboard/research/[id]/edit/actions'
 import { ResearchRichTextEditor } from '@/components/dashboard/ResearchRichTextEditor'
+import { ResearchChapterSectionsEditor } from '@/components/dashboard/ResearchChapterSectionsEditor'
 import { RESEARCH_TYPE_OPTIONS } from '@/lib/research/types'
 import {
   createEmptyResearchDocumentContent,
   getResearchEditorSectionsForStage,
   getNormalizedResearchStage,
   isProposalStage,
+  isResearchChapterSectionKey,
   normalizeResearchDocumentContent,
   RESEARCH_SUBMISSION_FORMAT_OPTIONS,
   type ResearchDocumentContent,
@@ -690,12 +692,22 @@ export function ResearchSubmissionForm({
                 <label className="text-sm font-semibold text-[var(--foreground)]">
                   {section.label}
                 </label>
-                <ResearchRichTextEditor
-                  inputName={`section-${section.key}`}
-                  value={documentSections[section.key]}
-                  onChange={(nextValue) => updateDocumentSection(section.key, nextValue)}
-                  placeholder={`Write the ${section.label.toLowerCase()} here...`}
-                />
+                {isResearchChapterSectionKey(section.key) ? (
+                  <ResearchChapterSectionsEditor
+                    sectionKey={section.key}
+                    inputName={`section-${section.key}`}
+                    value={documentSections[section.key]}
+                    onChange={(nextValue) => updateDocumentSection(section.key, nextValue)}
+                    placeholder={`Write the ${section.label.toLowerCase()} content`}
+                  />
+                ) : (
+                  <ResearchRichTextEditor
+                    inputName={`section-${section.key}`}
+                    value={documentSections[section.key]}
+                    onChange={(nextValue) => updateDocumentSection(section.key, nextValue)}
+                    placeholder={`Write the ${section.label.toLowerCase()} here...`}
+                  />
+                )}
               </div>
             ))}
           </div>

@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Database, Trash2, AlertCircle, Loader2, Archive, CheckCircle } from 'lucide-react'
 import { getAllResearch, forceDeleteResearch, overrideResearchStatus, archiveAllSections } from './actions'
 import { RESEARCH_TYPE_OPTIONS, getResearchTypeLabel } from '@/lib/research/types'
 import { RESEARCH_STATUS_OPTIONS } from '@/lib/research/status'
 import PaginationControl from '@/components/ui/PaginationControl'
+import { usePopup } from '@/components/ui/PopupProvider'
 
 interface ResearchRecord {
   id: string
@@ -39,6 +40,7 @@ export default function MasterRecordsClient({
   const [archivingInProgress, setArchivingInProgress] = useState(false)
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
   const [page, setPage] = useState(1)
+  const { confirm, notify } = usePopup()
   const pageSize = 10
 
   let filteredResearch = research
@@ -51,11 +53,8 @@ export default function MasterRecordsClient({
     filteredResearch = filteredResearch.filter((r) => r.type === typeFilter)
   }
 
-  useEffect(() => {
-    setPage(1)
-  }, [statusFilter, typeFilter])
-
-  const pagedResearch = filteredResearch.slice((page - 1) * pageSize, page * pageSize)
+  const normalizedPage = Math.min(page, Math.max(1, Math.ceil(filteredResearch.length / pageSize)))
+  const pagedResearch = filteredResearch.slice((normalizedPage - 1) * pageSize, normalizedPage * pageSize)
 
   const loadResearch = async () => {
     setLoading(true)
@@ -66,7 +65,14 @@ export default function MasterRecordsClient({
   }
 
   const handleDeleteResearch = async (researchId: string, title: string) => {
-    if (!confirm(`Are you sure you want to permanently delete "${title}"? This cannot be undone.`)) {
+    const confirmed = await confirm({
+      title: 'Delete this research record?',
+      message: `"${title}" will be permanently deleted. This cannot be undone.`,
+      confirmLabel: 'Delete record',
+      variant: 'danger',
+    })
+
+    if (!confirmed) {
       return
     }
 
@@ -75,10 +81,20 @@ export default function MasterRecordsClient({
 
     if (result.success) {
       setSuccessMessage(`"${title}" has been deleted`)
+      notify({
+        title: 'Research deleted',
+        message: `"${title}" has been deleted.`,
+        variant: 'success',
+      })
       setResearch((currentResearch) => currentResearch.filter((r) => r.id !== researchId))
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {
       setError(result.error || 'Failed to delete research')
+      notify({
+        title: 'Delete failed',
+        message: result.error || 'Failed to delete research',
+        variant: 'error',
+      })
     }
 
     setActionInProgress(null)
@@ -90,12 +106,22 @@ export default function MasterRecordsClient({
 
     if (result.success) {
       setSuccessMessage(`Status updated to "${newStatus}"`)
+      notify({
+        title: 'Status updated',
+        message: `Research status is now "${newStatus}".`,
+        variant: 'success',
+      })
       setResearch((currentResearch) =>
         currentResearch.map((r) => (r.id === researchId ? { ...r, status: newStatus } : r))
       )
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {
       setError(result.error || 'Failed to update status')
+      notify({
+        title: 'Status update failed',
+        message: result.error || 'Failed to update status',
+        variant: 'error',
+      })
     }
 
     setActionInProgress(null)
@@ -108,9 +134,19 @@ export default function MasterRecordsClient({
     if (result.success) {
       setSuccessMessage(`${result.archivedCount} section${result.archivedCount !== 1 ? 's' : ''} have been archived`)
       setShowArchiveConfirm(false)
+      notify({
+        title: 'Sections archived',
+        message: `${result.archivedCount} section${result.archivedCount !== 1 ? 's have' : ' has'} been archived.`,
+        variant: 'success',
+      })
       setTimeout(() => setSuccessMessage(null), 5000)
     } else {
       setError(result.error || 'Failed to archive sections')
+      notify({
+        title: 'Archive failed',
+        message: result.error || 'Failed to archive sections',
+        variant: 'error',
+      })
     }
 
     setArchivingInProgress(false)
@@ -161,11 +197,11 @@ export default function MasterRecordsClient({
       )}
 
       <div className="mb-6 flex flex-col md:flex-row gap-4">
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500">
+        <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500">
           <option value="all">All Statuses</option>
           {RESEARCH_STATUS_OPTIONS.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
         </select>
-        <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500">
+        <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1) }} className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500">
           <option value="all">All Types</option>
           {RESEARCH_TYPE_OPTIONS.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}
         </select>
@@ -197,7 +233,7 @@ export default function MasterRecordsClient({
           </div>
           <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
             <PaginationControl
-              page={page}
+              page={normalizedPage}
               pageSize={pageSize}
               totalCount={filteredResearch.length}
               onPageChange={setPage}
