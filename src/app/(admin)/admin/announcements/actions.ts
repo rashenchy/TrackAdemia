@@ -1,8 +1,17 @@
 'use server'
 
+/* =========================================
+   IMPORTS
+   - Supabase client
+   - Notification service
+========================================= */
 import { createClient } from '@/lib/supabase/server'
 import { createNotifications } from '@/lib/notifications/service'
 
+/* =========================================
+   ANNOUNCEMENT TYPE
+   Defines structure of an announcement record
+========================================= */
 export interface Announcement {
   id: string
   title: string
@@ -14,6 +23,10 @@ export interface Announcement {
   is_active: boolean
 }
 
+/* =========================================
+   ERROR SERIALIZER
+   Converts unknown errors into readable objects
+========================================= */
 function serializeError(error: unknown) {
   if (error instanceof Error) {
     return {
@@ -36,6 +49,10 @@ function serializeError(error: unknown) {
   return { message: String(error) }
 }
 
+/* =========================================
+   CHECK IF ANNOUNCEMENTS TABLE EXISTS
+   Detects missing table error
+========================================= */
 function isAnnouncementsTableMissing(error: unknown) {
   if (typeof error !== 'object' || error === null) {
     return false
@@ -47,8 +64,13 @@ function isAnnouncementsTableMissing(error: unknown) {
   return code === 'PGRST205' && message.includes("public.announcements")
 }
 
+/* =========================================
+   AUTHORIZATION CHECK
+   Ensures user is authenticated AND admin
+========================================= */
 async function ensureAdminRole() {
   const supabase = await createClient()
+
   const {
     data: { user },
     error: authError,
@@ -79,15 +101,21 @@ async function ensureAdminRole() {
   return { supabase, user }
 }
 
+/* =========================================
+   CREATE ANNOUNCEMENT
+   Inserts new announcement + sends notifications
+========================================= */
 export async function createAnnouncement(
   title: string,
   message: string,
   type: 'info' | 'warning' | 'success' | 'urgent',
   expiresAt?: string
 ): Promise<Announcement | null> {
+
   try {
     const { supabase, user } = await ensureAdminRole()
 
+    /* Insert announcement */
     const { data, error } = await supabase
       .from('announcements')
       .insert([
@@ -105,10 +133,12 @@ export async function createAnnouncement(
 
     if (error) throw error
 
+    /* Get all users to notify */
     const { data: recipients } = await supabase
       .from('profiles')
       .select('id')
 
+    /* Create notifications */
     await createNotifications(
       supabase,
       (recipients || [])
@@ -125,13 +155,18 @@ export async function createAnnouncement(
     )
 
     return data
+
   } catch (err) {
     console.error('Error creating announcement:', serializeError(err))
     return null
   }
 }
 
+/* =========================================
+   GET ALL ANNOUNCEMENTS (ADMIN ONLY)
+========================================= */
 export async function getAnnouncements(): Promise<Announcement[]> {
+
   try {
     const { supabase } = await ensureAdminRole()
 
@@ -153,16 +188,21 @@ export async function getAnnouncements(): Promise<Announcement[]> {
     }
 
     return data || []
+
   } catch (err) {
     console.error('Error fetching announcements:', serializeError(err))
     return []
   }
 }
 
+/* =========================================
+   UPDATE ANNOUNCEMENT
+========================================= */
 export async function updateAnnouncement(
   id: string,
   updates: Partial<Announcement>
 ): Promise<Announcement | null> {
+
   try {
     const { supabase } = await ensureAdminRole()
 
@@ -174,28 +214,46 @@ export async function updateAnnouncement(
       .single()
 
     if (error) throw error
+
     return data
+
   } catch (err) {
     console.error('Error updating announcement:', serializeError(err))
     return null
   }
 }
 
+/* =========================================
+   DELETE ANNOUNCEMENT
+========================================= */
 export async function deleteAnnouncement(id: string): Promise<boolean> {
+
   try {
     const { supabase } = await ensureAdminRole()
 
-    const { error } = await supabase.from('announcements').delete().eq('id', id)
+    const { error } = await supabase
+      .from('announcements')
+      .delete()
+      .eq('id', id)
 
     if (error) throw error
+
     return true
+
   } catch (err) {
     console.error('Error deleting announcement:', serializeError(err))
     return false
   }
 }
 
-export async function toggleAnnouncementStatus(id: string, isActive: boolean): Promise<boolean> {
+/* =========================================
+   TOGGLE ANNOUNCEMENT STATUS
+========================================= */
+export async function toggleAnnouncementStatus(
+  id: string,
+  isActive: boolean
+): Promise<boolean> {
+
   try {
     const { supabase } = await ensureAdminRole()
 
@@ -205,14 +263,22 @@ export async function toggleAnnouncementStatus(id: string, isActive: boolean): P
       .eq('id', id)
 
     if (error) throw error
+
     return true
+
   } catch (err) {
     console.error('Error toggling announcement:', serializeError(err))
     return false
   }
 }
 
+/* =========================================
+   GET ACTIVE ANNOUNCEMENTS (PUBLIC)
+   - Only active
+   - Not expired
+========================================= */
 export async function getActiveAnnouncements(): Promise<Announcement[]> {
+
   try {
     const supabase = await createClient()
 
@@ -238,6 +304,7 @@ export async function getActiveAnnouncements(): Promise<Announcement[]> {
     }
 
     return data || []
+
   } catch (err) {
     console.error('Error fetching active announcements:', serializeError(err))
     return []

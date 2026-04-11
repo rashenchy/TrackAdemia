@@ -1,5 +1,13 @@
 'use client'
 
+/* =========================================
+   IMPORTS
+   - React state
+   - Icons for UI
+   - Server actions and dashboard data type
+   - Pagination component
+   - Recharts components for graph display
+========================================= */
 import { useState } from 'react'
 import {
   Activity,
@@ -29,10 +37,18 @@ import {
   YAxis,
 } from 'recharts'
 
+/* =========================================
+   COMPONENT PROPS
+   Contains the initial dashboard data
+========================================= */
 interface APIMonitoringClientProps {
   initialData: MonitoringDashboardData
 }
 
+/* =========================================
+   PROVIDER ICON HELPER
+   Returns the correct icon based on provider
+========================================= */
 function ProviderIcon({ provider }: { provider: 'gemini' | 'groq' | 'serpapi' | 'supabase' }) {
   if (provider === 'gemini' || provider === 'groq') {
     return <Sparkles size={22} className="text-indigo-600 dark:text-indigo-400" />
@@ -45,11 +61,19 @@ function ProviderIcon({ provider }: { provider: 'gemini' | 'groq' | 'serpapi' | 
   return <Database size={22} className="text-emerald-600 dark:text-emerald-400" />
 }
 
+/* =========================================
+   LAST ACTIVITY FORMATTER
+   Converts date string into readable format
+========================================= */
 function formatLastActivity(value: string | null) {
   if (!value) return 'No activity yet'
   return new Date(value).toLocaleString()
 }
 
+/* =========================================
+   PROVIDER LABEL FORMATTER
+   Converts provider key into readable label
+========================================= */
 function formatProviderLabel(provider: 'gemini' | 'groq' | 'serpapi' | 'supabase') {
   if (provider === 'gemini') return 'Gemini'
   if (provider === 'groq') return 'Groq'
@@ -60,20 +84,44 @@ function formatProviderLabel(provider: 'gemini' | 'groq' | 'serpapi' | 'supabase
 export default function APIMonitoringClient({
   initialData,
 }: APIMonitoringClientProps) {
+  /* =========================================
+     STATE
+     Stores dashboard data, UI status,
+     export state, and pagination state
+  ========================================= */
   const [data, setData] = useState<MonitoringDashboardData>(initialData)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [exporting, setExporting] = useState(false)
   const [recentPage, setRecentPage] = useState(1)
+
+  /* =========================================
+     PAGINATION SIZE
+     Number of recent logs shown per page
+  ========================================= */
   const pageSize = 10
+
+  /* =========================================
+     DEFAULT START DATE
+     Sets export range start to 30 days ago
+  ========================================= */
   const [startDate] = useState(() => {
     const date = new Date()
     date.setDate(date.getDate() - 30)
     return date.toISOString().split('T')[0]
   })
+
+  /* =========================================
+     DEFAULT END DATE
+     Sets export range end to today
+  ========================================= */
   const [endDate] = useState(new Date().toISOString().split('T')[0])
 
+  /* =========================================
+     LOAD DATA
+     Refreshes monitoring dashboard data
+  ========================================= */
   const loadData = async () => {
     setLoading(true)
     setError(null)
@@ -90,6 +138,10 @@ export default function APIMonitoringClient({
     }
   }
 
+  /* =========================================
+     EXPORT HANDLER
+     Exports monitoring logs as CSV
+  ========================================= */
   const handleExport = async () => {
     setExporting(true)
     setError(null)
@@ -104,12 +156,15 @@ export default function APIMonitoringClient({
       const blob = new Blob([csv], { type: 'text/csv' })
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
+
       link.href = url
       link.download = `api-monitoring-${new Date().toISOString().split('T')[0]}.csv`
+
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
       URL.revokeObjectURL(url)
+
       setSuccessMessage('Monitoring export downloaded successfully.')
       setTimeout(() => setSuccessMessage(null), 3000)
     } catch (err) {
@@ -120,13 +175,22 @@ export default function APIMonitoringClient({
     }
   }
 
+  /* =========================================
+     DERIVED METRICS
+     Extracts provider-specific metric groups
+  ========================================= */
   const groqMetrics = data.providerMetrics.find(
     (item) => item.provider === 'groq'
   )
+
   const serpapiMetrics = data.providerMetrics.find(
     (item) => item.provider === 'serpapi'
   )
 
+  /* =========================================
+     OVERVIEW CARDS
+     Summary cards shown at the top
+  ========================================= */
   const overviewCards = [
     {
       label: 'Supabase Users',

@@ -1,8 +1,17 @@
 'use server'
 
+/* =========================================
+   IMPORTS
+   - Supabase server client
+   - Notification service
+========================================= */
 import { createClient } from '@/lib/supabase/server'
 import { createNotification } from '@/lib/notifications/service'
 
+/* =========================================
+   TYPES
+   Represents student account data
+========================================= */
 interface Student {
   id: string
   first_name: string
@@ -14,10 +23,18 @@ interface Student {
   updated_at: string
 }
 
+/* =========================================
+   GET PENDING STUDENTS
+   - Fetches unverified student accounts
+   - Enriches with email from auth.users
+========================================= */
 export async function getPendingStudents(): Promise<Student[]> {
   const supabase = await createClient()
 
   try {
+    /* =========================================
+       FETCH STUDENT PROFILES
+    ========================================= */
     const { data: profiles, error } = await supabase
       .from('profiles')
       .select('id, first_name, last_name, course_program, student_number, is_verified, updated_at')
@@ -30,6 +47,9 @@ export async function getPendingStudents(): Promise<Student[]> {
       return []
     }
 
+    /* =========================================
+       ENRICH DATA WITH EMAILS
+    ========================================= */
     const studentsWithEmails: Student[] = []
 
     if (profiles && profiles.length > 0) {
@@ -58,10 +78,21 @@ export async function getPendingStudents(): Promise<Student[]> {
   }
 }
 
-export async function verifyStudent(userId: string): Promise<{ success: boolean; error?: string }> {
+/* =========================================
+   VERIFY STUDENT
+   - Admin-only action
+   - Approves student account
+   - Sends notification
+========================================= */
+export async function verifyStudent(
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
   try {
+    /* =========================================
+       AUTHENTICATION + AUTHORIZATION CHECK
+    ========================================= */
     const {
       data: { user: currentUser },
     } = await supabase.auth.getUser()
@@ -80,6 +111,9 @@ export async function verifyStudent(userId: string): Promise<{ success: boolean;
       return { success: false, error: 'Insufficient permissions' }
     }
 
+    /* =========================================
+       UPDATE VERIFICATION STATUS
+    ========================================= */
     const { error } = await supabase
       .from('profiles')
       .update({ is_verified: true, updated_at: new Date().toISOString() })
@@ -90,6 +124,9 @@ export async function verifyStudent(userId: string): Promise<{ success: boolean;
       return { success: false, error: error.message }
     }
 
+    /* =========================================
+       SEND NOTIFICATION
+    ========================================= */
     await createNotification(supabase, {
       user_id: userId,
       actor_id: currentUser.id,
@@ -107,10 +144,21 @@ export async function verifyStudent(userId: string): Promise<{ success: boolean;
   }
 }
 
-export async function rejectStudent(userId: string): Promise<{ success: boolean; error?: string }> {
+/* =========================================
+   REJECT STUDENT
+   - Admin-only action
+   - Keeps account unverified
+   - Sends notification
+========================================= */
+export async function rejectStudent(
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
   try {
+    /* =========================================
+       AUTHENTICATION + AUTHORIZATION CHECK
+    ========================================= */
     const {
       data: { user: currentUser },
     } = await supabase.auth.getUser()
@@ -129,6 +177,9 @@ export async function rejectStudent(userId: string): Promise<{ success: boolean;
       return { success: false, error: 'Insufficient permissions' }
     }
 
+    /* =========================================
+       UPDATE VERIFICATION STATUS
+    ========================================= */
     const { error } = await supabase
       .from('profiles')
       .update({ is_verified: false, updated_at: new Date().toISOString() })
@@ -139,6 +190,9 @@ export async function rejectStudent(userId: string): Promise<{ success: boolean;
       return { success: false, error: error.message }
     }
 
+    /* =========================================
+       SEND NOTIFICATION
+    ========================================= */
     await createNotification(supabase, {
       user_id: userId,
       actor_id: currentUser.id,

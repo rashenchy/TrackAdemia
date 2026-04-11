@@ -91,8 +91,8 @@ export default async function RepositoryPage({
 
   const { data: papers } = await dbQuery
 
-  let authorsMap: Record<string, string> = {}
-  let adviserMap: Record<string, string> = {}
+  const authorsMap: Record<string, string> = {}
+  const adviserMap: Record<string, string> = {}
   let filteredPapers = papers ?? []
 
   if (papers && papers.length > 0) {

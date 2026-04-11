@@ -1,8 +1,17 @@
 'use server'
 
+/* =========================================
+   IMPORTS
+   - Supabase server client
+   - Helper for published_at logic
+========================================= */
 import { createClient } from '@/lib/supabase/server'
 import { getPublishedAtForStatusChange } from '@/lib/research/publication'
 
+/* =========================================
+   TYPES
+   Represents a research record with metadata
+========================================= */
 export interface ResearchRecord {
   id: string
   title: string
@@ -21,9 +30,12 @@ export interface ResearchRecord {
   keywords?: string[]
 }
 
-/**
- * Fetch all research records (admin has no RLS constraints)
- */
+/* =========================================
+   GET ALL RESEARCH
+   - Fetches research records (admin scope)
+   - Applies optional filters
+   - Enriches with author/adviser names
+========================================= */
 export async function getAllResearch(
   statusFilter?: string,
   typeFilter?: string
@@ -31,10 +43,13 @@ export async function getAllResearch(
   const supabase = await createClient()
 
   try {
+    /* =========================================
+       BASE QUERY
+       Retrieves research records with sorting
+    ========================================= */
     let query = supabase
       .from('research')
-      .select(
-        `
+      .select(`
         id, 
         title, 
         type, 
@@ -48,10 +63,12 @@ export async function getAllResearch(
         downloads_count,
         file_url,
         keywords
-      `
-      )
+      `)
       .order('created_at', { ascending: false })
 
+    /* =========================================
+       FILTERING
+    ========================================= */
     if (statusFilter && statusFilter !== 'all') {
       query = query.eq('status', statusFilter)
     }
@@ -63,21 +80,18 @@ export async function getAllResearch(
     const { data: research, error } = await query
 
     if (error) {
-      console.error('Error fetching research:', {
-        message: error.message,
-        details: error.details,
-        hint: error.hint,
-        code: error.code,
-      })
+      console.error('Error fetching research:', error)
       return []
     }
 
-    // Enrich with author and adviser names
+    /* =========================================
+       DATA ENRICHMENT
+       Resolves author and adviser names
+    ========================================= */
     const enrichedResearch: ResearchRecord[] = []
 
     if (research && research.length > 0) {
       for (const item of research) {
-        // Get author name
         const { data: authorProfile } = await supabase
           .from('profiles')
           .select('first_name, last_name')
@@ -88,7 +102,6 @@ export async function getAllResearch(
           ? `${authorProfile.first_name} ${authorProfile.last_name}`
           : 'Unknown'
 
-        // Get adviser name if available
         let adviserName = 'N/A'
         if (item.adviser_id) {
           const { data: adviserProfile } = await supabase
@@ -123,21 +136,30 @@ export async function getAllResearch(
     }
 
     return enrichedResearch
+
   } catch (error) {
     console.error('Unexpected error fetching research:', error)
     return []
   }
 }
 
-/**
- * Delete a research record and its associated file
- */
-export async function forceDeleteResearch(researchId: string): Promise<{ success: boolean; error?: string }> {
+/* =========================================
+   FORCE DELETE RESEARCH
+   - Admin-only action
+   - Removes database record
+   - Deletes associated storage file
+========================================= */
+export async function forceDeleteResearch(
+  researchId: string
+): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
   try {
-    // Verify admin access
+    /* =========================================
+       AUTHORIZATION CHECK
+    ========================================= */
     const { data: { user: currentUser } } = await supabase.auth.getUser()
+
     if (!currentUser) {
       return { success: false, error: 'Not authenticated' }
     }
@@ -152,7 +174,9 @@ export async function forceDeleteResearch(researchId: string): Promise<{ success
       return { success: false, error: 'Insufficient permissions' }
     }
 
-    // Get the research record to find the file URL
+    /* =========================================
+       FETCH FILE REFERENCE
+    ========================================= */
     const { data: research, error: fetchError } = await supabase
       .from('research')
       .select('file_url')
@@ -163,7 +187,9 @@ export async function forceDeleteResearch(researchId: string): Promise<{ success
       return { success: false, error: 'Research not found' }
     }
 
-    // Delete file from storage if it exists
+    /* =========================================
+       DELETE FILE FROM STORAGE
+    ========================================= */
     if (research?.file_url) {
       try {
         const filePathMatch = research.file_url.match(/research-files%2F(.+)\?/)
@@ -172,11 +198,13 @@ export async function forceDeleteResearch(researchId: string): Promise<{ success
           await supabase.storage.from('research-files').remove([filePath])
         }
       } catch (storageError) {
-        console.log('Note: Could not delete associated file from storage', storageError)
+        console.log('Storage cleanup skipped:', storageError)
       }
     }
 
-    // Delete research record
+    /* =========================================
+       DELETE DATABASE RECORD
+    ========================================= */
     const { error: deleteError } = await supabase
       .from('research')
       .delete()
@@ -187,15 +215,18 @@ export async function forceDeleteResearch(researchId: string): Promise<{ success
     }
 
     return { success: true }
+
   } catch (error) {
     console.error('Unexpected error deleting research:', error)
     return { success: false, error: 'An unexpected error occurred' }
   }
 }
 
-/**
- * Override research status
- */
+/* =========================================
+   OVERRIDE RESEARCH STATUS
+   - Admin-only update
+   - Handles published_at logic
+========================================= */
 export async function overrideResearchStatus(
   researchId: string,
   newStatus: string
@@ -203,8 +234,11 @@ export async function overrideResearchStatus(
   const supabase = await createClient()
 
   try {
-    // Verify admin access
+    /* =========================================
+       AUTHORIZATION CHECK
+    ========================================= */
     const { data: { user: currentUser } } = await supabase.auth.getUser()
+
     if (!currentUser) {
       return { success: false, error: 'Not authenticated' }
     }
@@ -219,7 +253,9 @@ export async function overrideResearchStatus(
       return { success: false, error: 'Insufficient permissions' }
     }
 
-    // Update research status
+    /* =========================================
+       FETCH CURRENT STATE
+    ========================================= */
     const { data: currentResearch, error: fetchError } = await supabase
       .from('research')
       .select('status, published_at')
@@ -230,6 +266,9 @@ export async function overrideResearchStatus(
       return { success: false, error: 'Research not found' }
     }
 
+    /* =========================================
+       UPDATE STATUS + TIMESTAMP LOGIC
+    ========================================= */
     const { error } = await supabase
       .from('research')
       .update({
@@ -247,21 +286,31 @@ export async function overrideResearchStatus(
     }
 
     return { success: true }
+
   } catch (error) {
     console.error('Unexpected error updating research status:', error)
     return { success: false, error: 'An unexpected error occurred' }
   }
 }
 
-/**
- * Archive all sections (semester archiving)
- */
-export async function archiveAllSections(): Promise<{ success: boolean; error?: string; archivedCount?: number }> {
+/* =========================================
+   ARCHIVE ALL SECTIONS
+   - Admin-only bulk operation
+   - Marks all active sections as archived
+========================================= */
+export async function archiveAllSections(): Promise<{
+  success: boolean
+  error?: string
+  archivedCount?: number
+}> {
   const supabase = await createClient()
 
   try {
-    // Verify admin access
+    /* =========================================
+       AUTHORIZATION CHECK
+    ========================================= */
     const { data: { user: currentUser } } = await supabase.auth.getUser()
+
     if (!currentUser) {
       return { success: false, error: 'Not authenticated' }
     }
@@ -276,16 +325,24 @@ export async function archiveAllSections(): Promise<{ success: boolean; error?: 
       return { success: false, error: 'Insufficient permissions' }
     }
 
-    // Get count of non-archived sections
+    /* =========================================
+       COUNT ACTIVE SECTIONS
+    ========================================= */
     const { count: countBefore } = await supabase
       .from('sections')
       .select('*', { count: 'exact', head: true })
       .eq('is_archived', false)
 
-    // Archive all active sections
+    /* =========================================
+       BULK ARCHIVE OPERATION
+    ========================================= */
     const { error } = await supabase
       .from('sections')
-      .update({ is_archived: true, is_frozen: true, updated_at: new Date().toISOString() })
+      .update({
+        is_archived: true,
+        is_frozen: true,
+        updated_at: new Date().toISOString(),
+      })
       .eq('is_archived', false)
 
     if (error) {
@@ -293,6 +350,7 @@ export async function archiveAllSections(): Promise<{ success: boolean; error?: 
     }
 
     return { success: true, archivedCount: countBefore || 0 }
+
   } catch (error) {
     console.error('Unexpected error archiving sections:', error)
     return { success: false, error: 'An unexpected error occurred' }

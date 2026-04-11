@@ -1,10 +1,21 @@
 'use client'
 
+/* =========================================
+   IMPORTS
+   - React state
+   - Icons
+   - Server actions (faculty approval logic)
+   - Pagination component
+========================================= */
 import { useState } from 'react'
 import { Users, CheckCircle, XCircle, Loader2, AlertCircle } from 'lucide-react'
 import { getPendingFaculty, verifyFaculty, rejectFaculty } from './actions'
 import PaginationControl from '@/components/ui/PaginationControl'
 
+/* =========================================
+   TYPES
+   Represents faculty account data
+========================================= */
 interface Faculty {
   id: string
   first_name: string
@@ -15,6 +26,10 @@ interface Faculty {
   updated_at: string
 }
 
+/* =========================================
+   COMPONENT PROPS
+   Initial faculty data passed from server
+========================================= */
 interface FacultyApprovalClientProps {
   initialFaculty: Faculty[]
 }
@@ -22,26 +37,52 @@ interface FacultyApprovalClientProps {
 export default function FacultyApprovalClient({
   initialFaculty,
 }: FacultyApprovalClientProps) {
+
+  /* =========================================
+     STATE MANAGEMENT
+     - faculty: current list
+     - loading: refresh state
+     - error: error messages
+     - verifying: active row action
+     - successMessage: feedback UI
+     - page: pagination state
+  ========================================= */
   const [faculty, setFaculty] = useState<Faculty[]>(initialFaculty)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [verifying, setVerifying] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [page, setPage] = useState(1)
-  const pageSize = 10
 
+  /* =========================================
+     PAGINATION CONFIG
+  ========================================= */
+  const pageSize = 10
   const pagedFaculty = faculty.slice((page - 1) * pageSize, page * pageSize)
 
+  /* =========================================
+     LOAD PENDING FACULTY
+     Refreshes list from server
+  ========================================= */
   const loadPendingFaculty = async () => {
     setLoading(true)
     setError(null)
+
     const result = await getPendingFaculty()
     setFaculty(result)
+
     setLoading(false)
   }
 
+  /* =========================================
+     VERIFY FACULTY
+     - Approves account
+     - Removes from list
+     - Shows success/error feedback
+  ========================================= */
   const handleVerify = async (userId: string, firstName: string, lastName: string) => {
     setVerifying(userId)
+
     const result = await verifyFaculty(userId)
 
     if (result.success) {
@@ -55,8 +96,15 @@ export default function FacultyApprovalClient({
     setVerifying(null)
   }
 
+  /* =========================================
+     REJECT FACULTY
+     - Rejects request
+     - Removes from list
+     - Shows feedback
+  ========================================= */
   const handleReject = async (userId: string, firstName: string, lastName: string) => {
     setVerifying(userId)
+
     const result = await rejectFaculty(userId)
 
     if (result.success) {

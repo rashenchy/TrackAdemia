@@ -1,8 +1,17 @@
 'use server'
 
+/* =========================================
+   IMPORTS
+   - Supabase client
+   - Types for monitored providers and status
+========================================= */
 import { createClient } from '@/lib/supabase/server'
 import type { MonitoredProvider, MonitoredStatus } from '@/lib/api-monitoring/service'
 
+/* =========================================
+   API MONITORING LOG TYPE
+   Represents a single API request log entry
+========================================= */
 export interface ApiMonitoringLog {
   id: string
   provider: MonitoredProvider
@@ -19,6 +28,10 @@ export interface ApiMonitoringLog {
   created_at: string
 }
 
+/* =========================================
+   PROVIDER METRICS TYPE
+   Aggregated metrics per provider
+========================================= */
 export interface ProviderMetrics {
   provider: MonitoredProvider
   label: string
@@ -34,6 +47,10 @@ export interface ProviderMetrics {
   extraMetrics: Array<{ label: string; value: string }>
 }
 
+/* =========================================
+   SUPABASE METRICS TYPE
+   System-wide statistics from database
+========================================= */
 export interface SupabaseMonitoringMetrics {
   totalUsers: number
   totalMentors: number
@@ -53,6 +70,10 @@ export interface SupabaseMonitoringMetrics {
   totalBookmarks: number
 }
 
+/* =========================================
+   DASHBOARD DATA TYPE
+   Combined monitoring data for UI
+========================================= */
 export interface MonitoringDashboardData {
   providerMetrics: ProviderMetrics[]
   supabaseMetrics: SupabaseMonitoringMetrics
@@ -65,6 +86,9 @@ export interface MonitoringDashboardData {
   }>
 }
 
+/* =========================================
+   RAW LOG TYPE (FROM DATABASE)
+========================================= */
 interface ApiRequestLogRow {
   id: string
   provider: MonitoredProvider
@@ -80,10 +104,17 @@ interface ApiRequestLogRow {
   created_at: string
 }
 
+/* =========================================
+   HELPER: SAFE NUMBER
+   Ensures value is a valid number
+========================================= */
 function toNumber(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
+/* =========================================
+   HELPER: PROVIDER LABEL
+========================================= */
 function formatProviderLabel(provider: MonitoredProvider) {
   if (provider === 'gemini') return 'Gemini'
   if (provider === 'groq') return 'Groq'
@@ -91,10 +122,15 @@ function formatProviderLabel(provider: MonitoredProvider) {
   return 'Supabase'
 }
 
+/* =========================================
+   HELPER: EXTRA METRICS PER PROVIDER
+========================================= */
 function getProviderExtraMetrics(
   provider: MonitoredProvider,
   logs: ApiRequestLogRow[]
 ): Array<{ label: string; value: string }> {
+
+  /* AI Providers (Gemini / Groq) */
   if (provider === 'gemini' || provider === 'groq') {
     const totalCorrections = logs.reduce(
       (sum, log) => sum + toNumber(log.output_units),
@@ -102,38 +138,60 @@ function getProviderExtraMetrics(
     )
 
     return [
-      { label: 'Characters Checked', value: logs.reduce((sum, log) => sum + toNumber(log.input_units), 0).toLocaleString() },
-      { label: 'Corrections Returned', value: totalCorrections.toLocaleString() },
+      {
+        label: 'Characters Checked',
+        value: logs.reduce((sum, log) => sum + toNumber(log.input_units), 0).toLocaleString(),
+      },
+      {
+        label: 'Corrections Returned',
+        value: totalCorrections.toLocaleString(),
+      },
     ]
   }
 
+  /* SerpAPI */
   if (provider === 'serpapi') {
     const totalQueries = logs.reduce(
       (sum, log) => sum + toNumber(log.metadata?.query_count),
       0
     )
+
     const totalMatches = logs.reduce(
       (sum, log) => sum + toNumber(log.output_units),
       0
     )
 
     return [
-      { label: 'Text Characters Checked', value: logs.reduce((sum, log) => sum + toNumber(log.input_units), 0).toLocaleString() },
-      { label: 'Search Queries Triggered', value: totalQueries.toLocaleString() },
-      { label: 'Matches Found', value: totalMatches.toLocaleString() },
+      {
+        label: 'Text Characters Checked',
+        value: logs.reduce((sum, log) => sum + toNumber(log.input_units), 0).toLocaleString(),
+      },
+      {
+        label: 'Search Queries Triggered',
+        value: totalQueries.toLocaleString(),
+      },
+      {
+        label: 'Matches Found',
+        value: totalMatches.toLocaleString(),
+      },
     ]
   }
 
   return []
 }
 
+/* =========================================
+   ENRICH LOGS
+   Adds user names to logs using profiles
+========================================= */
 async function enrichLogs(logs: ApiRequestLogRow[]): Promise<ApiMonitoringLog[]> {
   if (logs.length === 0) return []
 
   const supabase = await createClient()
+
   const userIds = [
     ...new Set(
-      logs.map((log) => log.user_id).filter((userId): userId is string => Boolean(userId))
+      logs.map((log) => log.user_id).filter((id): id is string => Boolean(id))
     ),
   ]
 
@@ -149,7 +207,7 @@ async function enrichLogs(logs: ApiRequestLogRow[]): Promise<ApiMonitoringLog[]>
   }
 
   return logs.map((log) => {
-    const profile = profiles.find((item) => item.id === log.user_id)
+    const profile = profiles.find((p) => p.id === log.user_id)
 
     return {
       ...log,
@@ -161,8 +219,12 @@ async function enrichLogs(logs: ApiRequestLogRow[]): Promise<ApiMonitoringLog[]>
   })
 }
 
+/* =========================================
+   GET REQUEST LOGS
+========================================= */
 async function getRequestLogs(limit = 100) {
   const supabase = await createClient()
+
   const { data, error } = await supabase
     .from('api_request_logs')
     .select(
@@ -172,27 +234,29 @@ async function getRequestLogs(limit = 100) {
     .limit(limit)
 
   if (error) {
-    if (error.code === '42P01') {
-      return [] as ApiRequestLogRow[]
-    }
-
+    if (error.code === '42P01') return []
     throw error
   }
 
   return (data || []) as ApiRequestLogRow[]
 }
 
+/* =========================================
+   GET PROVIDER METRICS
+========================================= */
 async function getProviderMetrics(logs: ApiRequestLogRow[]): Promise<ProviderMetrics[]> {
   const providers: MonitoredProvider[] = ['groq', 'serpapi']
 
   return providers.map((provider) => {
     const providerLogs = logs.filter((log) => log.provider === provider)
+
     const totalRequests = providerLogs.length
     const successfulRequests = providerLogs.filter((log) => log.status === 'success').length
     const failedRequests = providerLogs.filter((log) => log.status === 'failed').length
     const validationErrors = providerLogs.filter(
       (log) => log.status === 'validation_error'
     ).length
+
     const averageResponseTime =
       totalRequests > 0
         ? Math.round(
@@ -202,10 +266,12 @@ async function getProviderMetrics(logs: ApiRequestLogRow[]): Promise<ProviderMet
             ) / totalRequests
           )
         : 0
+
     const totalInputUnits = providerLogs.reduce(
       (sum, log) => sum + toNumber(log.input_units),
       0
     )
+
     const totalOutputUnits = providerLogs.reduce(
       (sum, log) => sum + toNumber(log.output_units),
       0
@@ -231,6 +297,9 @@ async function getProviderMetrics(logs: ApiRequestLogRow[]): Promise<ProviderMet
   })
 }
 
+/* =========================================
+   GET SUPABASE METRICS
+========================================= */
 async function getSupabaseMetrics(): Promise<SupabaseMonitoringMetrics> {
   const supabase = await createClient()
 
@@ -268,11 +337,11 @@ async function getSupabaseMetrics(): Promise<SupabaseMonitoringMetrics> {
 
   return {
     totalUsers: profiles.length,
-    totalMentors: profiles.filter((profile) => profile.role === 'mentor').length,
-    totalStudents: profiles.filter((profile) => profile.role === 'student').length,
+    totalMentors: profiles.filter((p) => p.role === 'mentor').length,
+    totalStudents: profiles.filter((p) => p.role === 'student').length,
     totalResearch: research.length,
-    publishedResearch: research.filter((item) => item.status === 'Published').length,
-    pendingResearch: research.filter((item) => item.status !== 'Published').length,
+    publishedResearch: research.filter((r) => r.status === 'Published').length,
+    pendingResearch: research.filter((r) => r.status !== 'Published').length,
     totalSections: sectionsResult.data?.length || 0,
     activeSectionMembers: sectionMembersResult.data?.length || 0,
     totalAnnotations: annotationsResult.data?.length || 0,
@@ -286,6 +355,10 @@ async function getSupabaseMetrics(): Promise<SupabaseMonitoringMetrics> {
   }
 }
 
+/* =========================================
+   BUILD DAILY ACTIVITY
+   Groups logs by date per provider
+========================================= */
 function buildDailyActivity(logs: ApiRequestLogRow[]) {
   const dailyMap = new Map<
     string,
@@ -294,30 +367,28 @@ function buildDailyActivity(logs: ApiRequestLogRow[]) {
 
   for (const log of logs) {
     const date = new Date(log.created_at).toISOString().split('T')[0]
-    const current = dailyMap.get(date) || { date, gemini: 0, groq: 0, serpapi: 0 }
 
-    if (log.provider === 'gemini') {
-      current.gemini += 1
-    }
+    const current =
+      dailyMap.get(date) || { date, gemini: 0, groq: 0, serpapi: 0 }
 
-    if (log.provider === 'groq') {
-      current.groq += 1
-    }
-
-    if (log.provider === 'serpapi') {
-      current.serpapi += 1
-    }
+    if (log.provider === 'gemini') current.gemini += 1
+    if (log.provider === 'groq') current.groq += 1
+    if (log.provider === 'serpapi') current.serpapi += 1
 
     dailyMap.set(date, current)
   }
 
-  return Array.from(dailyMap.values()).sort((first, second) =>
-    first.date.localeCompare(second.date)
+  return Array.from(dailyMap.values()).sort((a, b) =>
+    a.date.localeCompare(b.date)
   )
 }
 
+/* =========================================
+   MAIN DASHBOARD DATA FETCHER
+========================================= */
 export async function getMonitoringDashboardData(): Promise<MonitoringDashboardData> {
   const logs = await getRequestLogs(200)
+
   const [providerMetrics, supabaseMetrics, recentLogs] = await Promise.all([
     getProviderMetrics(logs),
     getSupabaseMetrics(),
@@ -332,13 +403,19 @@ export async function getMonitoringDashboardData(): Promise<MonitoringDashboardD
   }
 }
 
+/* =========================================
+   EXPORT DATA (CSV FORMAT)
+========================================= */
 export async function exportMonitoringData(
   startDate: string,
   endDate: string
 ): Promise<string> {
+
   const supabase = await createClient()
+
   const startAt = new Date(`${startDate}T00:00:00.000Z`).toISOString()
   const endAt = new Date(`${endDate}T23:59:59.999Z`).toISOString()
+
   const { data, error } = await supabase
     .from('api_request_logs')
     .select(
@@ -349,14 +426,12 @@ export async function exportMonitoringData(
     .order('created_at', { ascending: false })
 
   if (error) {
-    if (error.code === '42P01') {
-      return ''
-    }
-
+    if (error.code === '42P01') return ''
     throw error
   }
 
   const logs = await enrichLogs((data || []) as ApiRequestLogRow[])
+
   const headers = [
     'Provider',
     'API Name',
@@ -372,6 +447,7 @@ export async function exportMonitoringData(
 
   return [
     headers.join(','),
+
     ...logs.map((log) =>
       [
         log.provider,

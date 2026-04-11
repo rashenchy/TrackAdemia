@@ -1,17 +1,37 @@
 'use client'
 
+/* =========================================
+   IMPORTS
+   - React state
+   - Icons
+   - Server actions (export + analytics)
+   - Types
+========================================= */
 import { useState } from 'react'
 import { BarChart, Download, Loader2, CheckCircle, AlertCircle } from 'lucide-react'
 import { getPublishedResearchForExport, getTopResearch } from '../analytics/actions'
 import type { TopResearch } from '../analytics/types'
 
 export default function ReportsPage() {
+
+  /* =========================================
+     STATE MANAGEMENT
+     - exporting: CSV export state
+     - successMessage/error: feedback UI
+     - topResearch: analytics dataset
+     - loadingMetrics: loading state for metrics
+  ========================================= */
   const [exporting, setExporting] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [topResearch, setTopResearch] = useState<TopResearch[]>([])
   const [loadingMetrics, setLoadingMetrics] = useState(false)
 
+  /* =========================================
+     CSV GENERATION
+     - Converts array data into CSV format
+     - Handles escaping and download trigger
+  ========================================= */
   const generateCSV = (
     data: Record<string, string | number | null | undefined>[],
     filename: string
@@ -30,9 +50,7 @@ export default function ReportsPage() {
           .map((header) => {
             const value = row[header]
 
-            if (value === null || value === undefined) {
-              return ''
-            }
+            if (value === null || value === undefined) return ''
 
             const normalizedValue = String(value)
 
@@ -68,6 +86,11 @@ export default function ReportsPage() {
     setTimeout(() => setSuccessMessage(null), 3000)
   }
 
+  /* =========================================
+     EXPORT PUBLISHED RESEARCH
+     - Fetches published data
+     - Triggers CSV generation
+  ========================================= */
   const handleExportPublishedResearch = async () => {
     setExporting(true)
     setError(null)
@@ -86,6 +109,11 @@ export default function ReportsPage() {
     }
   }
 
+  /* =========================================
+     LOAD TOP RESEARCH METRICS
+     - Fetches most viewed/downloaded research
+     - Stores in state for display/export
+  ========================================= */
   const handleLoadTopMetrics = async () => {
     setLoadingMetrics(true)
     setError(null)
@@ -103,6 +131,11 @@ export default function ReportsPage() {
     }
   }
 
+  /* =========================================
+     EXPORT TOP RESEARCH
+     - Requires metrics to be loaded first
+     - Formats data before CSV export
+  ========================================= */
   const handleExportTopResearch = () => {
     if (topResearch.length === 0) {
       setError('No metrics loaded. Click "Load Metrics" first.')

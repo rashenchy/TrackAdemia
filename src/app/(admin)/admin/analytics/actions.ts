@@ -1,5 +1,11 @@
 'use server'
 
+/* =========================================
+   IMPORTS
+   - createClient: creates the Supabase server client
+   - types: TypeScript types for the analytics return values
+   - research helpers: used to map research type values into readable labels
+========================================= */
 import { createClient } from '@/lib/supabase/server'
 import type {
   AnalyticsMetrics,
@@ -9,6 +15,11 @@ import type {
 } from './types'
 import { RESEARCH_TYPE_OPTIONS, getResearchTypeLabel } from '@/lib/research/types'
 
+/* =========================================
+   HELPER FUNCTION
+   Formats the published_at timestamp into a readable date/time.
+   Returns "N/A" if there is no date.
+========================================= */
 function formatPublishedTimestamp(value: string | null) {
   if (!value) return 'N/A'
 
@@ -23,6 +34,14 @@ function formatPublishedTimestamp(value: string | null) {
   }).format(new Date(value))
 }
 
+/* =========================================
+   GET ANALYTICS METRICS
+   Fetches the main dashboard counts:
+   - total users
+   - pending faculty verification
+   - total published papers
+   - total pending papers
+========================================= */
 export async function getAnalyticsMetrics(): Promise<AnalyticsMetrics> {
   const supabase = await createClient()
 
@@ -55,6 +74,7 @@ export async function getAnalyticsMetrics(): Promise<AnalyticsMetrics> {
     }
   } catch (error) {
     console.error('Error fetching analytics metrics:', error)
+
     return {
       totalUsers: 0,
       pendingFaculty: 0,
@@ -64,6 +84,15 @@ export async function getAnalyticsMetrics(): Promise<AnalyticsMetrics> {
   }
 }
 
+/* =========================================
+   GET RESEARCH BY PROGRAM
+   Counts how many research records belong to each course program.
+   Steps:
+   1. Get all research user_ids
+   2. Find each user's course_program from profiles
+   3. Count how many belong to each program
+   4. Sort from highest to lowest
+========================================= */
 export async function getResearchByProgram(): Promise<ResearchByProgram[]> {
   const supabase = await createClient()
 
@@ -90,7 +119,10 @@ export async function getResearchByProgram(): Promise<ResearchByProgram[]> {
     }
 
     return Object.entries(programCounts)
-      .map(([program, count]) => ({ program, count }))
+      .map(([program, count]) => ({
+        program,
+        count,
+      }))
       .sort((a, b) => b.count - a.count)
   } catch (error) {
     console.error('Error fetching research by program:', error)
@@ -98,6 +130,11 @@ export async function getResearchByProgram(): Promise<ResearchByProgram[]> {
   }
 }
 
+/* =========================================
+   GET RESEARCH TYPE DISTRIBUTION
+   Counts how many research records belong to each research type.
+   Also calculates the percentage of each type based on the total.
+========================================= */
 export async function getResearchTypeDistribution(): Promise<ResearchTypeDistribution[]> {
   const supabase = await createClient()
 
@@ -125,13 +162,20 @@ export async function getResearchTypeDistribution(): Promise<ResearchTypeDistrib
       })
     )
 
-    return distribution.sort((a, b) => b.count - a.count || a.type.localeCompare(b.type))
+    return distribution.sort(
+      (a, b) => b.count - a.count || a.type.localeCompare(b.type)
+    )
   } catch (error) {
     console.error('Error fetching research type distribution:', error)
     return []
   }
 }
 
+/* =========================================
+   GET TOP RESEARCH
+   Fetches the top 10 published research items ordered by views.
+   Also looks up the author name from the profiles table.
+========================================= */
 export async function getTopResearch(): Promise<TopResearch[]> {
   const supabase = await createClient()
 
@@ -174,6 +218,18 @@ export async function getTopResearch(): Promise<TopResearch[]> {
   }
 }
 
+/* =========================================
+   GET PUBLISHED RESEARCH FOR EXPORT
+   Fetches published research data for export reports.
+   Includes:
+   - title
+   - author name
+   - adviser name
+   - type
+   - formatted publish date
+   - views
+   - downloads
+========================================= */
 export async function getPublishedResearchForExport() {
   const supabase = await createClient()
 

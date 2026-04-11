@@ -1,11 +1,22 @@
 'use client'
 
+/* =========================================
+   IMPORTS
+   - React state
+   - Icons
+   - Server actions (user management)
+   - UI components (pagination, popup)
+========================================= */
 import { useState } from 'react'
 import { Users, Search, Loader2, AlertCircle, Trash2, UserCheck } from 'lucide-react'
 import { getAllUsers, deleteOrBanUser } from './actions'
 import PaginationControl from '@/components/ui/PaginationControl'
 import { usePopup } from '@/components/ui/PopupProvider'
 
+/* =========================================
+   TYPES
+   Represents user profile data
+========================================= */
 interface UserProfile {
   id: string
   first_name: string
@@ -19,6 +30,10 @@ interface UserProfile {
   researchCount?: number
 }
 
+/* =========================================
+   ROLE COLOR MAPPING
+   UI styling config per role
+========================================= */
 const roleColors: Record<string, { bg: string; text: string; border: string }> = {
   student: {
     bg: 'bg-blue-50 dark:bg-blue-900/20',
@@ -37,6 +52,10 @@ const roleColors: Record<string, { bg: string; text: string; border: string }> =
   },
 }
 
+/* =========================================
+   COMPONENT PROPS
+   Receives initial user dataset
+========================================= */
 interface UserManagementClientProps {
   initialUsers: UserProfile[]
 }
@@ -44,6 +63,15 @@ interface UserManagementClientProps {
 export default function UserManagementClient({
   initialUsers,
 }: UserManagementClientProps) {
+
+  /* =========================================
+     STATE MANAGEMENT
+     - users: dataset
+     - loading/error: fetch states
+     - filters: search + role
+     - action state: deletion tracking
+     - pagination state
+  ========================================= */
   const [users, setUsers] = useState<UserProfile[]>(initialUsers)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -52,9 +80,24 @@ export default function UserManagementClient({
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+
+  /* =========================================
+     POPUP UTILITIES
+     - confirm: confirmation modal
+     - notify: feedback system
+  ========================================= */
   const { confirm, notify } = usePopup()
+
+  /* =========================================
+     PAGINATION CONFIG
+  ========================================= */
   const pageSize = 10
 
+  /* =========================================
+     FILTERING LOGIC
+     - role filtering
+     - search (name/email)
+  ========================================= */
   let filteredUsers = users
 
   if (roleFilter !== 'all') {
@@ -70,17 +113,35 @@ export default function UserManagementClient({
     )
   }
 
+  /* =========================================
+     PAGINATION CALCULATION
+  ========================================= */
   const normalizedPage = Math.min(page, Math.max(1, Math.ceil(filteredUsers.length / pageSize)))
-  const pagedUsers = filteredUsers.slice((normalizedPage - 1) * pageSize, normalizedPage * pageSize)
+  const pagedUsers = filteredUsers.slice(
+    (normalizedPage - 1) * pageSize,
+    normalizedPage * pageSize
+  )
 
+  /* =========================================
+     LOAD USERS
+     Fetches latest users from server
+  ========================================= */
   const loadUsers = async () => {
     setLoading(true)
     setError(null)
+
     const result = await getAllUsers()
     setUsers(result)
+
     setLoading(false)
   }
 
+  /* =========================================
+     DELETE USER
+     - Confirms action
+     - Deletes account
+     - Updates UI
+  ========================================= */
   const handleDeleteUser = async (userId: string, userName: string) => {
     const confirmed = await confirm({
       title: `Delete ${userName}?`,
@@ -89,11 +150,10 @@ export default function UserManagementClient({
       variant: 'danger',
     })
 
-    if (!confirmed) {
-      return
-    }
+    if (!confirmed) return
 
     setActionInProgress(userId)
+
     const result = await deleteOrBanUser(userId)
 
     if (result.success) {
@@ -103,7 +163,7 @@ export default function UserManagementClient({
         message: `${userName} has been deleted.`,
         variant: 'success',
       })
-      setUsers((currentUsers) => currentUsers.filter((u) => u.id !== userId))
+      setUsers((current) => current.filter((u) => u.id !== userId))
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {
       setError(result.error || 'Failed to delete user')

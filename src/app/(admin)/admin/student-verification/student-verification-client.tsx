@@ -1,10 +1,21 @@
 'use client'
 
+/* =========================================
+   IMPORTS
+   - React state
+   - Icons
+   - Server actions (student verification)
+   - Pagination component
+========================================= */
 import { useState } from 'react'
 import { Users, CheckCircle, XCircle, Loader2, AlertCircle, IdCard } from 'lucide-react'
 import { getPendingStudents, verifyStudent, rejectStudent } from './actions'
 import PaginationControl from '@/components/ui/PaginationControl'
 
+/* =========================================
+   TYPES
+   Represents student data structure
+========================================= */
 interface Student {
   id: string
   first_name: string
@@ -16,6 +27,10 @@ interface Student {
   updated_at: string
 }
 
+/* =========================================
+   COMPONENT PROPS
+   Receives initial student dataset
+========================================= */
 interface StudentVerificationClientProps {
   initialStudents: Student[]
 }
@@ -23,31 +38,61 @@ interface StudentVerificationClientProps {
 export default function StudentVerificationClient({
   initialStudents,
 }: StudentVerificationClientProps) {
+
+  /* =========================================
+     STATE MANAGEMENT
+     - students: dataset
+     - loading/error: fetch states
+     - processing: track active row action
+     - successMessage: UI feedback
+     - pagination state
+  ========================================= */
   const [students, setStudents] = useState<Student[]>(initialStudents)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [processing, setProcessing] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [page, setPage] = useState(1)
-  const pageSize = 10
 
+  /* =========================================
+     PAGINATION CONFIG
+  ========================================= */
+  const pageSize = 10
   const pagedStudents = students.slice((page - 1) * pageSize, page * pageSize)
 
+  /* =========================================
+     LOAD PENDING STUDENTS
+     Fetches latest unverified students
+  ========================================= */
   const loadPendingStudents = async () => {
     setLoading(true)
     setError(null)
+
     const result = await getPendingStudents()
     setStudents(result)
+
     setLoading(false)
   }
 
-  const handleVerify = async (userId: string, firstName: string, lastName: string) => {
+  /* =========================================
+     VERIFY STUDENT
+     - Approves account
+     - Removes from list
+  ========================================= */
+  const handleVerify = async (
+    userId: string,
+    firstName: string,
+    lastName: string
+  ) => {
     setProcessing(userId)
+
     const result = await verifyStudent(userId)
 
     if (result.success) {
       setSuccessMessage(`${firstName} ${lastName} has been verified successfully!`)
-      setStudents((currentStudents) => currentStudents.filter((student) => student.id !== userId))
+      setStudents((current) =>
+        current.filter((student) => student.id !== userId)
+      )
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {
       setError(result.error || 'Failed to verify student')
@@ -56,13 +101,25 @@ export default function StudentVerificationClient({
     setProcessing(null)
   }
 
-  const handleReject = async (userId: string, firstName: string, lastName: string) => {
+  /* =========================================
+     REJECT STUDENT
+     - Keeps account unverified
+     - Removes from list
+  ========================================= */
+  const handleReject = async (
+    userId: string,
+    firstName: string,
+    lastName: string
+  ) => {
     setProcessing(userId)
+
     const result = await rejectStudent(userId)
 
     if (result.success) {
       setSuccessMessage(`${firstName} ${lastName} request has been reviewed.`)
-      setStudents((currentStudents) => currentStudents.filter((student) => student.id !== userId))
+      setStudents((current) =>
+        current.filter((student) => student.id !== userId)
+      )
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {
       setError(result.error || 'Failed to process student request')

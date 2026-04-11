@@ -1,12 +1,26 @@
 'use client'
 
+/* =========================================
+   IMPORTS
+   - Icons for UI
+   - AdminViewMode type (defines allowed modes)
+========================================= */
 import { Eye, GraduationCap, ShieldAlert, UserRound } from 'lucide-react'
 import type { AdminViewMode } from '@/lib/users/admin-view-mode'
 
+/* =========================================
+   PROPS INTERFACE
+   - beginViewAsUser: server action trigger
+========================================= */
 interface ViewAsUserClientProps {
   beginViewAsUser: (mode: AdminViewMode) => Promise<void>
 }
 
+/* =========================================
+   PREVIEW OPTIONS CONFIG
+   - Defines available "view as" modes
+   - Controls labels, descriptions, icons, styling
+========================================= */
 const previewOptions: Array<{
   mode: AdminViewMode
   title: string
@@ -47,9 +61,15 @@ const previewOptions: Array<{
   },
 ]
 
+/* =========================================
+   COMPONENT
+   - Renders selectable preview modes
+   - Each option triggers server action
+========================================= */
 export default function ViewAsUserClient({
   beginViewAsUser,
 }: ViewAsUserClientProps) {
+
   return (
     <div className="mx-auto max-w-6xl space-y-8">
       <section className="rounded-[2rem] border border-purple-200 bg-[linear-gradient(135deg,#faf5ff_0%,#ffffff_45%,#eef2ff_100%)] p-8 shadow-sm dark:border-purple-900/40 dark:bg-[linear-gradient(135deg,rgba(88,28,135,0.22)_0%,rgba(17,24,39,0.96)_48%,rgba(30,41,59,0.95)_100%)]">

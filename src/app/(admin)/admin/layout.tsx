@@ -2,6 +2,14 @@
 
 // @refresh reset
 
+/* =========================================
+   IMPORTS
+   - React hooks for state, effects, transitions
+   - Next.js navigation hooks
+   - Supabase client (client-side)
+   - Popup system for notifications
+   - Icons for UI
+========================================= */
 import { useState, useEffect, useRef, useTransition } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -27,33 +35,68 @@ import {
   Activity
 } from 'lucide-react'
 
+/* =========================================
+   ADMIN LAYOUT COMPONENT
+   - Handles sidebar, navigation, theme, session
+========================================= */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+
+  /* =========================================
+     ROUTING
+     - router: navigation control
+     - pathname: current route tracking
+  ========================================= */
   const router = useRouter()
   const pathname = usePathname()
 
-  // State initialization
+  /* =========================================
+     STATE MANAGEMENT
+     - UI states (sidebar, theme, dropdowns)
+     - navigation/loading states
+     - user/session states
+  ========================================= */
   const [isCollapsed, setIsCollapsed] = useState(true)
-  const [theme, setTheme] = useState(() => {
-    if (typeof window === 'undefined') {
-      return 'light'
-    }
 
+  const [theme, setTheme] = useState(() => {
+    if (typeof window === 'undefined') return 'light'
     return localStorage.getItem('theme') || 'light'
   })
+
   const [pendingRoute, setPendingRoute] = useState<string | null>(null)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
   const [userName, setUserName] = useState('')
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  /* =========================================
+     TRANSITION HANDLING
+     - isNavigating: indicates route transitions
+  ========================================= */
   const [isNavigating, startNavigation] = useTransition()
+
+  /* =========================================
+     POPUP SYSTEM
+     - notify: shows feedback messages
+  ========================================= */
   const { notify } = usePopup()
 
+  /* =========================================
+     REFS
+     - Used for detecting outside clicks
+  ========================================= */
   const profileRef = useRef<HTMLDivElement | null>(null)
 
+  /* =========================================
+     SUPABASE CLIENT (CLIENT SIDE)
+  ========================================= */
   const [supabase] = useState(() => createClient())
 
-  // Authentication and Session Handlers
+  /* =========================================
+     LOGOUT HANDLER
+     - Signs out user
+     - Redirects to login
+  ========================================= */
   const handleLogout = async () => {
     if (isLoggingOut) return
 
@@ -73,15 +116,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }
 
+  /* =========================================
+     REFRESH HANDLER
+     - Reloads admin data
+     - Shows feedback notifications
+  ========================================= */
   const handleRefresh = () => {
     if (isRefreshing) return
 
     setIsRefreshing(true)
+
     notify({
       title: 'Refreshing admin workspace',
       message: 'Loading the latest system data.',
       variant: 'info',
     })
+
     startNavigation(() => {
       router.refresh()
     })
@@ -96,18 +146,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }, 700)
   }
 
-  // Close profile dropdown when clicking outside
+  /* =========================================
+     CLICK OUTSIDE HANDLER
+     - Closes profile dropdown
+  ========================================= */
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
         setIsProfileOpen(false)
       }
     }
+
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Theme synchronization and user info
+  /* =========================================
+     THEME + USER INITIALIZATION
+     - Applies theme to document
+     - Fetches user name
+  ========================================= */
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
 
@@ -127,9 +185,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         )
       }
     }
+
     checkUserRole()
   }, [supabase, theme])
 
+  /* =========================================
+     THEME TOGGLE
+     - Switches light/dark mode
+  ========================================= */
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light'
     setTheme(newTheme)
@@ -137,18 +200,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     document.documentElement.setAttribute('data-theme', newTheme)
   }
 
+  /* =========================================
+     SIDEBAR NAVIGATION HANDLER
+     - Prevents duplicate navigation
+     - Tracks pending route
+  ========================================= */
   const handleSidebarNavigation = (href: string) => {
     if (pathname === href || isNavigating) return
 
     setPendingRoute(href)
+
     startNavigation(() => {
       router.push(href)
     })
   }
 
+  /* =========================================
+     ROUTE STATE (FOR UI FEEDBACK)
+  ========================================= */
   const visualRoute = isNavigating && pendingRoute ? pendingRoute : pathname
 
-  // Admin navigation items
+  /* =========================================
+     NAVIGATION ITEMS CONFIG
+     - Defines admin sidebar routes
+  ========================================= */
   const navItems = [
     { name: 'Overview', href: '/admin', icon: Shield },
     { name: 'View as User', href: '/admin/view-as-user', icon: Eye },

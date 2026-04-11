@@ -1,8 +1,17 @@
 'use server'
 
+/* =========================================
+   IMPORTS
+   - Supabase server client
+   - Notification service
+========================================= */
 import { createClient } from '@/lib/supabase/server'
 import { createNotification } from '@/lib/notifications/service'
 
+/* =========================================
+   TYPES
+   Represents a faculty/mentor account
+========================================= */
 interface Faculty {
   id: string
   first_name: string
@@ -13,14 +22,15 @@ interface Faculty {
   updated_at: string
 }
 
-/**
- * Fetch all pending faculty/mentor accounts awaiting verification
- */
+/* =========================================
+   GET PENDING FACULTY
+   - Retrieves all mentors awaiting approval
+   - Enriches with email from auth.users
+========================================= */
 export async function getPendingFaculty(): Promise<Faculty[]> {
   const supabase = await createClient()
 
   try {
-    // Get pending faculty (mentors with is_verified = false)
     const { data: profiles, error } = await supabase
       .from('profiles')
       .select('id, first_name, last_name, course_program, is_verified, updated_at')
@@ -33,13 +43,16 @@ export async function getPendingFaculty(): Promise<Faculty[]> {
       return []
     }
 
-    // Fetch user emails from auth.users table
+    /* =========================================
+       ENRICH DATA WITH EMAIL
+       Uses admin API to fetch auth user emails
+    ========================================= */
     const facultyWithEmails: Faculty[] = []
-    
+
     if (profiles && profiles.length > 0) {
       for (const profile of profiles) {
         const { data: { user } } = await supabase.auth.admin.getUserById(profile.id)
-        
+
         facultyWithEmails.push({
           id: profile.id,
           first_name: profile.first_name,
@@ -53,21 +66,29 @@ export async function getPendingFaculty(): Promise<Faculty[]> {
     }
 
     return facultyWithEmails
+
   } catch (error) {
     console.error('Unexpected error fetching pending faculty:', error)
     return []
   }
 }
 
-/**
- * Verify a faculty member by updating their is_verified status to true
- */
+/* =========================================
+   VERIFY FACULTY
+   - Admin-only action
+   - Sets is_verified = true
+   - Sends notification to user
+========================================= */
 export async function verifyFaculty(userId: string): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
   try {
-    // Verify the current user is an admin
+    /* =========================================
+       AUTHORIZATION CHECK
+       Ensures current user is admin
+    ========================================= */
     const { data: { user: currentUser } } = await supabase.auth.getUser()
+
     if (!currentUser) {
       return { success: false, error: 'Not authenticated' }
     }
@@ -82,10 +103,15 @@ export async function verifyFaculty(userId: string): Promise<{ success: boolean;
       return { success: false, error: 'Insufficient permissions' }
     }
 
-    // Update the faculty member's verification status
+    /* =========================================
+       UPDATE VERIFICATION STATUS
+    ========================================= */
     const { error } = await supabase
       .from('profiles')
-      .update({ is_verified: true, updated_at: new Date().toISOString() })
+      .update({
+        is_verified: true,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', userId)
 
     if (error) {
@@ -93,6 +119,10 @@ export async function verifyFaculty(userId: string): Promise<{ success: boolean;
       return { success: false, error: error.message }
     }
 
+    /* =========================================
+       NOTIFICATION
+       Informs user of approval
+    ========================================= */
     await createNotification(supabase, {
       user_id: userId,
       actor_id: currentUser.id,
@@ -104,21 +134,28 @@ export async function verifyFaculty(userId: string): Promise<{ success: boolean;
     })
 
     return { success: true }
+
   } catch (error) {
     console.error('Unexpected error verifying faculty:', error)
     return { success: false, error: 'An unexpected error occurred' }
   }
 }
 
-/**
- * Reject/un-verify a faculty member
- */
+/* =========================================
+   REJECT FACULTY
+   - Admin-only action
+   - Keeps is_verified = false
+   - Sends notification to user
+========================================= */
 export async function rejectFaculty(userId: string): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
   try {
-    // Verify the current user is an admin
+    /* =========================================
+       AUTHORIZATION CHECK
+    ========================================= */
     const { data: { user: currentUser } } = await supabase.auth.getUser()
+
     if (!currentUser) {
       return { success: false, error: 'Not authenticated' }
     }
@@ -133,10 +170,15 @@ export async function rejectFaculty(userId: string): Promise<{ success: boolean;
       return { success: false, error: 'Insufficient permissions' }
     }
 
-    // Update the faculty member's verification status to false
+    /* =========================================
+       UPDATE STATUS (REJECT)
+    ========================================= */
     const { error } = await supabase
       .from('profiles')
-      .update({ is_verified: false, updated_at: new Date().toISOString() })
+      .update({
+        is_verified: false,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', userId)
 
     if (error) {
@@ -144,6 +186,9 @@ export async function rejectFaculty(userId: string): Promise<{ success: boolean;
       return { success: false, error: error.message }
     }
 
+    /* =========================================
+       NOTIFICATION
+    ========================================= */
     await createNotification(supabase, {
       user_id: userId,
       actor_id: currentUser.id,
@@ -155,6 +200,7 @@ export async function rejectFaculty(userId: string): Promise<{ success: boolean;
     })
 
     return { success: true }
+
   } catch (error) {
     console.error('Unexpected error rejecting faculty:', error)
     return { success: false, error: 'An unexpected error occurred' }

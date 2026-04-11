@@ -1,3 +1,8 @@
+/* =========================================
+   SKELETON STYLE CONFIG
+   - Defines gradient + border styles
+   - Used for loading metric cards
+========================================= */
 const metricSkeletons = [
   'from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-900/10 border-blue-200 dark:border-blue-800',
   'from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-900/10 border-yellow-200 dark:border-yellow-800',
@@ -5,7 +10,13 @@ const metricSkeletons = [
   'from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-900/10 border-orange-200 dark:border-orange-800',
 ]
 
+/* =========================================
+   ADMIN LOADING COMPONENT
+   - Displays skeleton UI while data loads
+   - Mimics actual dashboard layout
+========================================= */
 export default function AdminLoading() {
+
   return (
     <div className="max-w-7xl space-y-8 pb-8 animate-pulse">
       <div className="flex items-start gap-4">

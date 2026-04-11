@@ -1,7 +1,15 @@
 'use server'
 
+/* =========================================
+   IMPORTS
+   - Supabase server client
+========================================= */
 import { createClient } from '@/lib/supabase/server'
 
+/* =========================================
+   TYPES
+   Represents user profile with optional metrics
+========================================= */
 export interface UserProfile {
   id: string
   first_name: string
@@ -15,18 +23,29 @@ export interface UserProfile {
   researchCount?: number
 }
 
-/**
- * Fetch all users with filtering options
- */
-export async function getAllUsers(roleFilter?: string, searchTerm?: string): Promise<UserProfile[]> {
+/* =========================================
+   GET ALL USERS
+   - Fetches users with optional role + search filters
+   - Enriches with email and mentor workload stats
+========================================= */
+export async function getAllUsers(
+  roleFilter?: string,
+  searchTerm?: string
+): Promise<UserProfile[]> {
   const supabase = await createClient()
 
   try {
+    /* =========================================
+       BASE QUERY
+    ========================================= */
     let query = supabase
       .from('profiles')
       .select('id, first_name, last_name, role, course_program, is_verified, updated_at')
       .order('updated_at', { ascending: false })
 
+    /* =========================================
+       ROLE FILTER
+    ========================================= */
     if (roleFilter && roleFilter !== 'all') {
       query = query.eq('role', roleFilter)
     }
@@ -38,33 +57,43 @@ export async function getAllUsers(roleFilter?: string, searchTerm?: string): Pro
       return []
     }
 
+    /* =========================================
+       DATA PROCESSING + ENRICHMENT
+    ========================================= */
     const users: UserProfile[] = []
 
     if (profiles && profiles.length > 0) {
       for (const profile of profiles) {
-        // Filter by search term if provided (search in name)
+
+        /* =========================================
+           SEARCH FILTER (NAME MATCH)
+        ========================================= */
         if (searchTerm) {
           const fullName = `${profile.first_name} ${profile.last_name}`.toLowerCase()
-          if (!fullName.includes(searchTerm.toLowerCase())) {
-            continue
-          }
+          if (!fullName.includes(searchTerm.toLowerCase())) continue
         }
 
-        // Get email from auth
-        const { data: { user } } = await supabase.auth.admin.getUserById(profile.id)
+        /* =========================================
+           FETCH EMAIL FROM AUTH
+        ========================================= */
+        const {
+          data: { user },
+        } = await supabase.auth.admin.getUserById(profile.id)
 
-        // Get workload info for mentors
+        /* =========================================
+           MENTOR WORKLOAD CALCULATION
+           - sections handled
+           - research advised
+        ========================================= */
         let sectionsCount = 0
         let researchCount = 0
 
         if (profile.role === 'mentor') {
-          // Count sections where this mentor is the teacher
           const { count: sectionCount } = await supabase
             .from('sections')
             .select('*', { count: 'exact', head: true })
             .eq('teacher_id', profile.id)
 
-          // Count research where this mentor is the adviser
           const { count: researchCountResult } = await supabase
             .from('research')
             .select('*', { count: 'exact', head: true })
@@ -74,6 +103,9 @@ export async function getAllUsers(roleFilter?: string, searchTerm?: string): Pro
           researchCount = researchCountResult || 0
         }
 
+        /* =========================================
+           FINAL OBJECT BUILD
+        ========================================= */
         users.push({
           id: profile.id,
           first_name: profile.first_name,
@@ -84,28 +116,36 @@ export async function getAllUsers(roleFilter?: string, searchTerm?: string): Pro
           is_verified: profile.is_verified,
           updated_at: profile.updated_at,
           sectionsCount,
-          researchCount
+          researchCount,
         })
       }
     }
 
     return users
+
   } catch (error) {
     console.error('Unexpected error fetching users:', error)
     return []
   }
 }
 
-/**
- * Delete/suspend a user by removing their profile and disabling auth
- * Note: This soft-deletes the profile and relies on auth disable
- */
-export async function deleteOrBanUser(userId: string): Promise<{ success: boolean; error?: string }> {
+/* =========================================
+   DELETE OR BAN USER
+   - Admin-only action
+   - Deletes auth account + profile
+   - Prevents self-deletion
+========================================= */
+export async function deleteOrBanUser(
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient()
 
   try {
-    // Verify the current user is an admin
+    /* =========================================
+       AUTHENTICATION + AUTHORIZATION CHECK
+    ========================================= */
     const { data: { user: currentUser } } = await supabase.auth.getUser()
+
     if (!currentUser) {
       return { success: false, error: 'Not authenticated' }
     }
@@ -120,20 +160,26 @@ export async function deleteOrBanUser(userId: string): Promise<{ success: boolea
       return { success: false, error: 'Insufficient permissions' }
     }
 
-    // Prevent self-deletion
+    /* =========================================
+       PREVENT SELF-DELETION
+    ========================================= */
     if (userId === currentUser.id) {
       return { success: false, error: 'Cannot delete your own account' }
     }
 
-    // Delete the user from auth
+    /* =========================================
+       DELETE FROM AUTH SYSTEM
+    ========================================= */
     const { error: deleteError } = await supabase.auth.admin.deleteUser(userId)
-    
+
     if (deleteError) {
       console.error('Error deleting user from auth:', deleteError)
       return { success: false, error: deleteError.message }
     }
 
-    // Also delete the profile record
+    /* =========================================
+       DELETE PROFILE RECORD
+    ========================================= */
     const { error: profileError } = await supabase
       .from('profiles')
       .delete()
@@ -141,10 +187,11 @@ export async function deleteOrBanUser(userId: string): Promise<{ success: boolea
 
     if (profileError) {
       console.error('Error deleting user profile:', profileError)
-      // Don't fail completely if profile deletion fails, user is already deleted from auth
+      // Do not fail completely if profile deletion fails
     }
 
     return { success: true }
+
   } catch (error) {
     console.error('Unexpected error deleting user:', error)
     return { success: false, error: 'An unexpected error occurred' }

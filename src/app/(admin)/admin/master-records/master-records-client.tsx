@@ -1,5 +1,13 @@
 'use client'
 
+/* =========================================
+   IMPORTS
+   - React state
+   - Icons
+   - Server actions for research management
+   - Static option helpers
+   - UI components (pagination, popup)
+========================================= */
 import { useState } from 'react'
 import { Database, Trash2, AlertCircle, Loader2, Archive, CheckCircle } from 'lucide-react'
 import { getAllResearch, forceDeleteResearch, overrideResearchStatus, archiveAllSections } from './actions'
@@ -8,6 +16,10 @@ import { RESEARCH_STATUS_OPTIONS } from '@/lib/research/status'
 import PaginationControl from '@/components/ui/PaginationControl'
 import { usePopup } from '@/components/ui/PopupProvider'
 
+/* =========================================
+   TYPES
+   Represents research data displayed in UI
+========================================= */
 interface ResearchRecord {
   id: string
   title: string
@@ -23,6 +35,10 @@ interface ResearchRecord {
   downloads_count: number
 }
 
+/* =========================================
+   COMPONENT PROPS
+   Receives initial research dataset
+========================================= */
 interface MasterRecordsClientProps {
   initialResearch: ResearchRecord[]
 }
@@ -30,6 +46,15 @@ interface MasterRecordsClientProps {
 export default function MasterRecordsClient({
   initialResearch,
 }: MasterRecordsClientProps) {
+
+  /* =========================================
+     STATE MANAGEMENT
+     - research: main dataset
+     - loading/error: fetch states
+     - filters: status/type filtering
+     - action states: delete/update/archive tracking
+     - pagination state
+  ========================================= */
   const [research, setResearch] = useState<ResearchRecord[]>(initialResearch)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -40,9 +65,23 @@ export default function MasterRecordsClient({
   const [archivingInProgress, setArchivingInProgress] = useState(false)
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
   const [page, setPage] = useState(1)
+
+  /* =========================================
+     POPUP UTILITIES
+     - confirm: modal confirmation
+     - notify: toast/feedback system
+  ========================================= */
   const { confirm, notify } = usePopup()
+
+  /* =========================================
+     PAGINATION CONFIG
+  ========================================= */
   const pageSize = 10
 
+  /* =========================================
+     FILTERING LOGIC
+     Applies status + type filters
+  ========================================= */
   let filteredResearch = research
 
   if (statusFilter !== 'all') {
@@ -53,17 +92,35 @@ export default function MasterRecordsClient({
     filteredResearch = filteredResearch.filter((r) => r.type === typeFilter)
   }
 
+  /* =========================================
+     PAGINATION CALCULATION
+     Ensures valid page range
+  ========================================= */
   const normalizedPage = Math.min(page, Math.max(1, Math.ceil(filteredResearch.length / pageSize)))
-  const pagedResearch = filteredResearch.slice((normalizedPage - 1) * pageSize, normalizedPage * pageSize)
+  const pagedResearch = filteredResearch.slice(
+    (normalizedPage - 1) * pageSize,
+    normalizedPage * pageSize
+  )
 
+  /* =========================================
+     LOAD RESEARCH
+     Fetches latest dataset from server
+  ========================================= */
   const loadResearch = async () => {
     setLoading(true)
     setError(null)
+
     const result = await getAllResearch()
     setResearch(result)
+
     setLoading(false)
   }
 
+  /* =========================================
+     DELETE RESEARCH
+     - Confirms action
+     - Removes record + updates UI
+  ========================================= */
   const handleDeleteResearch = async (researchId: string, title: string) => {
     const confirmed = await confirm({
       title: 'Delete this research record?',
@@ -72,11 +129,10 @@ export default function MasterRecordsClient({
       variant: 'danger',
     })
 
-    if (!confirmed) {
-      return
-    }
+    if (!confirmed) return
 
     setActionInProgress(researchId)
+
     const result = await forceDeleteResearch(researchId)
 
     if (result.success) {
@@ -86,7 +142,7 @@ export default function MasterRecordsClient({
         message: `"${title}" has been deleted.`,
         variant: 'success',
       })
-      setResearch((currentResearch) => currentResearch.filter((r) => r.id !== researchId))
+      setResearch((current) => current.filter((r) => r.id !== researchId))
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {
       setError(result.error || 'Failed to delete research')
@@ -100,8 +156,14 @@ export default function MasterRecordsClient({
     setActionInProgress(null)
   }
 
+  /* =========================================
+     STATUS UPDATE
+     - Overrides research status
+     - Updates UI optimistically
+  ========================================= */
   const handleStatusChange = async (researchId: string, newStatus: string) => {
     setActionInProgress(researchId)
+
     const result = await overrideResearchStatus(researchId, newStatus)
 
     if (result.success) {
@@ -111,8 +173,10 @@ export default function MasterRecordsClient({
         message: `Research status is now "${newStatus}".`,
         variant: 'success',
       })
-      setResearch((currentResearch) =>
-        currentResearch.map((r) => (r.id === researchId ? { ...r, status: newStatus } : r))
+      setResearch((current) =>
+        current.map((r) =>
+          r.id === researchId ? { ...r, status: newStatus } : r
+        )
       )
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {
@@ -127,12 +191,20 @@ export default function MasterRecordsClient({
     setActionInProgress(null)
   }
 
+  /* =========================================
+     ARCHIVE ALL SECTIONS
+     - Bulk admin operation
+     - Archives + freezes sections
+  ========================================= */
   const handleArchiveAllSections = async () => {
     setArchivingInProgress(true)
+
     const result = await archiveAllSections()
 
     if (result.success) {
-      setSuccessMessage(`${result.archivedCount} section${result.archivedCount !== 1 ? 's' : ''} have been archived`)
+      setSuccessMessage(
+        `${result.archivedCount} section${result.archivedCount !== 1 ? 's' : ''} have been archived`
+      )
       setShowArchiveConfirm(false)
       notify({
         title: 'Sections archived',
