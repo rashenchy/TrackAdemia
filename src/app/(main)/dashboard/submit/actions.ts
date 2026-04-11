@@ -70,7 +70,7 @@ export async function submitResearch(prevState: FormState | null, formData: Form
   const currentStage = (formData.get('currentStage') as string)?.trim()
 
   const requestedSubmissionFormat = (formData.get('submissionFormat') as string)?.trim()
-  const documentContent = extractResearchDocumentContentFromFormData(formData, currentStage)
+  const documentContent = extractResearchDocumentContentFromFormData(formData, currentStage, type)
   const hasTextContent = hasResearchTextContent(documentContent, currentStage)
 
   // Collect members and their roles

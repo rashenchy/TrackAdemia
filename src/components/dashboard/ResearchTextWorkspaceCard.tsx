@@ -8,12 +8,10 @@ import type { ResearchDocumentContent } from '@/lib/research/document'
 
 export function ResearchTextWorkspaceCard({
   content,
-  stage,
   workspaceHref,
   canEnterWorkspace,
 }: {
   content: ResearchDocumentContent
-  stage: string | null | undefined
   workspaceHref: string
   canEnterWorkspace: boolean
 }) {
@@ -53,7 +51,7 @@ export function ResearchTextWorkspaceCard({
 
       {isExpanded ? (
         <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-          <ResearchDocumentSections content={content} stage={stage} />
+          <ResearchDocumentSections content={content} />
           {canEnterWorkspace ? (
             <div className="mt-5 flex justify-end border-t border-gray-100 pt-4 dark:border-gray-800">
               <Link

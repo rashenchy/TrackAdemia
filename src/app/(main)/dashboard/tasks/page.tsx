@@ -19,6 +19,7 @@ import Link from 'next/link'
 import { TeacherAnalytics } from '@/components/dashboard/TeacherAnalytics'
 import PaginationLinks from '@/components/ui/PaginationLinks'
 import { appendFromParam } from '@/lib/navigation'
+import { TasksRealtimeRefresh } from '@/components/dashboard/TasksRealtimeRefresh'
 
 type TaskSource = 'teacher' | 'personal' | 'annotation'
 
@@ -152,6 +153,7 @@ const { data: profile } = await supabase
 
         return (
             <div className="max-w-4xl mx-auto space-y-8">
+                <TasksRealtimeRefresh />
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight text-[var(--foreground)]">
                         Task Manager
@@ -396,6 +398,7 @@ const { data: profile } = await supabase
 
     return (
         <div className="max-w-4xl mx-auto space-y-8">
+            <TasksRealtimeRefresh />
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>

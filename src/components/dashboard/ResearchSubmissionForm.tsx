@@ -5,15 +5,11 @@ import { Plus, Trash2, FileText, GraduationCap, Users, Calendar, Paperclip, Aler
 import { SubmitButton } from '@/components/auth/SubmitButton'
 import { submitResearch } from '@/app/(main)/dashboard/submit/actions'
 import { updateResearch } from '@/app/(main)/dashboard/research/[id]/edit/actions'
-import { ResearchRichTextEditor } from '@/components/dashboard/ResearchRichTextEditor'
-import { ResearchChapterSectionsEditor } from '@/components/dashboard/ResearchChapterSectionsEditor'
+import { ResearchDocumentStructureEditor } from '@/components/dashboard/ResearchDocumentStructureEditor'
 import { RESEARCH_TYPE_OPTIONS } from '@/lib/research/types'
 import {
-  createEmptyResearchDocumentContent,
-  getResearchEditorSectionsForStage,
+  createDefaultResearchDocumentContent,
   getNormalizedResearchStage,
-  isProposalStage,
-  isResearchChapterSectionKey,
   normalizeResearchDocumentContent,
   RESEARCH_SUBMISSION_FORMAT_OPTIONS,
   type ResearchDocumentContent,
@@ -207,17 +203,14 @@ export function ResearchSubmissionForm({
     (initialData?.submission_format as ResearchSubmissionFormat) || 'pdf'
   )
   const [documentSections, setDocumentSections] = useState<ResearchDocumentContent>(
-    normalizeResearchDocumentContent(initialData?.content_json)
+    normalizeResearchDocumentContent(initialData?.content_json, initialData?.type || 'capstone')
   )
 
-  const visibleEditorSections = getResearchEditorSectionsForStage(selectedCurrentStage)
-  const proposalStage = isProposalStage(selectedCurrentStage)
-  const effectiveSubmissionFormat = proposalStage ? 'pdf' : submissionFormat
+  const effectiveSubmissionFormat = submissionFormat
   const showsPdfInput =
     effectiveSubmissionFormat === 'pdf' || effectiveSubmissionFormat === 'both'
   const showsTextEditor =
-    !proposalStage &&
-    (effectiveSubmissionFormat === 'text' || effectiveSubmissionFormat === 'both')
+    effectiveSubmissionFormat === 'text' || effectiveSubmissionFormat === 'both'
 
   const adviserSelectOptions = adviserOptions.some(
     (adviser) => adviser.id === selectedAdviserId
@@ -257,16 +250,6 @@ export function ResearchSubmissionForm({
     setMembers(newMembers)
   }
 
-  const updateDocumentSection = (
-    sectionKey: keyof ResearchDocumentContent,
-    value: string
-  ) => {
-    setDocumentSections((currentSections) => ({
-      ...currentSections,
-      [sectionKey]: value,
-    }))
-  }
-
   // Form reset logic
   const clearForm = () => {
     setMembers([''])
@@ -281,7 +264,7 @@ export function ResearchSubmissionForm({
     setUseExternalAdviser(false)
     setSelectedCurrentStage('Proposal')
     setSubmissionFormat('pdf')
-    setDocumentSections(createEmptyResearchDocumentContent())
+    setDocumentSections(createDefaultResearchDocumentContent('capstone'))
     formRef.current?.reset()
   }
 
@@ -339,6 +322,10 @@ export function ResearchSubmissionForm({
                 if (nextType !== 'capstone') {
                   setUseExternalAdviser(false)
                   setSelectedAdviserId('')
+                }
+
+                if (!editId && !initialData?.content_json) {
+                  setDocumentSections(createDefaultResearchDocumentContent(nextType))
                 }
               }}
               className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer"
@@ -584,15 +571,11 @@ export function ResearchSubmissionForm({
               onChange={(event) => {
                 const nextStage = getNormalizedResearchStage(event.target.value)
                 setSelectedCurrentStage(nextStage)
-
-                if (isProposalStage(nextStage)) {
-                  setSubmissionFormat('pdf')
-                }
               }}
               className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer"
             >
               <option value="Proposal">Proposal</option>
-              <option value="Chapter 1-3">Chapter 1-3</option>
+              <option value="In Progress">In Progress</option>
               <option value="Final Manuscript">Final Manuscript</option>
             </select>
           </div>
@@ -607,33 +590,27 @@ export function ResearchSubmissionForm({
 
         <input type="hidden" name="submissionFormat" value={effectiveSubmissionFormat} />
 
-        {proposalStage ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-100">
-            Proposal submissions are PDF-only for now, since proposals usually do not follow the final manuscript structure yet.
-          </div>
-        ) : (
-          <div className="grid gap-3 md:grid-cols-3">
-            {RESEARCH_SUBMISSION_FORMAT_OPTIONS.map((option) => {
-              const isSelected = submissionFormat === option.value
+        <div className="grid gap-3 md:grid-cols-3">
+          {RESEARCH_SUBMISSION_FORMAT_OPTIONS.map((option) => {
+            const isSelected = submissionFormat === option.value
 
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setSubmissionFormat(option.value)}
-                  className={`rounded-xl border p-4 text-left transition-all ${
-                    isSelected
-                      ? 'border-blue-500 bg-blue-50 shadow-sm dark:border-blue-400 dark:bg-blue-900/20'
-                      : 'border-gray-200 hover:border-blue-300 dark:border-gray-800 dark:hover:border-blue-800'
-                  }`}
-                >
-                  <p className="text-sm font-bold text-[var(--foreground)]">{option.label}</p>
-                  <p className="mt-2 text-xs leading-relaxed text-gray-500">{option.description}</p>
-                </button>
-              )
-            })}
-          </div>
-        )}
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setSubmissionFormat(option.value)}
+                className={`rounded-xl border p-4 text-left transition-all ${
+                  isSelected
+                    ? 'border-blue-500 bg-blue-50 shadow-sm dark:border-blue-400 dark:bg-blue-900/20'
+                    : 'border-gray-200 hover:border-blue-300 dark:border-gray-800 dark:hover:border-blue-800'
+                }`}
+              >
+                <p className="text-sm font-bold text-[var(--foreground)]">{option.label}</p>
+                <p className="mt-2 text-xs leading-relaxed text-gray-500">{option.description}</p>
+              </button>
+            )
+          })}
+        </div>
 
         <div className="rounded-xl border border-dashed border-blue-200 bg-blue-50/70 px-4 py-3 text-xs text-blue-800 dark:border-blue-900/40 dark:bg-blue-900/10 dark:text-blue-200">
           Reviewers will annotate submitted snapshots only. Students continue editing in the working form and resubmit when ready.
@@ -681,35 +658,14 @@ export function ResearchSubmissionForm({
             <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-900/20">
               <p className="text-sm font-semibold text-[var(--foreground)]">Structured Manuscript Editor</p>
               <p className="mt-1 text-xs text-gray-500">
-                {selectedCurrentStage === 'Chapter 1-3'
-                  ? 'Provide Chapters 1 to 3 here. The remaining chapters will stay empty until the final manuscript stage.'
-                  : 'Provide the abstract and Chapters 1 to 5 here. Reviewers will be able to highlight passages and leave anchored feedback directly in the text view.'}
+                Your selected research type provides a starting structure, but every chapter and section remains editable.
               </p>
             </div>
-
-            {visibleEditorSections.map((section) => (
-              <div key={section.key} className="space-y-2">
-                <label className="text-sm font-semibold text-[var(--foreground)]">
-                  {section.label}
-                </label>
-                {isResearchChapterSectionKey(section.key) ? (
-                  <ResearchChapterSectionsEditor
-                    sectionKey={section.key}
-                    inputName={`section-${section.key}`}
-                    value={documentSections[section.key]}
-                    onChange={(nextValue) => updateDocumentSection(section.key, nextValue)}
-                    placeholder={`Write the ${section.label.toLowerCase()} content`}
-                  />
-                ) : (
-                  <ResearchRichTextEditor
-                    inputName={`section-${section.key}`}
-                    value={documentSections[section.key]}
-                    onChange={(nextValue) => updateDocumentSection(section.key, nextValue)}
-                    placeholder={`Write the ${section.label.toLowerCase()} here...`}
-                  />
-                )}
-              </div>
-            ))}
+            <ResearchDocumentStructureEditor
+              inputName="contentJson"
+              value={documentSections}
+              onChange={setDocumentSections}
+            />
           </div>
         )}
       </div>

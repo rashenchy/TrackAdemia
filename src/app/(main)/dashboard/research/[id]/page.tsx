@@ -6,9 +6,9 @@ import { DocumentDownloadButton } from '@/components/dashboard/DocumentDownloadB
 import { updateResearchStatus } from './actions'
 import { ResearchStatusForm } from './research-status-form'
 import { ResearchTextWorkspaceCard } from '@/components/dashboard/ResearchTextWorkspaceCard'
+import { ResearchRealtimeRefresh } from '@/components/dashboard/ResearchRealtimeRefresh'
 import {
-  getPlainTextFromRichText,
-  getResearchEditorSectionsForStage,
+  hasResearchTextContent,
   normalizeResearchDocumentContent,
   resolveResearchSubmissionFormat,
 } from '@/lib/research/document'
@@ -163,12 +163,11 @@ export default async function ViewResearchPage({
 
   const latestVersion = displayVersions[0]
   const latestDocumentContent = normalizeResearchDocumentContent(
-    latestVersion?.content_json ?? research.content_json
+    latestVersion?.content_json ?? research.content_json,
+    research.type
   )
   const latestHasPdf = Boolean(latestVersion?.file_url || research.file_url)
-  const latestHasText = getResearchEditorSectionsForStage(research.current_stage).some(
-    (section) => getPlainTextFromRichText(latestDocumentContent[section.key]).trim().length > 0
-  )
+  const latestHasText = hasResearchTextContent(latestDocumentContent, research.current_stage)
   const latestSubmissionFormat = resolveResearchSubmissionFormat(
     research.submission_format,
     {
@@ -199,6 +198,7 @@ export default async function ViewResearchPage({
   // Render
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-12">
+      <ResearchRealtimeRefresh researchId={researchId} />
 
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
@@ -388,7 +388,6 @@ export default async function ViewResearchPage({
             {activeDocumentView === 'text' && latestHasText && (
               <ResearchTextWorkspaceCard
                 content={latestDocumentContent}
-                stage={research.current_stage}
                 workspaceHref={latestWorkspaceHref}
                 canEnterWorkspace={!isViewerOnly && (isTeacher || isAuthor)}
               />

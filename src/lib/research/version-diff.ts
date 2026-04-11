@@ -1,10 +1,8 @@
 import { diffWords } from 'diff'
 import {
   getPlainTextFromRichText,
-  getResearchEditorSectionsForStage,
-  getResearchSectionLabel,
+  getResearchDocumentSections,
   normalizeResearchDocumentContent,
-  type ResearchDocumentContent,
 } from '@/lib/research/document'
 
 export type VersionDiffPart = {
@@ -13,7 +11,7 @@ export type VersionDiffPart = {
 }
 
 export type VersionSectionDiff = {
-  key: keyof ResearchDocumentContent
+  key: string
   label: string
   oldText: string
   newText: string
@@ -64,17 +62,36 @@ export function buildResearchVersionDiff(
   newContent: unknown,
   stage: string | null | undefined
 ): VersionSectionDiff[] {
+  void stage
   const previous = normalizeResearchDocumentContent(oldContent)
   const next = normalizeResearchDocumentContent(newContent)
+  const previousSections = getResearchDocumentSections(previous)
+  const nextSections = getResearchDocumentSections(next)
+  const orderedSections = [
+    ...nextSections.map((section) => ({
+      key: section.id,
+      label: section.title,
+      oldSection: previousSections.find((candidate) => candidate.id === section.id) ?? null,
+      newSection: section,
+    })),
+    ...previousSections
+      .filter((section) => !nextSections.some((candidate) => candidate.id === section.id))
+      .map((section) => ({
+        key: section.id,
+        label: section.title,
+        oldSection: section,
+        newSection: null,
+      })),
+  ]
 
-  return getResearchEditorSectionsForStage(stage).map((section) => {
-    const oldText = getPlainTextFromRichText(previous[section.key])
-    const newText = getPlainTextFromRichText(next[section.key])
+  return orderedSections.map((section) => {
+    const oldText = getPlainTextFromRichText(section.oldSection?.content ?? '')
+    const newText = getPlainTextFromRichText(section.newSection?.content ?? '')
     const sectionParts = createSectionParts(oldText, newText)
 
     return {
       key: section.key,
-      label: getResearchSectionLabel(section.key),
+      label: section.label,
       oldText,
       newText,
       changed: sectionParts.changedPartCount > 0,

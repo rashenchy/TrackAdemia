@@ -1,0 +1,220 @@
+'use client'
+
+import { Plus, Trash2, Library } from 'lucide-react'
+import { ResearchChapterSectionsEditor } from '@/components/dashboard/ResearchChapterSectionsEditor'
+import { ResearchRichTextEditor } from '@/components/dashboard/ResearchRichTextEditor'
+import {
+  createBibliographySection,
+  createResearchDocumentSection,
+  createStructuredSectionContent,
+  type ResearchDocumentContent,
+  type ResearchDocumentSection,
+} from '@/lib/research/document'
+
+function buildSectionSummary(sectionCount: number) {
+  return `${sectionCount} chapter${sectionCount === 1 ? '' : 's'}`
+}
+
+export function ResearchDocumentStructureEditor({
+  inputName,
+  value,
+  onChange,
+  editable = true,
+  onSectionMouseUp,
+  onSectionRef,
+}: {
+  inputName?: string
+  value: ResearchDocumentContent
+  onChange?: (value: ResearchDocumentContent) => void
+  editable?: boolean
+  onSectionMouseUp?: (sectionId: string) => void
+  onSectionRef?: (sectionId: string, node: HTMLElement | null) => void
+}) {
+  const documentSections = value.sections
+
+  const commitSections = (nextSections: ResearchDocumentSection[]) => {
+    onChange?.({ sections: nextSections })
+  }
+
+  const addChapter = () => {
+    commitSections([
+      ...documentSections,
+      createResearchDocumentSection(
+        `CHAPTER ${documentSections.length + 1}`,
+        createStructuredSectionContent([
+          'Section 1',
+        ]),
+        'structured'
+      ),
+    ])
+  }
+
+  const addBibliography = () => {
+    if (documentSections.some((section) => section.kind === 'rich-text')) {
+      return
+    }
+
+    commitSections([...documentSections, createBibliographySection()])
+  }
+
+  const updateSection = (sectionId: string, updates: Partial<ResearchDocumentSection>) => {
+    commitSections(
+      documentSections.map((section) =>
+        section.id === sectionId ? { ...section, ...updates } : section
+      )
+    )
+  }
+
+  const removeSection = (sectionId: string) => {
+    commitSections(documentSections.filter((section) => section.id !== sectionId))
+  }
+
+  if (!editable) {
+    return (
+      <div className="space-y-4">
+        {documentSections.length > 0 ? (
+          documentSections.map((section) => (
+            <section
+              key={section.id}
+              ref={(node) => onSectionRef?.(section.id, node)}
+              className="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900/20"
+              onMouseUp={() => onSectionMouseUp?.(section.id)}
+            >
+              <span data-document-section-title="true" className="sr-only">
+                {section.title}
+              </span>
+              <h3 className="text-sm font-bold uppercase tracking-wide text-gray-500">
+                {section.title}
+              </h3>
+              {section.kind === 'structured' ? (
+                <div className="mt-3">
+                  <ResearchChapterSectionsEditor
+                    value={section.content}
+                    onChange={() => {}}
+                    placeholder={`Write the ${section.title.toLowerCase()} content`}
+                    editable={false}
+                    onMouseUp={() => onSectionMouseUp?.(section.id)}
+                  />
+                </div>
+              ) : (
+                <div className="mt-3">
+                  <ResearchRichTextEditor
+                    value={section.content}
+                    onChange={() => {}}
+                    placeholder={`Write the ${section.title.toLowerCase()} here...`}
+                    editable={false}
+                    onMouseUp={() => onSectionMouseUp?.(section.id)}
+                  />
+                </div>
+              )}
+            </section>
+          ))
+        ) : (
+          <div className="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-sm text-gray-400">
+            No content provided for this manuscript.
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-5">
+      {inputName ? (
+        <input
+          type="hidden"
+          name={inputName}
+          value={JSON.stringify(value)}
+        />
+      ) : null}
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-gray-300 bg-gray-50/60 px-4 py-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
+            Dynamic Manuscript Structure
+          </p>
+          <p className="mt-1 text-sm text-gray-600">
+            Start with a template, then add, rename, or remove sections as needed for your paper.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-600">
+            {buildSectionSummary(documentSections.length)}
+          </span>
+          <button
+            type="button"
+            onClick={addChapter}
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+          >
+            <Plus size={16} />
+            Add Chapter
+          </button>
+          <button
+            type="button"
+            onClick={addBibliography}
+            disabled={documentSections.some((section) => section.kind === 'rich-text')}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Library size={16} />
+            Add Bibliography
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-5">
+        {documentSections.map((section, index) => (
+          <section
+            key={section.id}
+            ref={(node) => onSectionRef?.(section.id, node)}
+            className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+          >
+            <span data-document-section-title="true" className="sr-only">
+              {section.title}
+            </span>
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+              <div className="flex-1 space-y-2">
+                <label className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
+                  Chapter Title
+                </label>
+                <input
+                  value={section.title}
+                  onChange={(event) =>
+                    updateSection(section.id, { title: event.target.value })
+                  }
+                  placeholder={`Section ${index + 1} title`}
+                  className="w-full rounded-xl border border-gray-300 px-4 py-3 text-base font-bold text-gray-900 outline-none transition focus:border-blue-500"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => removeSection(section.id)}
+                className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+              >
+                <Trash2 size={16} />
+                Remove
+              </button>
+            </div>
+
+            {section.kind === 'structured' ? (
+              <ResearchChapterSectionsEditor
+                value={section.content}
+                onChange={(nextValue) => updateSection(section.id, { content: nextValue })}
+                placeholder={`Write the ${section.title.toLowerCase()} content`}
+                editable={editable}
+                onMouseUp={() => onSectionMouseUp?.(section.id)}
+              />
+            ) : (
+              <ResearchRichTextEditor
+                value={section.content}
+                onChange={(nextValue) => updateSection(section.id, { content: nextValue })}
+                placeholder={`Write the ${section.title.toLowerCase()} here...`}
+                editable={editable}
+                onMouseUp={() => onSectionMouseUp?.(section.id)}
+              />
+            )}
+          </section>
+        ))}
+      </div>
+    </div>
+  )
+}

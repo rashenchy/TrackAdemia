@@ -5,37 +5,40 @@ import { Plus, Trash2 } from 'lucide-react'
 import { ResearchRichTextEditor } from '@/components/dashboard/ResearchRichTextEditor'
 import {
   createResearchChapterSection,
-  getDefaultResearchChapterSections,
   parseResearchChapterSections,
   serializeResearchChapterSections,
   type ResearchChapterSection,
-  type ResearchSectionKey,
 } from '@/lib/research/document'
 
 function buildSectionSummary(sectionCount: number) {
   return `${sectionCount} section${sectionCount === 1 ? '' : 's'}`
 }
 
+function swallowPointerEvent(event: React.MouseEvent<HTMLButtonElement>) {
+  event.preventDefault()
+  event.stopPropagation()
+}
+
 export function ResearchChapterSectionsEditor({
-  sectionKey,
   inputName,
   value,
   onChange,
   placeholder,
   editable = true,
+  fallbackTitles = ['Section 1'],
   onMouseUp,
 }: {
-  sectionKey: ResearchSectionKey
   inputName?: string
   value: string
   onChange: (value: string) => void
   placeholder: string
   editable?: boolean
+  fallbackTitles?: string[]
   onMouseUp?: () => void
 }) {
   const chapterSections = useMemo(
-    () => parseResearchChapterSections(sectionKey, value),
-    [sectionKey, value]
+    () => parseResearchChapterSections(value, fallbackTitles),
+    [fallbackTitles, value]
   )
 
   const commitSections = (nextSections: ResearchChapterSection[]) => {
@@ -47,11 +50,6 @@ export function ResearchChapterSectionsEditor({
   }
 
   const addSection = () => {
-    if (chapterSections.length === 0 && sectionKey !== 'abstract') {
-      commitSections(getDefaultResearchChapterSections(sectionKey))
-      return
-    }
-
     commitSections([...chapterSections, createResearchChapterSection('', '<p></p>')])
   }
 
@@ -125,8 +123,13 @@ export function ResearchChapterSectionsEditor({
           </span>
           <button
             type="button"
-            onClick={addSection}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+            onMouseDown={swallowPointerEvent}
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              addSection()
+            }}
+            className="relative z-10 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
           >
             <Plus size={16} />
             Add section
@@ -153,9 +156,14 @@ export function ResearchChapterSectionsEditor({
               </div>
               <button
                 type="button"
-                onClick={() => removeSection(section.id)}
+                onMouseDown={swallowPointerEvent}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  removeSection(section.id)
+                }}
                 disabled={chapterSections.length === 1}
-                className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="relative z-10 inline-flex items-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Trash2 size={16} />
                 Remove

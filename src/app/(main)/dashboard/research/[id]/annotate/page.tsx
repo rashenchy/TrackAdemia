@@ -43,22 +43,16 @@ import {
   updateReviewDecision,
 } from './actions'
 import {
-  getPlainTextFromRichText,
-  getResearchEditorSectionsForStage,
   getResearchSectionLabel,
-  getNormalizedResearchStage,
-  isResearchChapterSectionKey,
+  hasResearchTextContent,
   isTextAnnotationPosition,
   normalizeResearchDocumentContent,
   resolveResearchSubmissionFormat,
   type ResearchDocumentContent,
-  type ResearchSectionKey,
-  type ResearchStage,
   type ResearchSubmissionFormat,
   type TextAnnotationPosition,
 } from '@/lib/research/document'
-import { ResearchRichTextEditor } from '@/components/dashboard/ResearchRichTextEditor'
-import { ResearchChapterSectionsEditor } from '@/components/dashboard/ResearchChapterSectionsEditor'
+import { ResearchDocumentStructureEditor } from '@/components/dashboard/ResearchDocumentStructureEditor'
 import { getVersionLabel } from '@/lib/research/versioning'
 import { BackButton } from '@/components/navigation/BackButton'
 import { appendFromParam, buildPathWithSearch } from '@/lib/navigation'
@@ -126,6 +120,7 @@ type ResearchDraftRecord = {
 type ResearchRecord = {
   id: string
   title: string
+  type?: string | null
   user_id: string
   members?: string[] | null
   current_stage?: string | null
@@ -149,7 +144,10 @@ function isPdfAnnotation(annotation: AnnotationRecord) {
 
 function getAnnotationLocationLabel(annotation: AnnotationRecord) {
   if (isTextAnnotationPosition(annotation.position_data)) {
-    return getResearchSectionLabel(annotation.position_data.sectionKey)
+    return (
+      annotation.position_data.sectionTitle ||
+      getResearchSectionLabel(annotation.position_data.sectionKey)
+    )
   }
 
   if (Array.isArray(annotation.position_data)) {
@@ -170,7 +168,7 @@ function getAnnotationLocationLabel(annotation: AnnotationRecord) {
 function getTextSelectionDetails(
   selectionRange: Range,
   container: HTMLElement,
-  sectionKey: ResearchSectionKey
+  sectionKey: string
 ): TextSelectionDraft | null {
   const selectedText = selectionRange.toString().replace(/\s+/g, ' ').trim()
 
@@ -184,6 +182,9 @@ function getTextSelectionDetails(
   return {
     type: 'text',
     sectionKey,
+    sectionTitle:
+      container.querySelector('[data-document-section-title="true"]')?.textContent?.trim() ||
+      undefined,
     selectedText,
     prefixText: fullText.slice(Math.max(0, startOffset - 40), startOffset),
     suffixText: fullText.slice(endOffset, Math.min(fullText.length, endOffset + 40)),
@@ -417,6 +418,7 @@ export default function AnnotatePage({
   const { id: researchId } = use(params)
   const searchParams = useSearchParams()
   const router = useRouter()
+  const [supabase] = useState(() => createClient())
   const versionParam = searchParams.get('version')
   const selectedVersionNumber = versionParam ? Number(versionParam) : null
 
@@ -425,12 +427,11 @@ export default function AnnotatePage({
   const [workspaceDrafts, setWorkspaceDrafts] = useState<ResearchDraftRecord[]>([])
   const [annotations, setAnnotations] = useState<AnnotationRecord[]>([])
   const [fileUrl, setFileUrl] = useState<string | null>(null)
-  const [researchStage, setResearchStage] = useState<ResearchStage>('Proposal')
   const [researchStatus, setResearchStatus] = useState('Pending Review')
   const [submissionFormat, setSubmissionFormat] = useState<ResearchSubmissionFormat>('pdf')
   const [activeFormat, setActiveFormat] = useState<'pdf' | 'text'>('pdf')
   const [workspaceContent, setWorkspaceContent] = useState<ResearchDocumentContent>(
-    normalizeResearchDocumentContent(null)
+    normalizeResearchDocumentContent(null, research?.type ?? null)
   )
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -464,14 +465,7 @@ export default function AnnotatePage({
   const highlightRefs = useRef<Record<string, HTMLElement | null>>({})
   const textAnnotationRangesRef = useRef<Record<string, Range>>({})
   const didOpenAnnotationFromQueryRef = useRef(false)
-  const sectionRefs = useRef<Record<ResearchSectionKey, HTMLElement | null>>({
-    abstract: null,
-    chapter1: null,
-    chapter2: null,
-    chapter3: null,
-    chapter4: null,
-    chapter5: null,
-  })
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
 
   const canReview = currentUserRole === 'mentor' || currentUserRole === 'admin'
   const isAuthor = Boolean(
@@ -501,9 +495,10 @@ export default function AnnotatePage({
   const selectedVersionContent = useMemo(
     () =>
       normalizeResearchDocumentContent(
-        effectiveVersion?.content_json ?? research?.content_json ?? null
+        effectiveVersion?.content_json ?? research?.content_json ?? null,
+        research?.type
       ),
-    [effectiveVersion?.content_json, research?.content_json]
+    [effectiveVersion?.content_json, research?.content_json, research?.type]
   )
 
   const editableWorkspaceContent = useMemo(() => {
@@ -512,7 +507,8 @@ export default function AnnotatePage({
         teacherDraft?.content_json ??
           effectiveVersion?.content_json ??
           research?.content_json ??
-          null
+          null,
+        research?.type
       )
     }
 
@@ -521,7 +517,8 @@ export default function AnnotatePage({
         studentDraft?.content_json ??
           research?.content_json ??
           effectiveVersion?.content_json ??
-          null
+          null,
+        research?.type
       )
     }
 
@@ -534,13 +531,13 @@ export default function AnnotatePage({
     selectedVersionContent,
     studentDraft?.content_json,
     teacherDraft?.content_json,
+    research?.type,
   ])
 
   useEffect(() => {
     setWorkspaceContent(editableWorkspaceContent)
   }, [editableWorkspaceContent])
 
-  const visibleSections = getResearchEditorSectionsForStage(researchStage)
   const currentPageHref = useMemo(
     () =>
       buildPathWithSearch(`/dashboard/research/${researchId}/annotate`, [
@@ -718,7 +715,6 @@ export default function AnnotatePage({
     setLoadError(null)
 
     try {
-      const supabase = createClient()
       const {
         data: { user },
       } = await supabase.auth.getUser()
@@ -735,7 +731,7 @@ export default function AnnotatePage({
         supabase
           .from('research')
           .select(
-            'id, title, user_id, members, current_stage, status, submission_format, content_json, file_url, original_file_name'
+            'id, title, type, user_id, members, current_stage, status, submission_format, content_json, file_url, original_file_name'
           )
           .eq('id', researchId)
           .single(),
@@ -747,7 +743,6 @@ export default function AnnotatePage({
 
       setCurrentUserRole(profile?.role ?? null)
       setResearch(researchData)
-      setResearchStage(getNormalizedResearchStage(researchData.current_stage))
       setResearchStatus(researchData.status ?? 'Pending Review')
 
       const { data: versionsData } = await supabase
@@ -799,15 +794,14 @@ export default function AnnotatePage({
       setFileUrl(selectedVersionFileUrl ?? null)
 
       const selectedContent = normalizeResearchDocumentContent(
-        selectedVersion?.content_json ?? researchData.content_json
+        selectedVersion?.content_json ?? researchData.content_json,
+        researchData.type
       )
       const derivedSubmissionFormat = resolveResearchSubmissionFormat(
         researchData.submission_format,
         {
           hasPdf: Boolean(selectedVersion?.file_url ?? researchData.file_url),
-          hasText: getResearchEditorSectionsForStage(researchData.current_stage).some(
-            (section) => getPlainTextFromRichText(selectedContent[section.key]).trim().length > 0
-          ),
+          hasText: hasResearchTextContent(selectedContent, researchData.current_stage),
           stage: researchData.current_stage,
         }
       )
@@ -827,11 +821,119 @@ export default function AnnotatePage({
     } finally {
       setIsLoading(false)
     }
-  }, [researchId, router, selectedVersionNumber])
+  }, [researchId, router, selectedVersionNumber, supabase])
 
   useEffect(() => {
     void loadWorkspaceData()
   }, [loadWorkspaceData])
+
+  useEffect(() => {
+    if (!selectedAnnotation) {
+      return
+    }
+
+    const nextSelectedAnnotation = annotations.find(
+      (annotation) => annotation.id === selectedAnnotation.id
+    )
+
+    if (!nextSelectedAnnotation) {
+      closeThread()
+      return
+    }
+
+    if (
+      nextSelectedAnnotation.is_resolved !== selectedAnnotation.is_resolved ||
+      nextSelectedAnnotation.comment_text !== selectedAnnotation.comment_text ||
+      nextSelectedAnnotation.quote !== selectedAnnotation.quote
+    ) {
+      setSelectedAnnotation(nextSelectedAnnotation)
+    }
+  }, [annotations, selectedAnnotation])
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`research-status:${researchId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'research',
+          filter: `id=eq.${researchId}`,
+        },
+        (payload: {
+          new?: Partial<ResearchRecord> & { status?: string | null; current_stage?: string | null }
+        }) => {
+          const nextRecord = payload.new
+
+          if (!nextRecord) {
+            return
+          }
+
+          setResearch((current) => (current ? { ...current, ...nextRecord } : current))
+
+          if (typeof nextRecord.status === 'string' && nextRecord.status.length > 0) {
+            setResearchStatus(nextRecord.status)
+          }
+
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [researchId, supabase])
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`research-annotations:${researchId}:${selectedVersionNumber ?? 'latest'}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'annotations',
+          filter: `research_id=eq.${researchId}`,
+        },
+        async () => {
+          const nextAnnotations = await getAnnotations(researchId, selectedVersionNumber ?? null)
+          setAnnotations(nextAnnotations as AnnotationRecord[])
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [researchId, selectedVersionNumber, supabase])
+
+  useEffect(() => {
+    if (!selectedAnnotation) {
+      return
+    }
+
+    const channel = supabase
+      .channel(`annotation-thread:${selectedAnnotation.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'annotation_replies',
+          filter: `annotation_id=eq.${selectedAnnotation.id}`,
+        },
+        async () => {
+          const replies = await getReplies(selectedAnnotation.id)
+          setThreadReplies(replies)
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [selectedAnnotation, supabase])
 
   const registerHighlightRef = (annotationId: string, node: HTMLElement | null) => {
     highlightRefs.current[annotationId] = node
@@ -900,7 +1002,7 @@ export default function AnnotatePage({
     }
   }
 
-  const handleTextSelection = (sectionKey: ResearchSectionKey) => {
+  const handleTextSelection = (sectionKey: string) => {
     if (!canReview || !canEditTextWorkspace) return
 
     const selection = window.getSelection()
@@ -1035,13 +1137,6 @@ export default function AnnotatePage({
     } finally {
       setIsSubmittingReply(false)
     }
-  }
-
-  const updateSectionContent = (sectionKey: ResearchSectionKey, value: string) => {
-    setWorkspaceContent((current) => ({
-      ...current,
-      [sectionKey]: value,
-    }))
   }
 
   const handleStudentDraftSave = async () => {
@@ -1485,52 +1580,15 @@ export default function AnnotatePage({
                 </div>
               )
             ) : (
-              <div className="space-y-5">
-                {visibleSections.map((section) => (
-                  <section
-                    key={section.key}
-                    ref={(node) => {
-                      sectionRefs.current[section.key] = node
-                    }}
-                    className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
-                  >
-                    <div className="mb-4 flex items-center justify-between">
-                      <div>
-                        <h3 className="text-lg font-bold text-gray-900">{section.label}</h3>
-                        <p className="mt-1 text-xs uppercase tracking-[0.16em] text-gray-400">
-                          {canEditTextWorkspace ? 'Editable workspace' : 'Historical snapshot'}
-                        </p>
-                      </div>
-                    </div>
-                    {isResearchChapterSectionKey(section.key) ? (
-                      <ResearchChapterSectionsEditor
-                        sectionKey={section.key}
-                        value={
-                          canEditTextWorkspace
-                            ? workspaceContent[section.key]
-                            : selectedVersionContent[section.key]
-                        }
-                        onChange={(nextValue) => updateSectionContent(section.key, nextValue)}
-                        placeholder={`Write the ${section.label.toLowerCase()} content`}
-                        editable={canEditTextWorkspace}
-                        onMouseUp={() => handleTextSelection(section.key)}
-                      />
-                    ) : (
-                      <ResearchRichTextEditor
-                        value={
-                          canEditTextWorkspace
-                            ? workspaceContent[section.key]
-                            : selectedVersionContent[section.key]
-                        }
-                        onChange={(nextValue) => updateSectionContent(section.key, nextValue)}
-                        placeholder={`Write the ${section.label.toLowerCase()} here...`}
-                        editable={canEditTextWorkspace}
-                        onMouseUp={() => handleTextSelection(section.key)}
-                      />
-                    )}
-                  </section>
-                ))}
-              </div>
+              <ResearchDocumentStructureEditor
+                value={canEditTextWorkspace ? workspaceContent : selectedVersionContent}
+                onChange={canEditTextWorkspace ? setWorkspaceContent : undefined}
+                editable={canEditTextWorkspace}
+                onSectionMouseUp={handleTextSelection}
+                onSectionRef={(sectionId, node) => {
+                  sectionRefs.current[sectionId] = node
+                }}
+              />
             )}
 
             {canReview &&

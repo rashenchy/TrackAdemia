@@ -83,7 +83,7 @@ export async function updateResearch(editId: string, prevState: FormState | null
   const targetDefenseDate = (formData.get('targetDefenseDate') as string) || null
   const currentStage = (formData.get('currentStage') as string)?.trim()
   const requestedSubmissionFormat = (formData.get('submissionFormat') as string)?.trim()
-  const documentContent = extractResearchDocumentContentFromFormData(formData, currentStage)
+  const documentContent = extractResearchDocumentContentFromFormData(formData, currentStage, type)
   const hasTextContent = hasResearchTextContent(documentContent, currentStage)
 
   // Collect member assignments
