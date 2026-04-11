@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { ArrowRight, CheckCircle2, ShieldCheck, Sparkles } from 'lucide-react'
+import { ArrowRight, CheckCircle2, ShieldCheck } from 'lucide-react'
 import { login } from './actions'
 import { PasswordField } from '@/components/auth/PasswordField'
 import { SubmitButton } from '@/components/auth/SubmitButton'
@@ -149,7 +149,19 @@ export default async function LoginPage({
                 />
               </div>
 
-              <PasswordField name="password" label="Password" placeholder="Enter your password" />
+              <div className="space-y-3">
+                <PasswordField
+                  name="password"
+                  label="Password"
+                  placeholder="Enter your password"
+                />
+                <Link
+                  href="/forgot-password"
+                  className="inline-flex text-sm font-semibold text-blue-700 transition-colors hover:text-blue-900 hover:underline"
+                >
+                  Forgot Password?
+                </Link>
+              </div>
             </div>
 
             <div className="space-y-4 pt-2">

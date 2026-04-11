@@ -193,7 +193,11 @@ export default async function RegisterPage({
                 </div>
               </div>
 
-              <PasswordField name="password" label="Password" placeholder="Create a strong password" />
+              <PasswordField
+                name="password"
+                label="Password"
+                placeholder="Create a strong password"
+              />
             </div>
 
             <div className="space-y-4 pt-2">

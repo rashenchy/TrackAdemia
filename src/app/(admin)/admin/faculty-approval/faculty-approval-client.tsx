@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Users, CheckCircle, XCircle, Loader2, AlertCircle } from 'lucide-react'
 import { getPendingFaculty, verifyFaculty, rejectFaculty } from './actions'
 import PaginationControl from '@/components/ui/PaginationControl'
+import { usePopup } from '@/components/ui/PopupProvider'
 
 interface Faculty {
   id: string
@@ -28,6 +29,7 @@ export default function FacultyApprovalClient({
   const [verifying, setVerifying] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [page, setPage] = useState(1)
+  const { confirm, notify } = usePopup()
   const pageSize = 10
 
   const pagedFaculty = faculty.slice((page - 1) * pageSize, page * pageSize)
@@ -41,30 +43,75 @@ export default function FacultyApprovalClient({
   }
 
   const handleVerify = async (userId: string, firstName: string, lastName: string) => {
+    const fullName = `${firstName} ${lastName}`
+    const confirmed = await confirm({
+      title: `Approve ${fullName}?`,
+      message:
+        'This will verify the faculty account and unlock the mentor tools for this user.',
+      confirmLabel: 'Approve account',
+    })
+
+    if (!confirmed) {
+      return
+    }
+
     setVerifying(userId)
     const result = await verifyFaculty(userId)
 
     if (result.success) {
-      setSuccessMessage(`${firstName} ${lastName} has been verified successfully!`)
+      setSuccessMessage(`${fullName} has been verified successfully!`)
+      notify({
+        title: 'Faculty approved',
+        message: `${fullName} can now access faculty tools.`,
+        variant: 'success',
+      })
       setFaculty((currentFaculty) => currentFaculty.filter((f) => f.id !== userId))
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {
       setError(result.error || 'Failed to verify faculty member')
+      notify({
+        title: 'Approval failed',
+        message: result.error || 'Failed to verify faculty member',
+        variant: 'error',
+      })
     }
 
     setVerifying(null)
   }
 
   const handleReject = async (userId: string, firstName: string, lastName: string) => {
+    const fullName = `${firstName} ${lastName}`
+    const confirmed = await confirm({
+      title: `Reject ${fullName}?`,
+      message:
+        'This will keep the account unverified and remove this request from the pending approval list.',
+      confirmLabel: 'Reject request',
+      variant: 'danger',
+    })
+
+    if (!confirmed) {
+      return
+    }
+
     setVerifying(userId)
     const result = await rejectFaculty(userId)
 
     if (result.success) {
-      setSuccessMessage(`${firstName} ${lastName} request has been rejected.`)
+      setSuccessMessage(`${fullName} request has been rejected.`)
+      notify({
+        title: 'Faculty request rejected',
+        message: `${fullName} remains unverified.`,
+        variant: 'success',
+      })
       setFaculty((currentFaculty) => currentFaculty.filter((f) => f.id !== userId))
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {
       setError(result.error || 'Failed to reject faculty member')
+      notify({
+        title: 'Rejection failed',
+        message: result.error || 'Failed to reject faculty member',
+        variant: 'error',
+      })
     }
 
     setVerifying(null)

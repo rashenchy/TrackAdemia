@@ -8,6 +8,12 @@ type SendVerificationEmailInput = {
   expiresAt: string
 }
 
+type SendPasswordRecoveryEmailInput = {
+  email: string
+  code: string
+  expiresAt: string
+}
+
 function formatExpiry(expiresAt: string) {
   return new Intl.DateTimeFormat('en-US', {
     dateStyle: 'medium',
@@ -69,6 +75,46 @@ export async function sendRegistrationVerificationEmail({
         <p>Enter this code on the verification page to complete registration.</p>
         <p>This code expires at <strong>${expiresLabel}</strong>.</p>
         <p>If you did not start this registration, you can ignore this email.</p>
+      </div>
+    `,
+  })
+}
+
+export async function sendPasswordRecoveryEmail({
+  email,
+  code,
+  expiresAt,
+}: SendPasswordRecoveryEmailInput) {
+  const user = process.env.GMAIL_USER
+
+  if (!user) {
+    throw new Error('GMAIL_USER is not set.')
+  }
+
+  const transporter = createTransport()
+  const expiresLabel = formatExpiry(expiresAt)
+
+  await transporter.sendMail({
+    from: `TrackAdemia <${user}>`,
+    to: email,
+    subject: 'Your TrackAdemia password reset code',
+    text: [
+      'We received a request to reset your TrackAdemia password.',
+      '',
+      'Use this verification code to continue resetting your password:',
+      code,
+      '',
+      `This code expires at ${expiresLabel}.`,
+      'If you did not request this change, you can ignore this email.',
+    ].join('\n'),
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a">
+        <p>We received a request to reset your TrackAdemia password.</p>
+        <p>Use this verification code to continue resetting your password:</p>
+        <p style="font-size:32px;font-weight:700;letter-spacing:0.3em;margin:24px 0">${code}</p>
+        <p>Enter this code on the password reset page.</p>
+        <p>This code expires at <strong>${expiresLabel}</strong>.</p>
+        <p>If you did not request this change, you can ignore this email.</p>
       </div>
     `,
   })
