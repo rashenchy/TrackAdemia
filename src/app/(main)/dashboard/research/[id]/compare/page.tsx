@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowRight, GitCompareArrows } from 'lucide-react'
+import { GitCompareArrows } from 'lucide-react'
 import { buildResearchVersionDiff, type VersionDiffPart } from '@/lib/research/version-diff'
 import { getVersionLabel } from '@/lib/research/versioning'
 import { BackButton } from '@/components/navigation/BackButton'
@@ -39,10 +39,6 @@ function renderLineParts(parts: VersionDiffPart[]) {
       </span>
     )
   })
-}
-
-function renderLineNumber(lineNumber: number | null) {
-  return lineNumber ? String(lineNumber).padStart(2, '0') : ' '
 }
 
 export default async function CompareResearchVersionsPage({
@@ -216,85 +212,37 @@ export default async function CompareResearchVersionsPage({
                       section.changed ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
                     }`}
                   >
-                    {section.changed ? `${section.changedLineCount} changed line${section.changedLineCount === 1 ? '' : 's'}` : 'Unchanged'}
+                    {section.changed
+                      ? `${section.changedPartCount} change${section.changedPartCount === 1 ? '' : 's'}`
+                      : 'Unchanged'}
                   </span>
                 </div>
               </div>
 
               <div className="overflow-x-auto">
-                <div className="min-w-[1100px]">
+                <div className="min-w-[900px]">
                   <div className="grid grid-cols-2 border-b border-slate-200 bg-slate-50">
                     <div className="border-r border-slate-200 px-6 py-4">
                       <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Original</p>
-                      <p className="mt-1 text-sm text-slate-600">Removed content only appears here.</p>
+                      <p className="mt-1 text-sm text-slate-600">Removed text is highlighted in red.</p>
                     </div>
                     <div className="px-6 py-4">
                       <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Updated</p>
-                      <p className="mt-1 text-sm text-slate-600">Added content and change markers appear here.</p>
+                      <p className="mt-1 text-sm text-slate-600">Added text is highlighted in green.</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2">
-                    <div className="border-r border-slate-200 bg-slate-50/45">
-                      {section.lines.map((line) => (
-                        <div
-                          key={`old-${line.key}`}
-                          className={`grid min-h-12 grid-cols-[3rem_minmax(0,1fr)] border-b border-slate-200/70 ${
-                            line.type === 'removed'
-                              ? 'bg-rose-50/80'
-                              : line.type === 'modified'
-                                ? 'bg-amber-50/70'
-                                : 'bg-transparent'
-                          }`}
-                        >
-                          <div className="border-r border-slate-200 px-3 py-3 text-right font-mono text-xs text-slate-400">
-                            {renderLineNumber(line.oldLineNumber)}
-                          </div>
-                          <div className="px-4 py-3 font-mono text-[13px] leading-6 whitespace-pre-wrap break-words text-slate-800">
-                            {line.oldParts.length > 0
-                              ? renderLineParts(line.oldParts)
-                              : <span className="text-slate-300"> </span>}
-                          </div>
-                        </div>
-                      ))}
+                    <div className="border-r border-slate-200 bg-slate-50/45 px-6 py-5">
+                      <div className="min-h-48 rounded-2xl border border-slate-200/80 bg-white px-4 py-4 font-mono text-[13px] leading-6 whitespace-pre-wrap break-words text-slate-800">
+                        {renderLineParts(section.oldParts)}
+                      </div>
                     </div>
 
-                    <div className="bg-white">
-                      {section.lines.map((line) => (
-                        <div
-                          key={`new-${line.key}`}
-                          className={`grid min-h-12 grid-cols-[5.25rem_3rem_minmax(0,1fr)] border-b border-slate-200/70 ${
-                            line.type === 'added'
-                              ? 'bg-emerald-50/80'
-                              : line.type === 'modified'
-                                ? 'bg-sky-50/75'
-                                : line.type === 'removed'
-                                  ? 'bg-rose-50/35'
-                                  : 'bg-transparent'
-                          }`}
-                        >
-                          <div className="flex items-center justify-center border-r border-slate-200 px-2 py-3">
-                            {line.type === 'unchanged' ? null : (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-2 py-1 font-mono text-[10px] font-bold uppercase tracking-wide text-white">
-                                <ArrowRight size={12} />
-                                {line.oldLineNumber ? `L${line.oldLineNumber}` : 'New'}
-                              </span>
-                            )}
-                          </div>
-                          <div className="border-r border-slate-200 px-3 py-3 text-right font-mono text-xs text-slate-400">
-                            {renderLineNumber(line.newLineNumber)}
-                          </div>
-                          <div className="px-4 py-3 font-mono text-[13px] leading-6 whitespace-pre-wrap break-words text-slate-800">
-                            {line.newParts.length > 0 ? (
-                              renderLineParts(line.newParts)
-                            ) : line.type === 'removed' ? (
-                              <span className="italic text-slate-400">No line in updated version</span>
-                            ) : (
-                              <span className="text-slate-300"> </span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                    <div className="bg-white px-6 py-5">
+                      <div className="min-h-48 rounded-2xl border border-slate-200/80 bg-white px-4 py-4 font-mono text-[13px] leading-6 whitespace-pre-wrap break-words text-slate-800">
+                        {renderLineParts(section.newParts)}
+                      </div>
                     </div>
                   </div>
                 </div>
