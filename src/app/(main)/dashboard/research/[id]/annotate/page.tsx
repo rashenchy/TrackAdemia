@@ -53,6 +53,10 @@ import {
   type TextAnnotationPosition,
 } from '@/lib/research/document'
 import { ResearchDocumentStructureEditor } from '@/components/dashboard/ResearchDocumentStructureEditor'
+import {
+  getAnnotationSourceType,
+  type AnnotationSourceType,
+} from '@/lib/research/annotation-versioning'
 import { getVersionLabel } from '@/lib/research/versioning'
 import { BackButton } from '@/components/navigation/BackButton'
 import { appendFromParam, buildPathWithSearch } from '@/lib/navigation'
@@ -60,6 +64,13 @@ import { appendFromParam, buildPathWithSearch } from '@/lib/navigation'
 type AnnotationRecord = {
   id: string
   research_id: string
+  user_id?: string | null
+  version_id?: string | null
+  version_number?: number | null
+  version_major?: number | null
+  version_minor?: number | null
+  version_lineage_key?: string | null
+  source_type?: AnnotationSourceType | null
   quote: string
   comment_text: string
   position_data: unknown
@@ -136,10 +147,6 @@ function summarizeQuote(text: string, maxLength = 120) {
   const cleaned = text.replace(/\s+/g, ' ').trim()
   if (cleaned.length <= maxLength) return cleaned
   return `${cleaned.slice(0, maxLength)}...`
-}
-
-function isPdfAnnotation(annotation: AnnotationRecord) {
-  return Array.isArray(annotation.position_data)
 }
 
 function getAnnotationLocationLabel(annotation: AnnotationRecord) {
@@ -500,6 +507,7 @@ export default function AnnotatePage({
   const [activeTextSelection, setActiveTextSelection] = useState<TextSelectionDraft | null>(null)
   const [commentText, setCommentText] = useState('')
   const [isSubmittingAnnotation, setIsSubmittingAnnotation] = useState(false)
+  const [textHighlightRefreshTick, setTextHighlightRefreshTick] = useState(0)
 
   const highlightRefs = useRef<Record<string, HTMLElement | null>>({})
   const textAnnotationRangesRef = useRef<Record<string, Range>>({})
@@ -605,21 +613,11 @@ export default function AnnotatePage({
     }
   }, [activeFormat, hasPdf, hasText])
 
-  const formatAwareAnnotations = useMemo(() => {
-    return annotations.filter((annotation) =>
-      activeFormat === 'pdf'
-        ? isPdfAnnotation(annotation)
-        : isTextAnnotationPosition(annotation.position_data)
-    )
-  }, [activeFormat, annotations])
-
-  const unresolvedAnnotations = formatAwareAnnotations.filter(
-    (annotation) => !annotation.is_resolved
-  )
-  const resolvedAnnotations = formatAwareAnnotations.filter((annotation) => annotation.is_resolved)
+  const unresolvedAnnotations = annotations.filter((annotation) => !annotation.is_resolved)
+  const resolvedAnnotations = annotations.filter((annotation) => annotation.is_resolved)
 
   const displayedAnnotations = useMemo(() => {
-    let filtered = formatAwareAnnotations
+    let filtered = annotations
 
     if (filter === 'unresolved') {
       filtered = unresolvedAnnotations
@@ -632,7 +630,10 @@ export default function AnnotatePage({
         return first.is_resolved ? 1 : -1
       }
 
-      if (activeFormat === 'text') {
+      const firstSource = getAnnotationSourceType(first)
+      const secondSource = getAnnotationSourceType(second)
+
+      if (firstSource === 'text' && secondSource === 'text') {
         const firstOffset = isTextAnnotationPosition(first.position_data)
           ? first.position_data.startOffset
           : 0
@@ -642,16 +643,20 @@ export default function AnnotatePage({
         return firstOffset - secondOffset
       }
 
-      const pageA = Array.isArray(first.position_data)
-        ? Number((first.position_data[0] as { pageIndex?: number } | undefined)?.pageIndex ?? 0)
-        : 0
-      const pageB = Array.isArray(second.position_data)
-        ? Number((second.position_data[0] as { pageIndex?: number } | undefined)?.pageIndex ?? 0)
-        : 0
+      if (firstSource === 'pdf' && secondSource === 'pdf') {
+        const pageA = Array.isArray(first.position_data)
+          ? Number((first.position_data[0] as { pageIndex?: number } | undefined)?.pageIndex ?? 0)
+          : 0
+        const pageB = Array.isArray(second.position_data)
+          ? Number((second.position_data[0] as { pageIndex?: number } | undefined)?.pageIndex ?? 0)
+          : 0
 
-      return pageA - pageB
+        return pageA - pageB
+      }
+
+      return new Date(first.created_at).getTime() - new Date(second.created_at).getTime()
     })
-  }, [activeFormat, filter, formatAwareAnnotations, resolvedAnnotations, unresolvedAnnotations])
+  }, [annotations, filter, resolvedAnnotations, unresolvedAnnotations])
 
   useEffect(() => {
     if (activeFormat !== 'text') {
@@ -730,25 +735,9 @@ export default function AnnotatePage({
     annotations,
     canEditTextWorkspace,
     selectedVersionContent,
+    textHighlightRefreshTick,
     workspaceContent,
   ])
-
-  useEffect(() => {
-    const annotationId = searchParams.get('annotationId')
-
-    if (!annotationId || didOpenAnnotationFromQueryRef.current || annotations.length === 0) {
-      return
-    }
-
-    const annotation = annotations.find((item) => item.id === annotationId)
-
-    if (!annotation) {
-      return
-    }
-
-    didOpenAnnotationFromQueryRef.current = true
-    void openThread(annotation)
-  }, [annotations, searchParams])
 
   const loadWorkspaceData = useCallback(async () => {
     setIsLoading(true)
@@ -800,6 +789,8 @@ export default function AnnotatePage({
               {
                 id: 'legacy',
                 version_number: 1,
+                version_major: 1,
+                version_minor: 0,
                 version_label: '1',
                 created_by_role: 'student',
                 created_at: new Date().toISOString(),
@@ -852,7 +843,7 @@ export default function AnnotatePage({
         return current
       })
 
-      const annotationRows = await getAnnotations(researchId, selectedVersion?.version_number ?? null)
+      const annotationRows = await getAnnotations(researchId, selectedVersion ?? null)
       setAnnotations(annotationRows as AnnotationRecord[])
     } catch (error) {
       const message =
@@ -937,7 +928,11 @@ export default function AnnotatePage({
           filter: `research_id=eq.${researchId}`,
         },
         async () => {
-          const nextAnnotations = await getAnnotations(researchId, selectedVersionNumber ?? null)
+          const activeVersion =
+            availableVersions.find((version) => version.version_number === selectedVersionNumber) ??
+            availableVersions[0] ??
+            null
+          const nextAnnotations = await getAnnotations(researchId, activeVersion)
           setAnnotations(nextAnnotations as AnnotationRecord[])
         }
       )
@@ -946,7 +941,7 @@ export default function AnnotatePage({
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [researchId, selectedVersionNumber, supabase])
+  }, [availableVersions, researchId, selectedVersionNumber, supabase])
 
   useEffect(() => {
     if (!selectedAnnotation) {
@@ -979,15 +974,10 @@ export default function AnnotatePage({
     highlightRefs.current[annotationId] = node
   }
 
-  const openThread = async (annotation: AnnotationRecord) => {
-    setSelectedAnnotation(annotation)
-    setViewMode('thread')
-    setIsLoadingReplies(true)
-    setThreadReplies([])
+  const scrollToAnnotation = useCallback((annotation: AnnotationRecord) => {
+    const annotationSource = getAnnotationSourceType(annotation)
 
-    if (isTextAnnotationPosition(annotation.position_data)) {
-      setActiveTextAnnotationId(annotation.id)
-
+    if (annotationSource === 'text' && isTextAnnotationPosition(annotation.position_data)) {
       const sectionContainer = sectionRefs.current[annotation.position_data.sectionKey]
       const editorRoot = getEditorRoot(sectionContainer)
       const range =
@@ -995,52 +985,168 @@ export default function AnnotatePage({
         (editorRoot ? resolveTextAnnotationRange(editorRoot, annotation.position_data) : null)
 
       if (range) {
-        requestAnimationFrame(() => {
-          const rect = range.getBoundingClientRect()
-          const scrollContainer =
-            workspaceScrollRef.current ?? findScrollableAncestor(sectionContainer ?? null)
-
-          if (scrollContainer) {
-            const containerRect = scrollContainer.getBoundingClientRect()
-            const targetTop =
-              scrollContainer.scrollTop +
-              (rect.top - containerRect.top) -
-              scrollContainer.clientHeight * 0.28
-
-            scrollContainer.scrollTo({
-              top: Math.max(0, targetTop),
-              behavior: 'smooth',
-            })
-
-            return
-          }
-
-          const targetTop = window.scrollY + rect.top - window.innerHeight * 0.28
-          window.scrollTo({
-            top: Math.max(0, targetTop),
-            behavior: 'smooth',
-          })
-        })
-      } else {
+        const rect = range.getBoundingClientRect()
         const scrollContainer =
           workspaceScrollRef.current ?? findScrollableAncestor(sectionContainer ?? null)
 
-        if (scrollContainer && sectionContainer) {
-          scrollElementIntoContainer(scrollContainer, sectionContainer)
+        if (scrollContainer) {
+          const containerRect = scrollContainer.getBoundingClientRect()
+          const targetTop =
+            scrollContainer.scrollTop +
+            (rect.top - containerRect.top) -
+            scrollContainer.clientHeight * 0.28
+
+          scrollContainer.scrollTo({
+            top: Math.max(0, targetTop),
+            behavior: 'smooth',
+          })
+
+          return true
         }
+
+        const targetTop = window.scrollY + rect.top - window.innerHeight * 0.28
+        window.scrollTo({
+          top: Math.max(0, targetTop),
+          behavior: 'smooth',
+        })
+        return true
       }
-    } else {
-      setActiveTextAnnotationId(null)
-      highlightRefs.current[annotation.id]?.scrollIntoView({
+
+      const scrollContainer =
+        workspaceScrollRef.current ?? findScrollableAncestor(sectionContainer ?? null)
+
+      if (scrollContainer && sectionContainer) {
+        scrollElementIntoContainer(scrollContainer, sectionContainer)
+        return true
+      }
+
+      return false
+    }
+
+    if (annotationSource === 'pdf') {
+      const highlightNode = highlightRefs.current[annotation.id]
+
+      if (!highlightNode) {
+        return false
+      }
+
+      highlightNode.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
       })
+
+      return true
+    }
+
+    return false
+  }, [])
+
+  const handleSectionRef = useCallback((sectionId: string, node: HTMLElement | null) => {
+    sectionRefs.current[sectionId] = node
+  }, [])
+
+  const openThread = useCallback(async (annotation: AnnotationRecord) => {
+    setSelectedAnnotation(annotation)
+    setViewMode('thread')
+    setIsLoadingReplies(true)
+    setThreadReplies([])
+
+    const annotationSource = getAnnotationSourceType(annotation)
+
+    if (annotationSource === 'text' && hasText) {
+      setActiveFormat('text')
+      setActiveTextAnnotationId(annotation.id)
+    } else {
+      setActiveTextAnnotationId(null)
+      if (annotationSource === 'pdf' && hasPdf) {
+        setActiveFormat('pdf')
+      }
     }
 
     const replies = await getReplies(annotation.id)
     setThreadReplies(replies)
     setIsLoadingReplies(false)
-  }
+  }, [hasPdf, hasText])
+
+  useEffect(() => {
+    const annotationId = searchParams.get('annotationId')
+
+    if (!annotationId || didOpenAnnotationFromQueryRef.current || annotations.length === 0) {
+      return
+    }
+
+    const annotation = annotations.find((item) => item.id === annotationId)
+
+    if (!annotation) {
+      return
+    }
+
+    didOpenAnnotationFromQueryRef.current = true
+    void openThread(annotation)
+  }, [annotations, openThread, searchParams])
+
+  useEffect(() => {
+    if (!selectedAnnotation) return
+
+    const annotationSource = getAnnotationSourceType(selectedAnnotation)
+
+    if (annotationSource === 'text' && activeFormat !== 'text') {
+      return
+    }
+
+    if (annotationSource === 'pdf' && activeFormat !== 'pdf') {
+      return
+    }
+
+    let frameId = 0
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let cancelled = false
+    let attempts = 0
+
+    const tryScroll = () => {
+      if (cancelled) return
+
+      const didScroll = scrollToAnnotation(selectedAnnotation)
+      if (didScroll || attempts >= 8) {
+        return
+      }
+
+      attempts += 1
+      timeoutId = setTimeout(() => {
+        frameId = window.requestAnimationFrame(tryScroll)
+      }, 80)
+    }
+
+    frameId = window.requestAnimationFrame(tryScroll)
+
+    return () => {
+      cancelled = true
+      window.cancelAnimationFrame(frameId)
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+      }
+    }
+  }, [activeFormat, scrollToAnnotation, selectedAnnotation])
+
+  useEffect(() => {
+    if (activeFormat !== 'text') {
+      return
+    }
+
+    if (!selectedAnnotation || getAnnotationSourceType(selectedAnnotation) !== 'text') {
+      return
+    }
+
+    const timeouts = [
+      window.setTimeout(() => setTextHighlightRefreshTick((current) => current + 1), 0),
+      window.setTimeout(() => setTextHighlightRefreshTick((current) => current + 1), 120),
+      window.setTimeout(() => setTextHighlightRefreshTick((current) => current + 1), 260),
+    ]
+
+    return () => {
+      timeouts.forEach((timeoutId) => window.clearTimeout(timeoutId))
+    }
+  }, [activeFormat, selectedAnnotation, workspaceContent])
 
   const closeThread = () => {
     setSelectedAnnotation(null)
@@ -1113,6 +1219,7 @@ export default function AnnotatePage({
 
         const saved = await addAnnotation(
           researchId,
+          effectiveVersion,
           {
             selectedText: activePdfHighlight.selectedText,
             highlightAreas: normalizeAreas(activePdfHighlight.highlightAreas),
@@ -1126,6 +1233,7 @@ export default function AnnotatePage({
 
         const saved = await addAnnotation(
           researchId,
+          effectiveVersion,
           {
             selectedText: activeTextSelection.selectedText,
             highlightAreas: {
@@ -1660,9 +1768,7 @@ export default function AnnotatePage({
                 onChange={canEditTextWorkspace ? setWorkspaceContent : undefined}
                 editable={canEditTextWorkspace}
                 onSectionMouseUp={handleTextSelection}
-                onSectionRef={(sectionId, node) => {
-                  sectionRefs.current[sectionId] = node
-                }}
+                onSectionRef={handleSectionRef}
               />
             )}
 
@@ -1699,7 +1805,7 @@ export default function AnnotatePage({
                     Feedback
                   </h2>
                   <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-500">
-                    {formatAwareAnnotations.length} total
+                    {annotations.length} total
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1">
@@ -1715,7 +1821,7 @@ export default function AnnotatePage({
                       }`}
                     >
                       {nextFilter === 'all'
-                        ? `All (${formatAwareAnnotations.length})`
+                        ? `All (${annotations.length})`
                         : nextFilter === 'unresolved'
                           ? `Open (${unresolvedAnnotations.length})`
                           : `Done (${resolvedAnnotations.length})`}
@@ -1727,7 +1833,7 @@ export default function AnnotatePage({
               <div className="flex-1 space-y-3 overflow-y-auto p-4">
                 {displayedAnnotations.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-400">
-                    No feedback in this view yet.
+                    No feedback in this version group yet.
                   </div>
                 ) : (
                   displayedAnnotations.map((annotation) => (
@@ -1747,8 +1853,16 @@ export default function AnnotatePage({
                         <span className="text-[10px] font-bold uppercase tracking-wide text-gray-500">
                           {getAnnotationLocationLabel(annotation)}
                         </span>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-700">
+                          {getAnnotationSourceType(annotation) === 'pdf' ? 'PDF' : 'Text'}
+                        </span>
+                        {annotation.version_major ? (
+                          <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-bold uppercase text-violet-700">
+                            Group {annotation.version_major}
+                          </span>
+                        ) : null}
                         <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-bold uppercase text-blue-700">
-                          v{effectiveVersionLabel}
+                          v{getVersionLabel(annotation)}
                         </span>
                         <span
                           className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${

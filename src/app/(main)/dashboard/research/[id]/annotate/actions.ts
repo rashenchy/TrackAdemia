@@ -9,6 +9,11 @@ import {
   type ResearchDocumentContent,
   type TextAnnotationPosition,
 } from '@/lib/research/document'
+import {
+  getAnnotationSourceType,
+  getVersionLineageKey,
+  type AnnotationVersionLike,
+} from '@/lib/research/annotation-versioning'
 import { getPublishedAtForStatusChange } from '@/lib/research/publication'
 import { getNextStudentVersion, getNextTeacherVersion } from '@/lib/research/versioning'
 import {
@@ -28,6 +33,8 @@ type AnnotationHighlightData = {
   selectedText: string
   highlightAreas: HighlightArea[] | TextAnnotationPosition
 }
+
+type ActiveAnnotationVersionContext = AnnotationVersionLike
 
 async function getAuthenticatedUserContext() {
   const supabase = await createClient()
@@ -122,16 +129,28 @@ async function requireAnnotationParticipant(annotationId: string) {
 // Creates a new annotation linked to a highlighted portion of the research document
 export async function addAnnotation(
   researchId: string,
+  activeVersion: ActiveAnnotationVersionContext | null,
   highlightData: AnnotationHighlightData,
   commentText: string
 ) {
   const { supabase, user } = await requireReviewer()
-
+  const sourceType = getAnnotationSourceType({
+    position_data: highlightData.highlightAreas,
+  })
+  const versionLineageKey = getVersionLineageKey(activeVersion)
+  const versionLineageNumber =
+    activeVersion?.version_major ?? activeVersion?.version_number ?? null
 
   // Construct the annotation record to be inserted into the database
   const newAnnotation = {
     research_id: researchId,
     user_id: user.id,
+    version_id: activeVersion?.id ?? null,
+    version_number: activeVersion?.version_number ?? null,
+    version_major: versionLineageNumber,
+    version_minor: activeVersion?.version_minor ?? 0,
+    version_lineage_key: versionLineageKey,
+    source_type: sourceType,
     quote: highlightData.selectedText,
     comment_text: commentText,
     position_data: highlightData.highlightAreas,
@@ -474,56 +493,6 @@ export async function getResearchFile(researchId: string) {
   return data?.signedUrl
 }
 
-async function getVersionWindow(
-  researchId: string,
-  versionNumber?: number | null
-) {
-  const supabase = await createClient()
-
-  if (!versionNumber) {
-    const { data: latestVersion } = await supabase
-      .from('research_versions')
-      .select('created_at')
-      .eq('research_id', researchId)
-      .order('version_number', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-
-    return {
-      versionCreatedAt: latestVersion?.created_at ?? null,
-      nextVersionCreatedAt: null as string | null,
-    }
-  }
-
-  const { data: targetVersion } = await supabase
-    .from('research_versions')
-    .select('created_at, version_number')
-    .eq('research_id', researchId)
-    .eq('version_number', versionNumber)
-    .maybeSingle()
-
-  if (!targetVersion?.created_at) {
-    return {
-      versionCreatedAt: null,
-      nextVersionCreatedAt: null,
-    }
-  }
-
-  const { data: newerVersion } = await supabase
-    .from('research_versions')
-    .select('created_at, version_number')
-    .eq('research_id', researchId)
-    .gt('version_number', versionNumber)
-    .order('version_number', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-
-  return {
-    versionCreatedAt: targetVersion.created_at,
-    nextVersionCreatedAt: newerVersion?.created_at ?? null,
-  }
-}
-
 export async function getResearchFileForVersion(
   researchId: string,
   versionNumber?: number | null
@@ -557,33 +526,21 @@ export async function getResearchFileForVersion(
 // Retrieves annotations for a research document while respecting file version changes
 export async function getAnnotations(
   researchId: string,
-  versionNumber?: number | null
+  activeVersion?: ActiveAnnotationVersionContext | null
 ) {
   const { supabase } = await requireResearchParticipant(researchId)
+  const versionLineageNumber =
+    activeVersion?.version_major ?? activeVersion?.version_number ?? null
 
-  const { versionCreatedAt, nextVersionCreatedAt } = await getVersionWindow(
-    researchId,
-    versionNumber
-  )
-
-
-  // Build the base query for retrieving annotations
   let query = supabase
     .from('annotations')
     .select('*')
     .eq('research_id', researchId)
     .order('created_at', { ascending: true })
 
-
-  // Filter annotations so only those created after the latest file upload are returned
-  if (versionCreatedAt) {
-    query = query.gte('created_at', versionCreatedAt)
+  if (versionLineageNumber != null) {
+    query = query.eq('version_major', versionLineageNumber)
   }
-
-  if (nextVersionCreatedAt) {
-    query = query.lt('created_at', nextVersionCreatedAt)
-  }
-
 
   // Execute the query
   const { data, error } = await query
