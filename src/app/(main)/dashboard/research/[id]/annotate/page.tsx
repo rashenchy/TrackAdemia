@@ -178,8 +178,7 @@ function getTextSelectionDetails(
   if (startOffset == null) return null
   const endOffset = startOffset + selectionRange.toString().length
   const fullText = getSectionTextContent(container)
-
-  return {
+  const nextSelection = {
     type: 'text',
     sectionKey,
     sectionTitle:
@@ -193,6 +192,8 @@ function getTextSelectionDetails(
     x: selectionRange.getBoundingClientRect().left + window.scrollX,
     y: selectionRange.getBoundingClientRect().bottom + window.scrollY,
   }
+
+  return nextSelection
 }
 
 function getAnnotationTextRoots(container: HTMLElement) {
@@ -330,6 +331,45 @@ function getEditorRoot(container: HTMLElement | null) {
   return container
 }
 
+function findScrollableAncestor(node: HTMLElement | null) {
+  let current = node?.parentElement ?? null
+
+  while (current) {
+    const styles = window.getComputedStyle(current)
+    const overflowY = styles.overflowY
+    if ((overflowY === 'auto' || overflowY === 'scroll') && current.scrollHeight > current.clientHeight) {
+      return current
+    }
+    current = current.parentElement
+  }
+
+  return null
+}
+
+function scrollElementIntoContainer(
+  container: HTMLElement,
+  element: HTMLElement,
+  alignRatio = 0.24
+) {
+  const containerRect = container.getBoundingClientRect()
+  const elementRect = element.getBoundingClientRect()
+  const targetTop =
+    container.scrollTop +
+    (elementRect.top - containerRect.top) -
+    container.clientHeight * alignRatio
+
+  container.scrollTo({
+    top: Math.max(0, targetTop),
+    behavior: 'smooth',
+  })
+
+  return {
+    containerRect,
+    elementRect,
+    targetTop,
+  }
+}
+
 function normalizeComparableText(value: string) {
   return value.replace(/\s+/g, ' ').trim()
 }
@@ -343,11 +383,11 @@ function resolveTextAnnotationRange(
     position.startOffset,
     position.endOffset
   )
+  const directRangeText = directRange?.toString() ?? ''
 
   if (
     directRange &&
-    normalizeComparableText(directRange.toString()) ===
-      normalizeComparableText(position.selectedText)
+    normalizeComparableText(directRangeText) === normalizeComparableText(position.selectedText)
   ) {
     return directRange
   }
@@ -388,7 +428,6 @@ function resolveTextAnnotationRange(
     })
 
   const bestMatch = scoredMatches[0]
-
   return buildTextRangeFromOffsets(container, bestMatch.startOffset, bestMatch.endOffset)
 }
 
@@ -466,6 +505,7 @@ export default function AnnotatePage({
   const textAnnotationRangesRef = useRef<Record<string, Range>>({})
   const didOpenAnnotationFromQueryRef = useRef(false)
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
+  const workspaceScrollRef = useRef<HTMLDivElement | null>(null)
 
   const canReview = currentUserRole === 'mentor' || currentUserRole === 'admin'
   const isAuthor = Boolean(
@@ -954,19 +994,40 @@ export default function AnnotatePage({
         textAnnotationRangesRef.current[annotation.id] ??
         (editorRoot ? resolveTextAnnotationRange(editorRoot, annotation.position_data) : null)
 
-      if (sectionContainer) {
-        sectionContainer.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
-
       if (range) {
         requestAnimationFrame(() => {
           const rect = range.getBoundingClientRect()
+          const scrollContainer =
+            workspaceScrollRef.current ?? findScrollableAncestor(sectionContainer ?? null)
+
+          if (scrollContainer) {
+            const containerRect = scrollContainer.getBoundingClientRect()
+            const targetTop =
+              scrollContainer.scrollTop +
+              (rect.top - containerRect.top) -
+              scrollContainer.clientHeight * 0.28
+
+            scrollContainer.scrollTo({
+              top: Math.max(0, targetTop),
+              behavior: 'smooth',
+            })
+
+            return
+          }
+
           const targetTop = window.scrollY + rect.top - window.innerHeight * 0.28
           window.scrollTo({
             top: Math.max(0, targetTop),
             behavior: 'smooth',
           })
         })
+      } else {
+        const scrollContainer =
+          workspaceScrollRef.current ?? findScrollableAncestor(sectionContainer ?? null)
+
+        if (scrollContainer && sectionContainer) {
+          scrollElementIntoContainer(scrollContainer, sectionContainer)
+        }
       }
     } else {
       setActiveTextAnnotationId(null)
@@ -1295,7 +1356,7 @@ export default function AnnotatePage({
   }
 
   return (
-    <div className="flex h-screen flex-col bg-gray-50">
+    <div className="flex min-h-0 flex-col bg-gray-50">
       <style jsx global>{`
         ::highlight(trackademia-text-feedback-open) {
           background: rgba(250, 204, 21, 0.38);
@@ -1483,9 +1544,21 @@ export default function AnnotatePage({
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-6">
-          <div className="mx-auto max-w-5xl space-y-5">
+      <div className="mt-6 overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-sm xl:h-[78vh] xl:max-h-[960px] xl:min-h-[620px]">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden xl:flex-row">
+        <div className="min-h-0 min-w-0 flex-1 border-b border-gray-200 bg-gray-50 xl:border-b-0 xl:border-r">
+        <div ref={workspaceScrollRef} className="h-full overflow-y-auto p-6">
+          <div
+            className={`mx-auto max-w-5xl space-y-5 ${
+              canReview &&
+              activeFormat === 'text' &&
+              canEditTextWorkspace &&
+              activeTextSelection &&
+              !showCommentBox
+                ? 'pb-16'
+                : 'pb-6'
+            }`}
+          >
             <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
@@ -1570,8 +1643,10 @@ export default function AnnotatePage({
             {activeFormat === 'pdf' ? (
               fileUrl ? (
                 <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
-                  <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
-                    <Viewer fileUrl={fileUrl} plugins={[highlightPluginInstance]} />
+                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                    <div className="h-[min(62vh,760px)] overflow-y-auto">
+                      <Viewer fileUrl={fileUrl} plugins={[highlightPluginInstance]} />
+                    </div>
                   </div>
                 </Worker>
               ) : (
@@ -1602,79 +1677,16 @@ export default function AnnotatePage({
                   setActivePdfHighlight(null)
                   setShowCommentBox(true)
                 }}
-                className="fixed z-20 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-700"
-                style={{
-                  left: Math.min(activeTextSelection.x, window.innerWidth - 200),
-                  top: Math.min(activeTextSelection.y + 8, window.innerHeight - 80),
-                }}
+                className="sticky bottom-4 z-20 ml-auto rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-700"
               >
                 Add feedback
               </button>
             ) : null}
-
-            {showCommentBox ? (
-              <div className="fixed bottom-6 left-1/2 z-30 w-full max-w-xl -translate-x-1/2 rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
-                      New Feedback
-                    </p>
-                    <p className="mt-2 text-sm font-medium text-gray-700">
-                      {summarizeQuote(
-                        activeFormat === 'pdf'
-                          ? activePdfHighlight?.selectedText || ''
-                          : activeTextSelection?.selectedText || '',
-                        180
-                      )}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCommentBox(false)
-                      setCommentText('')
-                      setActivePdfHighlight(null)
-                      setActiveTextSelection(null)
-                    }}
-                    className="text-sm font-semibold text-gray-500 transition hover:text-gray-900"
-                  >
-                    Close
-                  </button>
-                </div>
-                <textarea
-                  value={commentText}
-                  onChange={(event) => setCommentText(event.target.value)}
-                  rows={4}
-                  placeholder="Describe the issue or give revision guidance..."
-                  className="mt-4 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500"
-                />
-                <div className="mt-4 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCommentBox(false)
-                      setCommentText('')
-                    }}
-                    className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isSubmittingAnnotation || !commentText.trim()}
-                    onClick={() => void handleAddAnnotation()}
-                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
-                  >
-                    {isSubmittingAnnotation ? <Loader2 size={16} className="animate-spin" /> : null}
-                    Save feedback
-                  </button>
-                </div>
-              </div>
-            ) : null}
           </div>
         </div>
+        </div>
 
-        <div className="relative flex w-[400px] flex-col overflow-hidden border-l border-gray-200 bg-white">
+        <div className="relative flex min-h-0 w-full flex-col overflow-hidden bg-white xl:w-[400px] xl:min-w-[400px]">
           <div
             className="absolute inset-0 flex transition-transform duration-300 ease-in-out"
             style={{ transform: viewMode === 'list' ? 'translateX(0)' : 'translateX(-100%)' }}
@@ -1844,7 +1856,7 @@ export default function AnnotatePage({
                     </div>
                   </div>
 
-                  <form onSubmit={handleSendReply} className="border-t border-gray-100 p-4">
+                  <form onSubmit={handleSendReply} className="border-t border-gray-100 bg-white p-4">
                     <textarea
                       value={replyText}
                       onChange={(event) => setReplyText(event.target.value)}
@@ -1869,6 +1881,70 @@ export default function AnnotatePage({
           </div>
         </div>
       </div>
+      </div>
+
+      {showCommentBox ? (
+        <div className="fixed inset-x-0 bottom-6 z-30 flex justify-center px-4">
+          <div className="w-full max-w-xl rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
+                  New Feedback
+                </p>
+                <p className="mt-2 text-sm font-medium text-gray-700">
+                  {summarizeQuote(
+                    activeFormat === 'pdf'
+                      ? activePdfHighlight?.selectedText || ''
+                      : activeTextSelection?.selectedText || '',
+                    180
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCommentBox(false)
+                  setCommentText('')
+                  setActivePdfHighlight(null)
+                  setActiveTextSelection(null)
+                }}
+                className="text-sm font-semibold text-gray-500 transition hover:text-gray-900"
+              >
+                Close
+              </button>
+            </div>
+            <textarea
+              value={commentText}
+              onChange={(event) => setCommentText(event.target.value)}
+              rows={4}
+              placeholder="Describe the issue or give revision guidance..."
+              className="mt-4 w-full rounded-xl border border-gray-300 px-4 py-3 text-sm outline-none transition focus:border-blue-500"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCommentBox(false)
+                  setCommentText('')
+                }}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingAnnotation || !commentText.trim()}
+                onClick={() => void handleAddAnnotation()}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {isSubmittingAnnotation ? <Loader2 size={16} className="animate-spin" /> : null}
+                Save feedback
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
     </div>
   )
 }
