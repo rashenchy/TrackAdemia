@@ -31,7 +31,6 @@ import {
   Sparkles,
   ShieldAlert,
   Files,
-  BellRing,
 } from 'lucide-react'
 
 export default function DashboardLayoutClient({
@@ -69,7 +68,6 @@ export default function DashboardLayoutClient({
   const [userName, setUserName] = useState(previewDisplayName)
   const [userRole, setUserRole] = useState(previewRole)
   const [unresolvedCount, setUnresolvedCount] = useState(0)
-  const [notificationCount, setNotificationCount] = useState(0)
   const [submissionAlertCount, setSubmissionAlertCount] = useState(0)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isNavigating, startNavigation] = useTransition()
@@ -84,13 +82,11 @@ export default function DashboardLayoutClient({
   const effectiveIsStudent = isAdminPreview ? previewRole === 'student' : isStudent
   const effectiveIsVerified = isAdminPreview ? previewIsVerified : isVerified
   const effectiveUnresolvedCount = isAdminPreview ? 0 : unresolvedCount
-  const effectiveNotificationCount = isAdminPreview ? 0 : notificationCount
   const effectiveSubmissionAlertCount = isAdminPreview ? 0 : submissionAlertCount
   const pendingAccessAllowedPaths = [
     '/dashboard/repository',
     '/dashboard/profile',
     '/dashboard/settings',
-    '/dashboard/notifications',
   ]
   const isTeacherPendingApproval = effectiveIsTeacher && !effectiveIsVerified
   const isStudentPendingApproval = effectiveIsStudent && !effectiveIsVerified
@@ -210,12 +206,6 @@ export default function DashboardLayoutClient({
       if (!user) return
       currentUserIdRef.current = user.id
 
-      const { count: unreadNotificationTotal } = await supabase
-        .from('user_notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('is_read', false)
-
       const { count: personalCount } = await supabase
         .from('tasks')
         .select('*', { count: 'exact', head: true })
@@ -243,7 +233,6 @@ export default function DashboardLayoutClient({
         .eq('is_resolved', false)
 
       setUnresolvedCount((personalCount || 0) + (teacherCount || 0) + (annotationCount || 0))
-      setNotificationCount(unreadNotificationTotal || 0)
 
       if (isTeacherRef.current) {
         const { attentionCount } = await getTeacherSubmissionData(supabase, user.id)
@@ -302,24 +291,6 @@ export default function DashboardLayoutClient({
         { event: '*', schema: 'public', table: 'task_completions' },
         fetchCounts
       )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'user_notifications' },
-        (payload: { eventType?: string; new?: { user_id?: string; title?: string; message?: string } }) => {
-          if (
-            payload.eventType === 'INSERT' &&
-            payload.new?.user_id === currentUserIdRef.current &&
-            'Notification' in window &&
-            Notification.permission === 'granted'
-          ) {
-            new Notification(payload.new?.title || 'New notification', {
-              body: payload.new?.message || 'You have a new update in TrackAdemia.',
-              icon: '/logo.png',
-            })
-          }
-          fetchCounts()
-        }
-      )
       .subscribe()
 
     return () => {
@@ -367,7 +338,6 @@ export default function DashboardLayoutClient({
           },
         ]
       : []),
-    { name: 'Notifications', href: '/dashboard/notifications', icon: BellRing },
     { name: 'Grammar Checker', href: '/dashboard/grammar', icon: Sparkles },
     { name: 'Plagiarism Checker', href: '/dashboard/plagiarism', icon: ShieldAlert },
     { name: 'Repository', href: '/dashboard/repository', icon: BookOpen },
@@ -426,13 +396,9 @@ export default function DashboardLayoutClient({
             const isTaskBadge = item.name === 'Task Manager' && effectiveUnresolvedCount > 0
             const isSubmissionBadge =
               item.name === 'Student Submissions' && effectiveSubmissionAlertCount > 0
-            const isNotificationBadge =
-              item.name === 'Notifications' && effectiveNotificationCount > 0
-            const hasBadge = isTaskBadge || isNotificationBadge || isSubmissionBadge
+            const hasBadge = isTaskBadge || isSubmissionBadge
             const badgeValue =
-              item.name === 'Notifications'
-                ? effectiveNotificationCount
-                : item.name === 'Student Submissions'
+              item.name === 'Student Submissions'
                   ? effectiveSubmissionAlertCount
                   : effectiveUnresolvedCount
 

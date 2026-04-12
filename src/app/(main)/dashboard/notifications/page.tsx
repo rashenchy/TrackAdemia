@@ -1,20 +1,13 @@
 import { redirect } from 'next/navigation'
-import NotificationsList from '@/components/dashboard/NotificationsList'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
-import type { UserNotification } from '@/lib/notifications/types'
-import PaginationLinks from '@/components/ui/PaginationLinks'
 
 export default async function NotificationsPage({
   searchParams,
 }: {
   searchParams: Promise<{ page?: string }>
 }) {
-  const resolvedParams = await searchParams
-  const rawPage = Number.parseInt(resolvedParams.page || '1', 10)
-  const page = Number.isFinite(rawPage) && rawPage > 0 ? rawPage : 1
-  const pageSize = 10
-  const from = (page - 1) * pageSize
-  const to = from + pageSize - 1
+  await searchParams
 
   const supabase = await createClient()
   const {
@@ -25,24 +18,32 @@ export default async function NotificationsPage({
     redirect('/login')
   }
 
-  const { data: notifications, count } = await supabase
-    .from('user_notifications')
-    .select('id, title, message, created_at, is_read, notification_type, reason, reference_id', {
-      count: 'exact',
-    })
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .range(from, to)
-
   return (
-    <div className="mx-auto max-w-6xl">
-      <NotificationsList notifications={(notifications || []) as UserNotification[]} />
-      <PaginationLinks
-        pathname="/dashboard/notifications"
-        searchParams={{ ...resolvedParams, page: String(page) }}
-        totalCount={count || 0}
-        pageSize={pageSize}
-      />
+    <div className="mx-auto max-w-3xl">
+      <section className="rounded-[1.75rem] border border-slate-200 bg-white p-8 shadow-sm">
+        <p className="text-sm font-bold uppercase tracking-[0.24em] text-slate-500">
+          Notifications
+        </p>
+        <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950">
+          Notifications UI is hidden for now
+        </h1>
+        <p className="mt-3 text-sm leading-7 text-slate-600">
+          Notification delivery is still kept in the system, but the dedicated notifications
+          screens are temporarily hidden while the workflow is being simplified.
+        </p>
+        <p className="mt-3 text-sm leading-7 text-slate-600">
+          You can still see section removal notices on the home dashboard, and active system
+          announcements remain visible there as well.
+        </p>
+        <div className="mt-6">
+          <Link
+            href="/dashboard"
+            className="inline-flex rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-700"
+          >
+            Return to Home
+          </Link>
+        </div>
+      </section>
     </div>
   )
 }

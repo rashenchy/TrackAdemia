@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import type { ReactNode } from 'react'
 import {
-  BellRing,
   BookOpen,
   CircleHelp,
   FolderKanban,
@@ -13,14 +12,12 @@ import {
   Mail,
   ShieldCheck,
 } from 'lucide-react'
-import SettingsNotificationsPreview from '@/components/dashboard/SettingsNotificationsPreview'
 import { createClient } from '@/lib/supabase/server'
 import {
   ADMIN_VIEW_COOKIE,
   getAdminViewMeta,
   isAdminViewMode,
 } from '@/lib/users/admin-view-mode'
-import type { UserNotification } from '@/lib/notifications/types'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -54,13 +51,6 @@ export default async function SettingsPage() {
       : profile?.role === 'admin'
         ? 'Administrator'
         : 'Student'
-
-  const { data: notifications } = await supabase
-    .from('user_notifications')
-    .select('id, title, message, created_at, is_read, notification_type, reason')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(3)
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -133,17 +123,13 @@ export default async function SettingsPage() {
       </section>
 
       <section className="grid gap-6 md:grid-cols-2">
-        <SettingsNotificationsPreview
-          notifications={(notifications || []) as UserNotification[]}
-        />
-
         <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-bold text-slate-950">Helpful Reminders</h2>
           <div className="mt-5 space-y-4">
             <HelpRow
-              icon={<BellRing size={18} className="text-blue-600" />}
-              title="Keep task notifications enabled"
-              description="Your top bar already surfaces updates, so checking tasks regularly helps you catch revisions and new assignments quickly."
+              icon={<BookOpen size={18} className="text-blue-600" />}
+              title="Check tasks regularly"
+              description="Review your task manager often so revisions, assignments, and feedback do not get missed while notification surfaces are hidden."
             />
             <HelpRow
               icon={<ShieldCheck size={18} className="text-emerald-600" />}

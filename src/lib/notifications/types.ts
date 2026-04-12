@@ -53,7 +53,9 @@ export function getNotificationRoute(notification: UserNotification) {
     case 'annotation_added':
     case 'annotation_reply':
       return notification.reference_id
-        ? `/dashboard/research/${notification.reference_id}/annotate`
+        ? `/dashboard/research/${notification.reference_id}/annotate${
+            notification.reason ? `?annotationId=${encodeURIComponent(notification.reason)}` : ''
+          }`
         : '/dashboard'
     case 'section_joined':
     case 'section_removal':
