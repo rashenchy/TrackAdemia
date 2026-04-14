@@ -15,6 +15,7 @@ import {
 import { getVersionLabel } from '@/lib/research/versioning'
 import { BackButton } from '@/components/navigation/BackButton'
 import { appendFromParam, buildPathWithSearch } from '@/lib/navigation'
+import { canTeacherEditPublishedResearch } from '@/lib/research/permissions'
 
 type TeamMember = {
   id: string
@@ -196,6 +197,13 @@ export default async function ViewResearchPage({
     ['view', resolvedSearchParams.view],
     ['from', resolvedSearchParams.from],
   ])
+  const canTeacherEditPublished =
+    isTeacher && research.status === 'Published'
+      ? await canTeacherEditPublishedResearch(supabase, user.id, research)
+      : false
+  const canTeacherEnterWorkspace = isTeacher && (
+    research.status !== 'Published' || canTeacherEditPublished
+  )
   const latestWorkspaceHref = appendFromParam(
     buildPathWithSearch(`/dashboard/research/${research.id}/annotate`, [
       ['version', latestVersion ? String(latestVersion.version_number) : null],
@@ -218,15 +226,16 @@ export default async function ViewResearchPage({
         </div>
 
         {/* Status Update Control */}
-        {!isViewerOnly && isTeacher ? (
-          <ResearchStatusForm
-            action={updateStatusAction}
-            currentStatus={research.status}
-            canPublish={latestHasPdf}
-          />
-        ) : (
-          <span
-            className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase w-fit
+        <div className="flex flex-wrap items-center gap-3">
+          {!isViewerOnly && isTeacher ? (
+            <ResearchStatusForm
+              action={updateStatusAction}
+              currentStatus={research.status}
+              canPublish={latestHasPdf}
+            />
+          ) : (
+            <span
+              className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-wider uppercase w-fit
               ${research.status === 'Published'
                 ? 'bg-purple-100 text-purple-700 border border-purple-200'
                 : research.status === 'Resubmitted'
@@ -238,10 +247,20 @@ export default async function ViewResearchPage({
                       : research.status === 'Rejected'
                         ? 'bg-red-100 text-red-700'
                         : 'bg-blue-100 text-blue-700'}`}
-          >
-            {research.status}
-          </span>
-        )}
+            >
+              {research.status}
+            </span>
+          )}
+          {canTeacherEditPublished ? (
+            <Link
+              href={appendFromParam(`/dashboard/research/${researchId}/edit`, currentPageHref)}
+              className="inline-flex items-center gap-2 rounded-lg border border-purple-200 bg-purple-50 px-4 py-2 text-sm font-semibold text-purple-700 transition hover:bg-purple-100"
+            >
+              <Edit3 size={16} />
+              Edit Published Research
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       {/* Identity Section */}
@@ -400,7 +419,7 @@ export default async function ViewResearchPage({
               <ResearchTextWorkspaceCard
                 content={latestDocumentContent}
                 workspaceHref={latestWorkspaceHref}
-                canEnterWorkspace={!isViewerOnly && (isTeacher || isAuthor)}
+                canEnterWorkspace={!isViewerOnly && (isAuthor || canTeacherEnterWorkspace)}
               />
             )}
           </div>
@@ -469,7 +488,7 @@ export default async function ViewResearchPage({
                     </div>
 
                     <div className="flex items-center gap-2 w-full md:w-auto">
-                        {(isTeacher || isAuthor) && (
+                        {(isAuthor || canTeacherEnterWorkspace) && (
                           <Link
                             href={appendFromParam(
                               buildPathWithSearch(`/dashboard/research/${research.id}/annotate`, [

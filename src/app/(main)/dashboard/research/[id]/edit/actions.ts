@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { uploadResearchDocument } from '@/lib/research/files'
+import { canTeacherEditPublishedResearch } from '@/lib/research/permissions'
 import { getPublishedAtForStatusChange } from '@/lib/research/publication'
 import {
   extractResearchDocumentContentFromFormData,
@@ -50,7 +51,12 @@ export async function updateResearch(editId: string, prevState: FormState | null
 
   // Authorization check (Owner or Member)
   const isAuthor = current?.user_id === user.id || (current?.members || []).includes(user.id)
-  if (!current || !isAuthor) return { error: 'Unauthorized' }
+  const canTeacherEditPublished =
+    isTeacher && current?.status === 'Published'
+      ? await canTeacherEditPublishedResearch(supabase, user.id, current)
+      : false
+
+  if (!current || (!isAuthor && !canTeacherEditPublished)) return { error: 'Unauthorized' }
 
   // WORKFLOW LOGIC
 

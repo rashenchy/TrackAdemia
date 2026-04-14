@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { ArrowLeft, BookOpen, Calendar, GraduationCap, Users, FileText, Hash, Eye, Download } from 'lucide-react'
 import { PublicDownloadButton } from '@/components/public/PublicDownloadButton'
+import { canTeacherEditPublishedResearch } from '@/lib/research/permissions'
 
 export default async function PublicResearchPage({ params }: { params: Promise<{ id: string }> }) {
 
@@ -11,6 +12,9 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
 
   // Initialize Supabase
   const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
   // Fetch the research entry and enforce public access (Published only)
   const { data: research, error } = await supabase
@@ -75,6 +79,24 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
   // Determine which file URL should be used for download
   const fileUrlToDownload = latestVersion?.file_url || research.file_url
   const fileNameToDownload = latestVersion?.original_file_name || research.original_file_name
+  let canEditPublishedResearch = false
+
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (profile?.role === 'mentor') {
+      canEditPublishedResearch = await canTeacherEditPublishedResearch(
+        supabase,
+        user.id,
+        research
+      )
+    }
+  }
 
   // Render the public research page
   return (
@@ -89,6 +111,18 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
         >
           <ArrowLeft size={16} /> Back to Repository Search
         </Link>
+
+        {canEditPublishedResearch ? (
+          <div className="flex justify-end">
+            <Link
+              href={`/dashboard/research/${research.id}/edit`}
+              className="inline-flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-4 py-2 text-sm font-semibold text-purple-700 transition hover:bg-purple-100"
+            >
+              <FileText size={16} />
+              Edit Published Research
+            </Link>
+          </div>
+        ) : null}
 
         {/* Research Header */}
         <div className="bg-white dark:bg-gray-900 p-8 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">

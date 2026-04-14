@@ -17,8 +17,6 @@ import {
   BarChart,
   LogOut,
   X,
-  Sun,
-  Moon,
   UserCircle,
   ChevronLeft,
   RefreshCw,
@@ -33,13 +31,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // State initialization
   const [isCollapsed, setIsCollapsed] = useState(true)
-  const [theme, setTheme] = useState(() => {
-    if (typeof window === 'undefined') {
-      return 'light'
-    }
-
-    return localStorage.getItem('theme') || 'light'
-  })
   const [pendingRoute, setPendingRoute] = useState<string | null>(null)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -136,7 +127,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // Theme synchronization and user info
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
+    document.documentElement.setAttribute('data-theme', 'light')
+    localStorage.setItem('theme', 'light')
 
     const checkUserRole = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -157,7 +149,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       await fetchPendingApprovalCounts()
     }
     checkUserRole()
-  }, [supabase, theme, fetchPendingApprovalCounts])
+  }, [supabase, fetchPendingApprovalCounts])
 
   useEffect(() => {
     const refreshPendingCounts = () => {
@@ -170,13 +162,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       window.removeEventListener('admin-pending-approvals-changed', refreshPendingCounts)
     }
   }, [fetchPendingApprovalCounts])
-
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light'
-    setTheme(newTheme)
-    localStorage.setItem('theme', newTheme)
-    document.documentElement.setAttribute('data-theme', newTheme)
-  }
 
   const handleSidebarNavigation = (href: string) => {
     if (pathname === href || isNavigating) return
@@ -193,7 +178,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Admin navigation items
   const navItems = [
     { name: 'Overview', href: '/admin', icon: Shield },
-    { name: 'View as User', href: '/admin/view-as-user', icon: Eye },
     {
       name: 'Faculty Approval',
       href: '/admin/faculty-approval',
@@ -336,13 +320,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500"
             >
               <RefreshCw size={20} className={isRefreshing ? 'animate-spin text-purple-600' : ''} />
-            </button>
-
-            <button
-              onClick={toggleTheme}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500"
-            >
-              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
 
             <div ref={profileRef} className="relative">

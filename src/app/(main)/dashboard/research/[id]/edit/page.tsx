@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { ResearchSubmissionForm } from '@/components/dashboard/ResearchSubmissionForm'
 import { BackButton } from '@/components/navigation/BackButton'
+import { canTeacherEditPublishedResearch } from '@/lib/research/permissions'
 import { redirect } from 'next/navigation'
 
 type DraftResearch = {
@@ -51,7 +52,7 @@ export default async function EditResearchPage({
 
   const isTeacher = currentProfile?.role === 'mentor'
 
-  const { data: research } = await supabase
+  const { data: researchData } = await supabase
     .from('research')
     .select(
       'id, user_id, title, type, abstract, keywords, members, member_roles, subject_code, adviser_id, research_area, start_date, target_defense_date, current_stage, file_url'
@@ -59,6 +60,8 @@ export default async function EditResearchPage({
     )
     .eq('id', id)
     .single()
+
+  const research = researchData as DraftResearch | null
 
   if (!research) {
     redirect('/dashboard')
@@ -68,7 +71,12 @@ export default async function EditResearchPage({
     research.user_id === user.id ||
     (Array.isArray(research.members) && research.members.includes(user.id))
 
-  if (!isAuthor) {
+  const canTeacherEditPublished =
+    isTeacher && research.status === 'Published'
+      ? await canTeacherEditPublishedResearch(supabase, user.id, research)
+      : false
+
+  if (!isAuthor && !canTeacherEditPublished) {
     redirect(`/dashboard/research/${id}`)
   }
 
@@ -210,7 +218,9 @@ export default async function EditResearchPage({
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Edit Submission Details</h1>
           <p className="text-gray-500 mt-1">
-            Update your research information before continuing with submission or workspace edits.
+            {canTeacherEditPublished
+              ? 'Update the published research details before you publish the next revision.'
+              : 'Update your research information before continuing with submission or workspace edits.'}
           </p>
         </div>
       </div>

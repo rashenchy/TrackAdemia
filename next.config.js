@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
+    proxyClientMaxBodySize: '20mb',
     serverActions: {
       allowedOrigins: [
         'localhost:3000',

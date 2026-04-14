@@ -25,6 +25,7 @@ import {
   notifyTeachersForResearchSubmission,
 } from '@/lib/research/workflow'
 import { researchHasPublishablePdf } from '@/lib/research/publication'
+import { canTeacherEditPublishedResearch } from '@/lib/research/permissions'
 
 type HighlightArea = {
   pageIndex: number
@@ -72,6 +73,35 @@ async function requireReviewer() {
   }
 
   return context
+}
+
+async function requireTeacherWorkspaceEditor(researchId: string) {
+  const context = await requireReviewer()
+  const { data: research } = await context.supabase
+    .from('research')
+    .select('user_id, adviser_id, subject_code, status')
+    .eq('id', researchId)
+    .single()
+
+  if (!research) {
+    throw new Error('Research record not found.')
+  }
+
+  if (research.status === 'Published') {
+    const canEditPublished = await canTeacherEditPublishedResearch(
+      context.supabase,
+      context.user.id,
+      research
+    )
+
+    if (!canEditPublished) {
+      throw new Error(
+        'Only the teacher who published this research or its connected advisers can edit the published workspace.'
+      )
+    }
+  }
+
+  return { ...context, research }
 }
 
 type QuickReviewStatus = 'Revision Requested' | 'Approved' | 'Published'
@@ -587,7 +617,7 @@ export async function saveTeacherWorkspaceVersion(
   content: ResearchDocumentContent,
   changeSummary?: string | null
 ) {
-  const { supabase, user } = await requireReviewer()
+  const { supabase, user } = await requireTeacherWorkspaceEditor(researchId)
 
   const { data: currentResearch, error: currentResearchError } = await supabase
     .from('research')

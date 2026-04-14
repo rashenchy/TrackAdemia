@@ -15,8 +15,6 @@ import {
   Home,
   Settings,
   ChevronLeft,
-  Sun,
-  Moon,
   UserCircle,
   IdCard,
   FilePlus,
@@ -51,13 +49,6 @@ export default function DashboardLayoutClient({
   const router = useRouter()
   const pathname = usePathname()
   const [isCollapsed, setIsCollapsed] = useState(true)
-  const [theme, setTheme] = useState(() => {
-    if (typeof window === 'undefined') {
-      return 'light'
-    }
-
-    return localStorage.getItem('theme') || 'light'
-  })
   const [isTeacher, setIsTeacher] = useState(previewRole === 'mentor')
   const [isVerified, setIsVerified] = useState(previewIsVerified)
   const [isStudent, setIsStudent] = useState(previewRole === 'student')
@@ -149,7 +140,8 @@ export default function DashboardLayoutClient({
   }, [])
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme)
+    document.documentElement.setAttribute('data-theme', 'light')
+    localStorage.setItem('theme', 'light')
 
     if (isAdminPreview) {
       isTeacherRef.current = previewRole === 'mentor'
@@ -194,7 +186,7 @@ export default function DashboardLayoutClient({
     }
 
     checkUserRole()
-  }, [isAdminPreview, previewRole, supabase, theme])
+  }, [isAdminPreview, previewRole, supabase])
 
   useEffect(() => {
     if (isAdminPreview) return
@@ -297,13 +289,6 @@ export default function DashboardLayoutClient({
       supabase.removeChannel(channel)
     }
   }, [isAdminPreview, supabase, router, userRole])
-
-  const toggleTheme = () => {
-    const newTheme = theme === 'light' ? 'dark' : 'light'
-    setTheme(newTheme)
-    localStorage.setItem('theme', newTheme)
-    document.documentElement.setAttribute('data-theme', newTheme)
-  }
 
   const handleSidebarNavigation = (href: string) => {
     if (pathname === href || isNavigating) return
@@ -513,13 +498,6 @@ export default function DashboardLayoutClient({
                 size={20}
                 className={isRefreshing ? 'animate-spin text-blue-600' : ''}
               />
-            </button>
-
-            <button
-              onClick={toggleTheme}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-colors text-gray-500"
-            >
-              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             </button>
 
             <div ref={profileRef} className="relative">

@@ -14,13 +14,9 @@ import '@react-pdf-viewer/core/lib/styles/index.css'
 import '@react-pdf-viewer/highlight/lib/styles/index.css'
 
 import {
-  BadgeCheck,
-  CheckCircle,
   ChevronLeft,
-  CircleDashed,
   Edit3,
   Eye,
-  FileCode2,
   GitCompareArrows,
   Loader2,
   MessageSquare,
@@ -63,6 +59,7 @@ import {
 import { getVersionLabel } from '@/lib/research/versioning'
 import { BackButton } from '@/components/navigation/BackButton'
 import { appendFromParam, buildPathWithSearch } from '@/lib/navigation'
+import { canTeacherEditPublishedResearch } from '@/lib/research/permissions'
 
 type AnnotationRecord = {
   id: string
@@ -137,6 +134,8 @@ type ResearchRecord = {
   type?: string | null
   user_id: string
   members?: string[] | null
+  adviser_id?: string | null
+  subject_code?: string | null
   current_stage?: string | null
   status?: string | null
   submission_format?: string | null
@@ -494,6 +493,7 @@ export default function AnnotatePage({
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentUserRole, setCurrentUserRole] = useState<string | null>(null)
+  const [canTeacherEditPublished, setCanTeacherEditPublished] = useState(false)
 
   const [filter, setFilter] = useState<'all' | 'unresolved' | 'resolved'>('unresolved')
   const [viewMode, setViewMode] = useState<'list' | 'thread'>('list')
@@ -601,12 +601,15 @@ export default function AnnotatePage({
   )
   const hasPdf = submissionFormat === 'pdf' || submissionFormat === 'both'
   const hasText = submissionFormat === 'text' || submissionFormat === 'both'
+  const canReviewerEditWorkspace =
+    canReview &&
+    (research?.status !== 'Published' || canTeacherEditPublished)
   const canEditTextWorkspace =
     activeFormat === 'text' &&
     hasText &&
     Boolean(latestVersion) &&
     effectiveVersionNumber === latestVersion.version_number &&
-    canParticipate
+    (isAuthor || canReviewerEditWorkspace)
 
   useEffect(() => {
     if (activeFormat === 'pdf' && !hasPdf && hasText) {
@@ -791,7 +794,7 @@ export default function AnnotatePage({
         supabase
           .from('research')
           .select(
-            'id, title, type, user_id, members, current_stage, status, submission_format, content_json, file_url, original_file_name'
+            'id, title, type, user_id, members, adviser_id, subject_code, current_stage, status, submission_format, content_json, file_url, original_file_name'
           )
           .eq('id', researchId)
           .single(),
@@ -804,6 +807,11 @@ export default function AnnotatePage({
       setCurrentUserRole(profile?.role ?? null)
       setResearch(researchData)
       setResearchStatus(researchData.status ?? 'Pending Review')
+      setCanTeacherEditPublished(
+        profile?.role === 'mentor' && researchData.status === 'Published'
+          ? await canTeacherEditPublishedResearch(supabase, user.id, researchData)
+          : false
+      )
 
       const { data: versionsData } = await supabase
         .from('research_versions')
@@ -1597,7 +1605,25 @@ export default function AnnotatePage({
                 Unified Review Workspace
               </p>
               <h1 className="text-xl font-bold text-gray-900">{research.title}</h1>
-              <p className="mt-1 text-sm text-gray-500">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                  {researchStatus}
+                </span>
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                  {unresolvedAnnotations.length} open
+                </span>
+                <span className="rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+                  {resolvedAnnotations.length} resolved
+                </span>
+                <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+                  {activeFormat === 'pdf'
+                    ? 'PDF review'
+                    : canEditTextWorkspace
+                      ? 'Edit + comment'
+                      : 'Version view'}
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-gray-500">
                 Version {effectiveVersionLabel}
                 {effectiveVersion?.created_by_role
                   ? ` • ${effectiveVersion.created_by_role === 'teacher' ? 'Teacher edit' : 'Student submission'}`
@@ -1666,52 +1692,8 @@ export default function AnnotatePage({
         </div>
       </div>
 
-      <div className="border-b border-gray-200 bg-gradient-to-r from-slate-50 via-white to-blue-50 px-6 py-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-gray-500">
-                Review Status
-              </p>
-              <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-gray-900">
-                <BadgeCheck size={16} className="text-blue-600" />
-                {researchStatus}
-              </div>
-            </div>
-            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-gray-500">
-                Unresolved
-              </p>
-              <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-gray-900">
-                <CircleDashed size={16} className="text-amber-500" />
-                {unresolvedAnnotations.length} items
-              </div>
-            </div>
-            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-gray-500">
-                Resolved
-              </p>
-              <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-gray-900">
-                <CheckCircle size={16} className="text-green-600" />
-                {resolvedAnnotations.length} threads
-              </div>
-            </div>
-            <div className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-gray-500">
-                Current Mode
-              </p>
-              <div className="mt-2 flex items-center gap-2 text-sm font-semibold text-gray-900">
-                <FileCode2 size={16} className="text-violet-600" />
-                {activeFormat === 'pdf'
-                  ? 'PDF review'
-                  : canEditTextWorkspace
-                    ? 'Edit + comment'
-                    : 'Version view'}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
+      <div className="border-b border-gray-200 bg-slate-50/80 px-6 py-3">
+        <div className="flex flex-wrap items-center gap-2">
             {activeFormat === 'text' && previousVersion ? (
               <Link
                 href={appendFromParam(
@@ -1758,16 +1740,15 @@ export default function AnnotatePage({
                 </button>
               </>
             ) : null}
-          </div>
         </div>
       </div>
 
-      <div className="mt-6 overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-sm xl:h-[78vh] xl:max-h-[960px] xl:min-h-[620px]">
+      <div className="mt-5 overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-sm xl:h-[86vh] xl:max-h-[1100px] xl:min-h-[700px]">
         <div className="flex h-full min-h-0 flex-col overflow-hidden xl:flex-row">
         <div className="min-h-0 min-w-0 flex-1 border-b border-gray-200 bg-gray-50 xl:border-b-0 xl:border-r">
-        <div ref={workspaceScrollRef} className="h-full overflow-y-auto p-6">
+        <div ref={workspaceScrollRef} className="h-full overflow-y-auto p-5 xl:p-6">
           <div
-            className={`mx-auto max-w-5xl space-y-5 ${
+            className={`mx-auto flex h-full min-h-full max-w-5xl flex-col space-y-4 ${
               canReview &&
               activeFormat === 'text' &&
               canEditTextWorkspace &&
@@ -1777,14 +1758,10 @@ export default function AnnotatePage({
                 : 'pb-6'
             }`}
           >
-            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
-                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-gray-500">
-                    Shared Workspace
-                  </p>
-                  <h2 className="mt-2 text-2xl font-bold text-gray-900">{research.title}</h2>
-                  <p className="mt-2 text-sm text-gray-500">
+                  <p className="text-sm text-gray-500">
                     {activeFormat === 'pdf'
                       ? effectiveVersion?.original_file_name || research.original_file_name || 'Attached manuscript.pdf'
                       : 'Teachers and students work in the same manuscript editor, while history stays in version snapshots.'}
@@ -1792,13 +1769,15 @@ export default function AnnotatePage({
                 </div>
                 {!canEditTextWorkspace && activeFormat === 'text' && latestVersion ? (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                    You are viewing Version {effectiveVersionLabel}. Switch back to the latest version to keep editing.
+                    {canReview && research.status === 'Published' && !canTeacherEditPublished
+                      ? 'Only the teacher who published this research or its connected advisers can edit the published text workspace.'
+                      : `You are viewing Version ${effectiveVersionLabel}. Switch back to the latest version to keep editing.`}
                   </div>
                 ) : null}
               </div>
 
               {activeFormat === 'text' && canEditTextWorkspace ? (
-                <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_auto]">
+                <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_auto]">
                   <div className="space-y-2">
                     <label className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
                       Change Summary
@@ -1861,8 +1840,8 @@ export default function AnnotatePage({
             {activeFormat === 'pdf' ? (
               fileUrl ? (
                 <Worker workerUrl="https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js">
-                  <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-                    <div className="h-[min(62vh,760px)] overflow-y-auto">
+                  <div className="flex min-h-[72vh] flex-1 flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm xl:min-h-0">
+                    <div className="flex-1 overflow-y-auto">
                       <Viewer fileUrl={fileUrl} plugins={[highlightPluginInstance]} />
                     </div>
                   </div>
@@ -1873,21 +1852,23 @@ export default function AnnotatePage({
                 </div>
               )
             ) : (
-              <ResearchDocumentStructureEditor
-                value={canEditTextWorkspace ? workspaceContent : selectedVersionContent}
-                onChange={canEditTextWorkspace ? setWorkspaceContent : undefined}
-                editable={canEditTextWorkspace}
-                onSectionMouseUp={handleTextSelection}
-                onSectionRef={handleSectionRef}
-                sectionFeedback={textFeedbackBySection}
-                activeFeedbackId={activeTextAnnotationId}
-                onFeedbackSelect={(annotationId) => {
-                  const annotation = annotations.find((item) => item.id === annotationId)
-                  if (annotation) {
-                    void openThread(annotation)
-                  }
-                }}
-              />
+              <div className="flex-1 min-h-[72vh] xl:min-h-0 [&_.trackademia-editor]:min-h-[360px]">
+                <ResearchDocumentStructureEditor
+                  value={canEditTextWorkspace ? workspaceContent : selectedVersionContent}
+                  onChange={canEditTextWorkspace ? setWorkspaceContent : undefined}
+                  editable={canEditTextWorkspace}
+                  onSectionMouseUp={handleTextSelection}
+                  onSectionRef={handleSectionRef}
+                  sectionFeedback={textFeedbackBySection}
+                  activeFeedbackId={activeTextAnnotationId}
+                  onFeedbackSelect={(annotationId) => {
+                    const annotation = annotations.find((item) => item.id === annotationId)
+                    if (annotation) {
+                      void openThread(annotation)
+                    }
+                  }}
+                />
+              </div>
             )}
 
             {canReview &&
@@ -1910,7 +1891,7 @@ export default function AnnotatePage({
         </div>
         </div>
 
-        <div className="relative flex min-h-0 w-full flex-col overflow-hidden bg-white xl:w-[400px] xl:min-w-[400px]">
+        <div className="relative flex min-h-0 w-full flex-col overflow-hidden bg-white xl:w-[350px] xl:min-w-[350px]">
           <div
             className="absolute inset-0 flex transition-transform duration-300 ease-in-out"
             style={{ transform: viewMode === 'list' ? 'translateX(0)' : 'translateX(-100%)' }}
