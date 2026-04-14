@@ -185,7 +185,7 @@ function getTextSelectionDetails(
   if (startOffset == null) return null
   const endOffset = startOffset + selectionRange.toString().length
   const fullText = getSectionTextContent(container)
-  const nextSelection = {
+  const nextSelection: TextSelectionDraft = {
     type: 'text',
     sectionKey,
     sectionTitle:

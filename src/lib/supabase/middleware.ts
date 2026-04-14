@@ -1,6 +1,26 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+function isMissingRefreshTokenError(error: unknown) {
+  return Boolean(
+    error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: string }).code === 'refresh_token_not_found'
+  )
+}
+
+function clearSupabaseAuthCookies(request: NextRequest, response: NextResponse) {
+  const authCookies = request.cookies
+    .getAll()
+    .filter(({ name }) => name.startsWith('sb-'))
+
+  authCookies.forEach(({ name }) => {
+    request.cookies.delete(name)
+    response.cookies.delete(name)
+  })
+}
+
 // Middleware helper that refreshes Supabase sessions and protects dashboard routes
 export async function updateSession(request: NextRequest) {
 
@@ -48,7 +68,21 @@ export async function updateSession(request: NextRequest) {
   )
 
   // Retrieve the currently authenticated user
-  const { data: { user } } = await supabase.auth.getUser()
+  let user = null
+
+  try {
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser()
+
+    user = currentUser
+  } catch (error) {
+    if (!isMissingRefreshTokenError(error)) {
+      throw error
+    }
+
+    clearSupabaseAuthCookies(request, response)
+  }
 
   // Protect dashboard routes by redirecting unauthenticated users to login
   if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
