@@ -7,6 +7,8 @@ import {
   passwordResetConfig,
   verifyPasswordResetCode,
 } from '@/lib/users/password-reset-session'
+import { createClient } from '@/lib/supabase/server'
+import { getProfileAccessState } from '@/lib/users/access'
 
 function buildResetPasswordUrl(message: string, flowToken?: string | null) {
   const params = new URLSearchParams({
@@ -86,8 +88,19 @@ export async function completePasswordReset(formData: FormData) {
   }
 
   const authUser = await findAuthUserByEmail(result.email)
+  const supabase = await createClient()
 
   if (!authUser?.id) {
+    await clearPasswordResetSession()
+    redirect(
+      '/forgot-password?error=' +
+        encodeURIComponent('This password reset request is no longer valid. Request a new code.')
+    )
+  }
+
+  const profile = await getProfileAccessState(supabase, authUser.id)
+
+  if (!profile?.is_active) {
     await clearPasswordResetSession()
     redirect(
       '/forgot-password?error=' +

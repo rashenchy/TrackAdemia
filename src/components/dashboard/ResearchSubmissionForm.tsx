@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useActionState, useRef } from 'react'
+import { useState, useEffect, useActionState, useRef, useCallback } from 'react'
 import { Plus, Trash2, FileText, GraduationCap, Users, Calendar, Paperclip, AlertCircle, Search, FileCode2 } from 'lucide-react'
 import { SubmitButton } from '@/components/auth/SubmitButton'
 import { submitResearch } from '@/app/(main)/dashboard/submit/actions'
@@ -116,6 +116,7 @@ function MemberComboBox({
 }
 
 export function ResearchSubmissionForm({
+  isTeacher = false,
   classmates = [],
   sections = [],
   adviserOptions = [],
@@ -123,6 +124,7 @@ export function ResearchSubmissionForm({
   initialData = null,
   editId = null
 }: {
+  isTeacher?: boolean,
   classmates?: ClassmateOption[],
   sections?: { id: string, name: string, course_code: string }[],
   adviserOptions?: AdviserOption[],
@@ -196,17 +198,20 @@ export function ResearchSubmissionForm({
   const [useExternalAdviser, setUseExternalAdviser] = useState(
     Boolean(initialData?.adviser_id)
   )
+  const [isIndependentResearch, setIsIndependentResearch] = useState(
+    Boolean(isTeacher && !initialData?.subject_code && !initialData?.adviser_id)
+  )
   const [selectedCurrentStage, setSelectedCurrentStage] = useState<ResearchStage>(
     getNormalizedResearchStage(initialData?.current_stage)
   )
   const [submissionFormat, setSubmissionFormat] = useState<ResearchSubmissionFormat>(
-    (initialData?.submission_format as ResearchSubmissionFormat) || 'pdf'
+    isTeacher ? 'pdf' : ((initialData?.submission_format as ResearchSubmissionFormat) || 'pdf')
   )
   const [documentSections, setDocumentSections] = useState<ResearchDocumentContent>(
     normalizeResearchDocumentContent(initialData?.content_json, initialData?.type || 'capstone')
   )
 
-  const effectiveSubmissionFormat = submissionFormat
+  const effectiveSubmissionFormat = isTeacher ? 'pdf' : submissionFormat
   const showsPdfInput =
     effectiveSubmissionFormat === 'pdf' || effectiveSubmissionFormat === 'both'
   const showsTextEditor =
@@ -251,7 +256,7 @@ export function ResearchSubmissionForm({
   }
 
   // Form reset logic
-  const clearForm = () => {
+  const clearForm = useCallback(() => {
     setMembers([''])
     setRoles([''])
     setKeywordsList([''])
@@ -262,10 +267,21 @@ export function ResearchSubmissionForm({
     setTargetDefenseDate('')
     setIsTargetDefenseTbd(true)
     setUseExternalAdviser(false)
+    setIsIndependentResearch(isTeacher)
     setSelectedCurrentStage('Proposal')
     setSubmissionFormat('pdf')
     setDocumentSections(createDefaultResearchDocumentContent('capstone'))
     formRef.current?.reset()
+  }, [isTeacher])
+
+  const handleIndependentResearchChange = (checked: boolean) => {
+    setIsIndependentResearch(checked)
+
+    if (checked) {
+      setSelectedSubjectCode('')
+      setSelectedAdviserId('')
+      setUseExternalAdviser(false)
+    }
   }
 
   // Lifecycle effects
@@ -273,7 +289,7 @@ export function ResearchSubmissionForm({
     if (state && !state.error && !editId && !state?.id) {
       queueMicrotask(() => clearForm())
     }
-  }, [state, editId])
+  }, [clearForm, editId, state])
 
   useEffect(() => {
     if (state?.id) {
@@ -284,6 +300,11 @@ export function ResearchSubmissionForm({
   return (
     <form ref={formRef} action={formAction} className="space-y-8">
       <input type="hidden" name="isDraft" value={isDraftMode ? 'true' : 'false'} />
+      <input
+        type="hidden"
+        name="isIndependentResearch"
+        value={isTeacher && isIndependentResearch ? 'true' : 'false'}
+      />
 
       {/* Error notification */}
       {state?.error && (
@@ -384,9 +405,28 @@ export function ResearchSubmissionForm({
           <h2 className="text-lg font-bold text-[var(--foreground)]">Academic</h2>
         </div>
 
+        {isTeacher && (
+          <label className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50/70 px-4 py-3 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-900/10 dark:text-blue-100">
+            <input
+              type="checkbox"
+              checked={isIndependentResearch}
+              onChange={(event) => handleIndependentResearchChange(event.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
+            />
+            <span>
+              <span className="block font-semibold">Submit as independent research</span>
+              <span className="mt-1 block text-xs text-blue-800/80 dark:text-blue-200/80">
+                Independent teacher submissions can leave section, adviser, and timeline fields empty.
+              </span>
+            </span>
+          </label>
+        )}
+
         <div className="grid gap-6 md:grid-cols-3">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-[var(--foreground)]">Subject Code</label>
+            <label className="text-sm font-semibold text-[var(--foreground)]">
+              {isTeacher ? 'Section / Subject Code' : 'Subject Code'}
+            </label>
             <select
               name="subjectCode"
               value={selectedSubjectCode}
@@ -394,10 +434,11 @@ export function ResearchSubmissionForm({
                 const nextSubjectCode = e.target.value
                 setSelectedSubjectCode(nextSubjectCode)
               }}
-              required={!isDraftMode}
-              className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer"
+              required={!isDraftMode && !isTeacher}
+              disabled={isTeacher && isIndependentResearch}
+              className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-gray-800"
             >
-              <option value="" disabled>Select subject code...</option>
+              <option value="">{isTeacher ? 'No linked section' : 'Select subject code...'}</option>
               {sections.length === 0 && <option value="" disabled>No sections joined</option>}
               {sections.map(s => (
                 <option key={s.id} value={s.course_code}>{s.course_code} ({s.name})</option>
@@ -406,15 +447,37 @@ export function ResearchSubmissionForm({
           </div>
           <div className="flex flex-col gap-2">
             <label className="text-sm font-semibold text-[var(--foreground)]">Adviser</label>
-            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm dark:border-gray-800 dark:bg-gray-900/40">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                Section Adviser
-              </p>
-              <p className="mt-1 text-[var(--foreground)]">
-                {sectionAdvisers[selectedSubjectCode]?.name || 'No section adviser found for the selected subject code.'}
-              </p>
-            </div>
-            {selectedResearchType === 'capstone' ? (
+            {!isTeacher && (
+              <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm dark:border-gray-800 dark:bg-gray-900/40">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                  Section Adviser
+                </p>
+                <p className="mt-1 text-[var(--foreground)]">
+                  {sectionAdvisers[selectedSubjectCode]?.name || 'No section adviser found for the selected subject code.'}
+                </p>
+              </div>
+            )}
+            {isTeacher ? (
+              <>
+                <select
+                  name="adviser"
+                  value={selectedAdviserId}
+                  onChange={(e) => setSelectedAdviserId(e.target.value)}
+                  disabled={isIndependentResearch}
+                  className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-gray-800"
+                >
+                  <option value="">No adviser selected</option>
+                  {adviserSelectOptions.map((adviser) => (
+                    <option key={adviser.id} value={adviser.id}>
+                      {adviser.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-gray-500">
+                  Optional for teacher submissions. Leave empty for independent work.
+                </p>
+              </>
+            ) : selectedResearchType === 'capstone' ? (
               <>
                 <label className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-300">
                   <input
@@ -530,7 +593,7 @@ export function ResearchSubmissionForm({
         <div className="grid gap-6 md:grid-cols-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-[var(--foreground)]">Start Date</label>
-            <input type="date" name="startDate" defaultValue={initialData?.start_date || ""} required={!isDraftMode} className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-text" />
+            <input type="date" name="startDate" defaultValue={initialData?.start_date || ""} required={!isDraftMode && !isTeacher} className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-text" />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-[var(--foreground)]">Target Defense Date</label>
@@ -590,27 +653,33 @@ export function ResearchSubmissionForm({
 
         <input type="hidden" name="submissionFormat" value={effectiveSubmissionFormat} />
 
-        <div className="grid gap-3 md:grid-cols-3">
-          {RESEARCH_SUBMISSION_FORMAT_OPTIONS.map((option) => {
-            const isSelected = submissionFormat === option.value
+        {isTeacher ? (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-4 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-900/10 dark:text-blue-100">
+            Teacher submissions are locked to <span className="font-semibold">PDF only</span>. Non-PDF uploads are rejected on both the client and server, and successful submissions publish immediately.
+          </div>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-3">
+            {RESEARCH_SUBMISSION_FORMAT_OPTIONS.map((option) => {
+              const isSelected = submissionFormat === option.value
 
-            return (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setSubmissionFormat(option.value)}
-                className={`rounded-xl border p-4 text-left transition-all ${
-                  isSelected
-                    ? 'border-blue-500 bg-blue-50 shadow-sm dark:border-blue-400 dark:bg-blue-900/20'
-                    : 'border-gray-200 hover:border-blue-300 dark:border-gray-800 dark:hover:border-blue-800'
-                }`}
-              >
-                <p className="text-sm font-bold text-[var(--foreground)]">{option.label}</p>
-                <p className="mt-2 text-xs leading-relaxed text-gray-500">{option.description}</p>
-              </button>
-            )
-          })}
-        </div>
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setSubmissionFormat(option.value)}
+                  className={`rounded-xl border p-4 text-left transition-all ${
+                    isSelected
+                      ? 'border-blue-500 bg-blue-50 shadow-sm dark:border-blue-400 dark:bg-blue-900/20'
+                      : 'border-gray-200 hover:border-blue-300 dark:border-gray-800 dark:hover:border-blue-800'
+                  }`}
+                >
+                  <p className="text-sm font-bold text-[var(--foreground)]">{option.label}</p>
+                  <p className="mt-2 text-xs leading-relaxed text-gray-500">{option.description}</p>
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         <div className="rounded-xl border border-dashed border-blue-200 bg-blue-50/70 px-4 py-3 text-xs text-blue-800 dark:border-blue-900/40 dark:bg-blue-900/10 dark:text-blue-200">
           Reviewers will annotate submitted snapshots only. Students continue editing in the working form and resubmit when ready.
@@ -648,7 +717,9 @@ export function ResearchSubmissionForm({
               className="w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 dark:file:bg-blue-900/20 dark:file:text-blue-400 dark:hover:file:bg-blue-900/40 transition-all cursor-pointer border border-gray-300 dark:border-gray-700 rounded-lg"
             />
             <p className="text-xs text-gray-500">
-              Use this when you want the uploaded manuscript to be reviewed as a PDF.
+              {isTeacher
+                ? 'Required for teacher submissions. Only .pdf files are accepted.'
+                : 'Use this when you want the uploaded manuscript to be reviewed as a PDF.'}
             </p>
           </div>
         )}
@@ -683,7 +754,9 @@ export function ResearchSubmissionForm({
           onClick={() => setIsDraftMode(false)}
           className="w-full md:w-auto px-12 bg-blue-600 text-white rounded-xl py-4 font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none text-lg"
         >
-          {currentId ? "Resubmit Research" : "Submit Research"}
+          {currentId
+            ? (isTeacher ? 'Publish Research' : 'Resubmit Research')
+            : (isTeacher ? 'Publish Research' : 'Submit Research')}
         </SubmitButton>
       </div>
     </form>

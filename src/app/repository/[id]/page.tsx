@@ -48,6 +48,7 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
     const { data: profiles } = await supabase
       .from('profiles')
       .select('first_name, last_name')
+      .eq('is_active', true)
       .in('id', research.members)
 
     if (profiles) {

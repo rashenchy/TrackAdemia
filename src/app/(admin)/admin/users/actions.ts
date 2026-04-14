@@ -1,6 +1,8 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getProfileAccessState } from '@/lib/users/access'
 
 export interface UserProfile {
   id: string
@@ -10,7 +12,9 @@ export interface UserProfile {
   role: 'student' | 'mentor' | 'admin'
   course_program: string
   is_verified: boolean
+  is_active: boolean
   updated_at: string
+  deleted_at?: string | null
   sectionsCount?: number
   researchCount?: number
 }
@@ -18,17 +22,26 @@ export interface UserProfile {
 /**
  * Fetch all users with filtering options
  */
-export async function getAllUsers(roleFilter?: string, searchTerm?: string): Promise<UserProfile[]> {
+export async function getAllUsers(
+  roleFilter?: string,
+  searchTerm?: string,
+  statusFilter: 'active' | 'archived' | 'all' = 'active'
+): Promise<UserProfile[]> {
   const supabase = await createClient()
+  const adminSupabase = createAdminClient()
 
   try {
     let query = supabase
       .from('profiles')
-      .select('id, first_name, last_name, role, course_program, is_verified, updated_at')
+      .select('id, first_name, last_name, role, course_program, is_verified, is_active, updated_at, deleted_at')
       .order('updated_at', { ascending: false })
 
     if (roleFilter && roleFilter !== 'all') {
       query = query.eq('role', roleFilter)
+    }
+
+    if (statusFilter !== 'all') {
+      query = query.eq('is_active', statusFilter === 'active')
     }
 
     const { data: profiles, error } = await query
@@ -51,7 +64,9 @@ export async function getAllUsers(roleFilter?: string, searchTerm?: string): Pro
         }
 
         // Get email from auth
-        const { data: { user } } = await supabase.auth.admin.getUserById(profile.id)
+        const { data: authUser } = adminSupabase
+          ? await adminSupabase.auth.admin.getUserById(profile.id)
+          : { data: { user: null } }
 
         // Get workload info for mentors
         let sectionsCount = 0
@@ -78,11 +93,13 @@ export async function getAllUsers(roleFilter?: string, searchTerm?: string): Pro
           id: profile.id,
           first_name: profile.first_name,
           last_name: profile.last_name,
-          email: user?.email || 'N/A',
+          email: authUser.user?.email || 'N/A',
           role: profile.role as 'student' | 'mentor' | 'admin',
           course_program: profile.course_program,
           is_verified: profile.is_verified,
+          is_active: profile.is_active,
           updated_at: profile.updated_at,
+          deleted_at: profile.deleted_at,
           sectionsCount,
           researchCount
         })
@@ -110,13 +127,9 @@ export async function deleteOrBanUser(userId: string): Promise<{ success: boolea
       return { success: false, error: 'Not authenticated' }
     }
 
-    const { data: adminProfile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', currentUser.id)
-      .single()
+    const adminProfile = await getProfileAccessState(supabase, currentUser.id)
 
-    if (!adminProfile || adminProfile.role !== 'admin') {
+    if (!adminProfile?.is_active || adminProfile.role !== 'admin') {
       return { success: false, error: 'Insufficient permissions' }
     }
 
@@ -125,28 +138,37 @@ export async function deleteOrBanUser(userId: string): Promise<{ success: boolea
       return { success: false, error: 'Cannot delete your own account' }
     }
 
-    // Delete the user from auth
-    const { error: deleteError } = await supabase.auth.admin.deleteUser(userId)
-    
-    if (deleteError) {
-      console.error('Error deleting user from auth:', deleteError)
-      return { success: false, error: deleteError.message }
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id, role, is_active')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (!existingProfile) {
+      return { success: false, error: 'User profile not found.' }
     }
 
-    // Also delete the profile record
+    if (!existingProfile.is_active) {
+      return { success: false, error: 'User is already archived.' }
+    }
+
     const { error: profileError } = await supabase
       .from('profiles')
-      .delete()
+      .update({
+        is_active: false,
+        deleted_at: new Date().toISOString(),
+        deleted_by: currentUser.id,
+      })
       .eq('id', userId)
 
     if (profileError) {
-      console.error('Error deleting user profile:', profileError)
-      // Don't fail completely if profile deletion fails, user is already deleted from auth
+      console.error('Error archiving user profile:', profileError)
+      return { success: false, error: profileError.message }
     }
 
     return { success: true }
   } catch (error) {
-    console.error('Unexpected error deleting user:', error)
+    console.error('Unexpected error archiving user:', error)
     return { success: false, error: 'An unexpected error occurred' }
   }
 }

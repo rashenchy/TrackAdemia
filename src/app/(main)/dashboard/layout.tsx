@@ -7,6 +7,7 @@ import {
   getAdminViewMeta,
   isAdminViewMode,
 } from '@/lib/users/admin-view-mode'
+import { getProfileAccessState } from '@/lib/users/access'
 
 export default async function DashboardLayout({
   children,
@@ -22,17 +23,18 @@ export default async function DashboardLayout({
     redirect('/login')
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+  const profile = await getProfileAccessState(supabase, user.id)
+
+  if (!profile?.is_active) {
+    await supabase.auth.signOut()
+    redirect('/login?error=' + encodeURIComponent('This account has been deactivated. Please contact an administrator.'))
+  }
 
   const cookieStore = await cookies()
   const previewCookie = cookieStore.get(ADMIN_VIEW_COOKIE)?.value
   const adminPreviewMode = isAdminViewMode(previewCookie) ? previewCookie : null
 
-  if (profile?.role === 'admin') {
+  if (profile.role === 'admin') {
     if (!adminPreviewMode) {
       redirect('/admin')
     }
@@ -46,7 +48,7 @@ export default async function DashboardLayout({
       previewDisplayName={previewMeta?.displayName}
       previewRole={previewMeta?.role}
       previewIsVerified={previewMeta?.isVerified}
-      isAdminPreview={profile?.role === 'admin' && Boolean(adminPreviewMode)}
+      isAdminPreview={profile.role === 'admin' && Boolean(adminPreviewMode)}
     >
       {children}
     </DashboardLayoutClient>

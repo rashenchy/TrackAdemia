@@ -1,6 +1,20 @@
 import 'server-only'
 
-type SupabaseClientLike = any
+type SupabaseStorageClientLike = {
+  storage: {
+    from(bucket: string): {
+      upload(
+        path: string,
+        file: File,
+        options: {
+          cacheControl: string
+          upsert: boolean
+          contentType: string
+        }
+      ): Promise<{ data: { path?: string } | null; error: Error | null }>
+    }
+  }
+}
 
 const ALLOWED_TYPES = new Set(['application/pdf'])
 const MAX_FILE_SIZE = 20 * 1024 * 1024
@@ -11,6 +25,12 @@ function getSafeOriginalFileName(file: File) {
 }
 
 function validateResearchDocument(file: File) {
+  const normalizedName = file.name.trim().toLowerCase()
+
+  if (!normalizedName.endsWith('.pdf')) {
+    return 'Only PDF files are allowed.'
+  }
+
   if (!ALLOWED_TYPES.has(file.type)) {
     return 'Only PDF files are allowed.'
   }
@@ -23,7 +43,7 @@ function validateResearchDocument(file: File) {
 }
 
 export async function uploadResearchDocument(
-  supabase: SupabaseClientLike,
+  supabase: SupabaseStorageClientLike,
   userId: string,
   file: File
 ) {

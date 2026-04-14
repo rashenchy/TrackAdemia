@@ -143,6 +143,7 @@ async function enrichLogs(logs: ApiRequestLogRow[]): Promise<ApiMonitoringLog[]>
     const { data } = await supabase
       .from('profiles')
       .select('id, first_name, last_name')
+      .eq('is_active', true)
       .in('id', userIds)
 
     profiles = data || []
@@ -248,7 +249,7 @@ async function getSupabaseMetrics(): Promise<SupabaseMonitoringMetrics> {
     downloadsResult,
     bookmarksResult,
   ] = await Promise.all([
-    supabase.from('profiles').select('id, role'),
+    supabase.from('profiles').select('id, role').eq('is_active', true),
     supabase.from('research').select('id, status'),
     supabase.from('sections').select('id'),
     supabase.from('section_members').select('id').eq('status', 'active'),

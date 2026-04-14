@@ -30,12 +30,14 @@ export async function getAnalyticsMetrics(): Promise<AnalyticsMetrics> {
     const { count: totalUsers } = await supabase
       .from('profiles')
       .select('*', { count: 'exact', head: true })
+      .eq('is_active', true)
 
     const { count: pendingFaculty } = await supabase
       .from('profiles')
       .select('*', { count: 'exact', head: true })
       .eq('role', 'mentor')
       .eq('is_verified', false)
+      .eq('is_active', true)
 
     const { count: totalPublishedPapers } = await supabase
       .from('research')
@@ -81,6 +83,7 @@ export async function getResearchByProgram(): Promise<ResearchByProgram[]> {
         .from('profiles')
         .select('course_program')
         .eq('id', item.user_id)
+        .eq('is_active', true)
         .single()
 
       if (profile?.course_program) {
@@ -151,6 +154,7 @@ export async function getTopResearch(): Promise<TopResearch[]> {
           .from('profiles')
           .select('first_name, last_name')
           .eq('id', item.user_id)
+          .eq('is_active', true)
           .single()
 
         const author_name = profile
@@ -194,6 +198,7 @@ export async function getPublishedResearchForExport() {
           .from('profiles')
           .select('first_name, last_name')
           .eq('id', item.user_id)
+          .eq('is_active', true)
           .single()
 
         let adviser_name = 'N/A'
@@ -203,6 +208,7 @@ export async function getPublishedResearchForExport() {
             .from('profiles')
             .select('first_name, last_name')
             .eq('id', item.adviser_id)
+            .eq('is_active', true)
             .single()
 
           if (adviser) {

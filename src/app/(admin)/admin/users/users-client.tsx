@@ -14,7 +14,9 @@ interface UserProfile {
   role: 'student' | 'mentor' | 'admin'
   course_program: string
   is_verified: boolean
+  is_active: boolean
   updated_at: string
+  deleted_at?: string | null
   sectionsCount?: number
   researchCount?: number
 }
@@ -49,6 +51,7 @@ export default function UserManagementClient({
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<'active' | 'archived' | 'all'>('active')
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [page, setPage] = useState(1)
@@ -73,10 +76,14 @@ export default function UserManagementClient({
   const normalizedPage = Math.min(page, Math.max(1, Math.ceil(filteredUsers.length / pageSize)))
   const pagedUsers = filteredUsers.slice((normalizedPage - 1) * pageSize, normalizedPage * pageSize)
 
-  const loadUsers = async () => {
+  const loadUsers = async (
+    nextRoleFilter = roleFilter,
+    nextSearchTerm = searchTerm,
+    nextStatusFilter = statusFilter
+  ) => {
     setLoading(true)
     setError(null)
-    const result = await getAllUsers()
+    const result = await getAllUsers(nextRoleFilter, nextSearchTerm, nextStatusFilter)
     setUsers(result)
     setLoading(false)
   }
@@ -84,8 +91,8 @@ export default function UserManagementClient({
   const handleDeleteUser = async (userId: string, userName: string) => {
     const confirmed = await confirm({
       title: `Delete ${userName}?`,
-      message: 'This action cannot be undone and will permanently remove the user account.',
-      confirmLabel: 'Delete user',
+      message: 'This will archive the account, keep all related records, and block future access.',
+      confirmLabel: 'Archive user',
       variant: 'danger',
     })
 
@@ -97,19 +104,31 @@ export default function UserManagementClient({
     const result = await deleteOrBanUser(userId)
 
     if (result.success) {
-      setSuccessMessage(`${userName} has been deleted`)
+      setSuccessMessage(`${userName} has been archived`)
       notify({
-        title: 'User deleted',
-        message: `${userName} has been deleted.`,
+        title: 'User archived',
+        message: `${userName} has been archived and access has been disabled.`,
         variant: 'success',
       })
-      setUsers((currentUsers) => currentUsers.filter((u) => u.id !== userId))
+      setUsers((currentUsers) =>
+        currentUsers
+          .map((user) =>
+            user.id === userId
+              ? {
+                  ...user,
+                  is_active: false,
+                  deleted_at: new Date().toISOString(),
+                }
+              : user
+          )
+          .filter((user) => statusFilter !== 'active' || user.is_active)
+      )
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {
       setError(result.error || 'Failed to delete user')
       notify({
-        title: 'Delete failed',
-        message: result.error || 'Failed to delete user',
+        title: 'Archive failed',
+        message: result.error || 'Failed to archive user',
         variant: 'error',
       })
     }
@@ -128,7 +147,7 @@ export default function UserManagementClient({
             User Management
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Manage all users and handle account access
+            Manage active and archived users without deleting their related data
           </p>
         </div>
       </div>
@@ -161,6 +180,21 @@ export default function UserManagementClient({
             className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
           />
         </div>
+
+        <select
+          value={statusFilter}
+          onChange={(e) => {
+            const nextStatusFilter = e.target.value as 'active' | 'archived' | 'all'
+            setStatusFilter(nextStatusFilter)
+            setPage(1)
+            void loadUsers(roleFilter, searchTerm, nextStatusFilter)
+          }}
+          className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+        >
+          <option value="active">Active Users</option>
+          <option value="archived">Archived Users</option>
+          <option value="all">All Users</option>
+        </select>
 
         <select
           value={roleFilter}
@@ -261,11 +295,11 @@ export default function UserManagementClient({
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => handleDeleteUser(user.id, `${user.first_name} ${user.last_name}`)}
-                            disabled={actionInProgress === user.id}
+                            disabled={actionInProgress === user.id || !user.is_active}
                             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 font-medium text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {actionInProgress === user.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            Delete
+                            {user.is_active ? 'Archive' : 'Archived'}
                           </button>
                         </div>
                       </td>

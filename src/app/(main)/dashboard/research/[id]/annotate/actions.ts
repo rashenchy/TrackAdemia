@@ -46,6 +46,7 @@ async function getAuthenticatedUserContext() {
     .from('profiles')
     .select('role')
     .eq('id', user.id)
+    .eq('is_active', true)
     .single()
 
   return { supabase, user, role: profile?.role ?? null }
@@ -593,7 +594,7 @@ export async function getReplies(annotationId: string) {
     .from('annotation_replies')
     .select(`
       *,
-      profiles!inner(first_name, last_name, role)
+      profiles(first_name, last_name, role)
     `)
     .eq('annotation_id', annotationId)
     .order('created_at', { ascending: true })

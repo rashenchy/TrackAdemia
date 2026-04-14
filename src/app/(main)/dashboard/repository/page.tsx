@@ -116,6 +116,7 @@ export default async function RepositoryPage({
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, first_name, last_name')
+        .eq('is_active', true)
         .in('id', Array.from(allProfileIds))
 
       profiles?.forEach(p => {

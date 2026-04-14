@@ -22,6 +22,10 @@ type DraftResearch = {
   content_json?: unknown
 }
 
+type SectionLookupRow = {
+  name?: string
+} | null
+
 export default async function SubmitResearchPage() {
 
   // Initialize Supabase and verify authentication
@@ -38,9 +42,12 @@ export default async function SubmitResearchPage() {
 
   const { data: currentProfile } = await supabase
     .from('profiles')
-    .select('course_program')
+    .select('role, course_program')
     .eq('id', user.id)
+    .eq('is_active', true)
     .single()
+
+  const isTeacher = currentProfile?.role === 'mentor'
 
   const sectionIds = myMemberships?.map(m => m.section_id) || []
 
@@ -97,6 +104,7 @@ export default async function SubmitResearchPage() {
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, first_name, last_name')
+        .eq('is_active', true)
         .in('id', classmateIds as string[])
 
       // Build the classmates list combining membership and profile data
@@ -104,7 +112,7 @@ export default async function SubmitResearchPage() {
 
         const profile = profiles?.find(p => p.id === m.user_id)
 
-        const sectionData = m.sections as any
+        const sectionData = m.sections as SectionLookupRow | SectionLookupRow[]
         const sectionName = Array.isArray(sectionData)
           ? sectionData[0]?.name
           : sectionData?.name
@@ -136,6 +144,7 @@ export default async function SubmitResearchPage() {
       .select('id, first_name, last_name, role, is_verified, course_program')
       .eq('role', 'mentor')
       .eq('is_verified', true)
+      .eq('is_active', true)
 
     if (currentProfile?.course_program) {
       mentorQuery = mentorQuery.eq('course_program', currentProfile.course_program)
@@ -166,6 +175,7 @@ export default async function SubmitResearchPage() {
         const { data: extraTeacherProfiles } = await supabase
           .from('profiles')
           .select('id, first_name, last_name')
+          .eq('is_active', true)
           .in('id', missingTeacherIds)
 
         extraTeacherProfiles?.forEach((teacher) => {
@@ -207,6 +217,7 @@ export default async function SubmitResearchPage() {
       </div>
 
       <ResearchSubmissionForm
+        isTeacher={isTeacher}
         classmates={classmatesList}
         sections={userSections}
         adviserOptions={adviserOptions}

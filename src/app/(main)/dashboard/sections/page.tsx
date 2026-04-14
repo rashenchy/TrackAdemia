@@ -18,6 +18,7 @@ export default async function SectionsPage({
     .from('profiles')
     .select('role')
     .eq('id', user.id)
+    .eq('is_active', true)
     .single()
 
   // ======================
@@ -64,6 +65,7 @@ export default async function SectionsPage({
         const { data: profiles } = await supabase
           .from('profiles')
           .select('id, first_name, last_name, course_program')
+          .eq('is_active', true)
           .in('id', memberIds)
 
         studentProfiles = profiles || []
@@ -73,14 +75,18 @@ export default async function SectionsPage({
       const roster = (members || []).map(m => {
         const p = studentProfiles.find(profile => profile.id === m.user_id)
 
+        if (!p) {
+          return null
+        }
+
         return {
           user_id: m.user_id,
           status: m.status,
           joined_at: m.joined_at,
-          name: p ? `${p.first_name} ${p.last_name}` : 'Unknown Student',
-          course: p?.course_program || 'N/A'
+          name: `${p.first_name} ${p.last_name}`,
+          course: p.course_program || 'N/A'
         }
-      })
+      }).filter((member): member is NonNullable<typeof member> => Boolean(member))
 
       return {
         ...sec,
@@ -138,6 +144,7 @@ export default async function SectionsPage({
   const { data: teachers } = await supabase
     .from('profiles')
     .select('id, first_name, last_name')
+    .eq('is_active', true)
     .in('id', teacherIds)
 
   // Attach teacher profile to each section
@@ -158,6 +165,7 @@ export default async function SectionsPage({
   const { data: studentProfiles } = await supabase
     .from('profiles')
     .select('id, first_name, last_name, course_program')
+    .eq('is_active', true)
     .in('id', userIds)
 
   // Combine classmates with profiles
@@ -165,7 +173,7 @@ export default async function SectionsPage({
     memberRows?.map(m => ({
       section_id: m.section_id,
       profiles: studentProfiles?.find(p => p.id === m.user_id) ?? null
-    })) ?? []
+    })).filter((member) => member.profiles) ?? []
 
   return (
     <StudentSectionsUI

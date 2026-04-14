@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getProfileAccessState } from '@/lib/users/access'
 
 function isMissingRefreshTokenError(error: unknown) {
   return Boolean(
@@ -93,6 +94,25 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
+  if (user) {
+    const profile = await getProfileAccessState(supabase, user.id)
+
+    if (!profile?.is_active) {
+      clearSupabaseAuthCookies(request, response)
+
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      url.searchParams.set(
+        'error',
+        'This account has been deactivated. Please contact an administrator.'
+      )
+
+      if (!request.nextUrl.pathname.startsWith('/login')) {
+        return NextResponse.redirect(url)
+      }
+    }
+  }
+
   // Protect admin routes - check if user is authenticated and has admin role
   if (request.nextUrl.pathname.startsWith('/admin')) {
     if (!user) {
@@ -102,11 +122,7 @@ export async function updateSession(request: NextRequest) {
     }
 
     // Check if user has admin role
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    const profile = await getProfileAccessState(supabase, user.id)
 
     if (!profile || profile.role !== 'admin') {
       const url = request.nextUrl.clone()

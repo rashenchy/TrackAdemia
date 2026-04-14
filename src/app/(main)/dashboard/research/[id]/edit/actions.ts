@@ -33,6 +33,13 @@ export async function updateResearch(editId: string, prevState: FormState | null
   if (!user) redirect('/login')
 
   const isDraft = formData.get('isDraft') === 'true'
+  const isIndependentResearch = formData.get('isIndependentResearch') === 'true'
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+  const isTeacher = profile?.role === 'mentor'
 
   // Fetch current record for security validation
   const { data: current } = await supabase
@@ -53,7 +60,9 @@ export async function updateResearch(editId: string, prevState: FormState | null
   if (isDraft) {
     nextStatus = 'Draft'
   } else {
-    if (current.status === 'Draft') {
+    if (isTeacher) {
+      nextStatus = 'Published'
+    } else if (current.status === 'Draft') {
       nextStatus = 'Pending Review'
     } else {
       const unresolvedCount = await getUnresolvedAnnotationCount(supabase, editId)
@@ -75,16 +84,30 @@ export async function updateResearch(editId: string, prevState: FormState | null
     .map(k => (k as string).trim())
     .filter(k => k !== '')
 
-  const subjectCode = (formData.get('subjectCode') as string)?.trim()
+  const subjectCode = (formData.get('subjectCode') as string)?.trim() || ''
   const adviser = (formData.get('adviser') as string)?.trim() || null
   const researchArea = (formData.get('researchArea') as string)?.trim()
 
-  const startDate = (formData.get('startDate') as string) || null
+  const startDate = ((formData.get('startDate') as string) || '').trim()
   const targetDefenseDate = (formData.get('targetDefenseDate') as string) || null
   const currentStage = (formData.get('currentStage') as string)?.trim()
   const requestedSubmissionFormat = (formData.get('submissionFormat') as string)?.trim()
   const documentContent = extractResearchDocumentContentFromFormData(formData, currentStage, type)
   const hasTextContent = hasResearchTextContent(documentContent, currentStage)
+  const normalizedSubjectCode =
+    isTeacher && isIndependentResearch ? null : subjectCode || null
+  const normalizedAdviser =
+    isTeacher && isIndependentResearch ? null : adviser
+  const normalizedStartDate = isTeacher ? startDate || null : startDate || null
+  const normalizedTargetDefenseDate = targetDefenseDate || null
+
+  if (!isDraft && !isTeacher && !subjectCode) {
+    return { error: 'Please select a section before submitting.' }
+  }
+
+  if (!isDraft && !isTeacher && !startDate) {
+    return { error: 'Please provide a project start date before submitting.' }
+  }
 
   // Collect member assignments
   const members: string[] = []
@@ -113,18 +136,24 @@ export async function updateResearch(editId: string, prevState: FormState | null
   }
 
   const effectiveFileUrl = fileUrl || current.file_url || null
-  const submissionFormat = resolveResearchSubmissionFormat(requestedSubmissionFormat, {
-    hasPdf: Boolean(effectiveFileUrl),
-    hasText: hasTextContent,
-    stage: currentStage,
-  })
+  const submissionFormat = isTeacher
+    ? 'pdf'
+    : resolveResearchSubmissionFormat(requestedSubmissionFormat, {
+        hasPdf: Boolean(effectiveFileUrl),
+        hasText: hasTextContent,
+        stage: currentStage,
+      })
 
   if (!isDraft) {
-    const needsPdf = submissionFormat === 'pdf' || submissionFormat === 'both'
-    const needsText = submissionFormat === 'text' || submissionFormat === 'both'
+    const needsPdf = isTeacher || submissionFormat === 'pdf' || submissionFormat === 'both'
+    const needsText = !isTeacher && (submissionFormat === 'text' || submissionFormat === 'both')
 
     if (needsPdf && !effectiveFileUrl) {
-      return { error: 'Please upload a PDF manuscript for the selected submission format.' }
+      return {
+        error: isTeacher
+          ? 'Teacher submissions require a PDF manuscript.'
+          : 'Please upload a PDF manuscript for the selected submission format.',
+      }
     }
 
     if (needsText && !hasTextContent) {
@@ -137,11 +166,11 @@ export async function updateResearch(editId: string, prevState: FormState | null
 
   const updatePayload: Record<string, unknown> = {
     title, type, abstract, keywords,
-    subject_code: subjectCode,
-    adviser_id: adviser,
+    subject_code: normalizedSubjectCode,
+    adviser_id: normalizedAdviser,
     research_area: researchArea,
-    start_date: startDate,
-    target_defense_date: targetDefenseDate,
+    start_date: normalizedStartDate,
+    target_defense_date: normalizedTargetDefenseDate,
     current_stage: currentStage,
     status: nextStatus,
     published_at: getPublishedAtForStatusChange(
@@ -150,7 +179,7 @@ export async function updateResearch(editId: string, prevState: FormState | null
       current.published_at
     ),
     submission_format: submissionFormat,
-    content_json: hasTextContent ? documentContent : null,
+    content_json: !isTeacher && hasTextContent ? documentContent : null,
     members: members.filter(id => id !== ''),
     member_roles: memberRoles,
     ...(fileUrl && { file_url: fileUrl, original_file_name: originalFileName })
@@ -203,14 +232,14 @@ export async function updateResearch(editId: string, prevState: FormState | null
           version_major: 1,
           version_minor: 0,
           version_label: '1',
-          created_by_role: 'student',
-          change_type: 'student_submit',
+          created_by_role: isTeacher ? 'teacher' : 'student',
+          change_type: isTeacher ? 'teacher_submit' : 'student_submit',
         })
 
       if (seedVersionError) console.error('Seed Version Insert Error:', seedVersionError)
     }
 
-    if (fileUrl || hasTextContent) {
+    if (fileUrl || (!isTeacher && hasTextContent)) {
       const versionInfo = getNextStudentVersion(versionRows)
       const nextVersion =
         versionRows.length === 0
@@ -226,28 +255,30 @@ export async function updateResearch(editId: string, prevState: FormState | null
           uploaded_by: user.id,
           file_url: fileUrl,
           original_file_name: originalFileName,
-          content_json: hasTextContent ? documentContent : null,
+          content_json: !isTeacher && hasTextContent ? documentContent : null,
           version_number: nextVersion,
           version_major: versionInfo.version_major,
           version_minor: versionInfo.version_minor,
           version_label: versionInfo.version_label,
-          created_by_role: 'student',
-          change_type: 'student_submit',
+          created_by_role: isTeacher ? 'teacher' : 'student',
+          change_type: isTeacher ? 'teacher_submit' : 'student_submit',
         })
 
       if (versionError) console.error('Version Insert Error:', versionError)
 
       versionNotificationSuffix = `version-${nextVersion}`
 
-      await notifyTeachersForResearchVersionUpload(supabase, {
-        actorId: user.id,
-        researchId: editId,
-        researchTitle: title || current.title,
-        subjectCode: subjectCode || current.subject_code,
-        adviserId: adviser || current.adviser_id,
-        originalFileName,
-        versionNumber: nextVersion,
-      })
+      if (!isTeacher) {
+        await notifyTeachersForResearchVersionUpload(supabase, {
+          actorId: user.id,
+          researchId: editId,
+          researchTitle: title || current.title,
+          subjectCode: normalizedSubjectCode || current.subject_code,
+          adviserId: normalizedAdviser || current.adviser_id,
+          originalFileName,
+          versionNumber: nextVersion,
+        })
+      }
     }
   }
 
@@ -255,23 +286,27 @@ export async function updateResearch(editId: string, prevState: FormState | null
   // FINALIZATION
 
   if (!isDraft) {
-    await notifyTeachersForResearchSubmission(supabase, {
-      actorId: user.id,
-      researchId: editId,
-      researchTitle: title || current.title,
-      subjectCode: subjectCode || current.subject_code,
-      adviserId: adviser || current.adviser_id,
-      status: nextStatus === 'Pending Review' ? 'Pending Review' : 'Resubmitted',
-      eventKeySuffix:
-        nextStatus === 'Pending Review'
-          ? 'initial-from-draft'
-          : versionNotificationSuffix || `resubmission-${Date.now()}`,
-    })
+    if (!isTeacher) {
+      await notifyTeachersForResearchSubmission(supabase, {
+        actorId: user.id,
+        researchId: editId,
+        researchTitle: title || current.title,
+        subjectCode: normalizedSubjectCode || current.subject_code,
+        adviserId: normalizedAdviser || current.adviser_id,
+        status: nextStatus === 'Pending Review' ? 'Pending Review' : 'Resubmitted',
+        eventKeySuffix:
+          nextStatus === 'Pending Review'
+            ? 'initial-from-draft'
+            : versionNotificationSuffix || `resubmission-${Date.now()}`,
+      })
 
-    const successMessage =
-      nextStatus === 'Pending Review' ? 'Submitted for review' : 'Resubmitted for review'
+      const successMessage =
+        nextStatus === 'Pending Review' ? 'Submitted for review' : 'Resubmitted for review'
 
-    redirect(`/dashboard/research/${editId}?success=${encodeURIComponent(successMessage)}`)
+      redirect(`/dashboard/research/${editId}?success=${encodeURIComponent(successMessage)}`)
+    }
+
+    redirect(`/dashboard/research/${editId}?success=${encodeURIComponent('Research published successfully')}`)
   }
 
   return { success: 'Draft updated successfully' }

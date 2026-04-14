@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getProfileAccessState } from '@/lib/users/access'
 
 export async function requireAdminAccess() {
   const supabase = await createClient()
@@ -12,13 +13,9 @@ export async function requireAdminAccess() {
     redirect('/login')
   }
 
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+  const profile = await getProfileAccessState(supabase, user.id)
 
-  if (error || !profile || profile.role !== 'admin') {
+  if (!profile || !profile.is_active || profile.role !== 'admin') {
     redirect('/dashboard')
   }
 

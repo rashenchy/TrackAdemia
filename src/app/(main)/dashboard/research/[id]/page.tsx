@@ -59,6 +59,7 @@ export default async function ViewResearchPage({
     .from('profiles')
     .select('role')
     .eq('id', user.id)
+    .eq('is_active', true)
     .single()
 
   const isTeacher = profile?.role === 'mentor'
@@ -96,6 +97,7 @@ export default async function ViewResearchPage({
         .from('profiles')
         .select('first_name, last_name')
         .eq('id', sectionAdviserSection.teacher_id)
+        .eq('is_active', true)
         .single()
 
       if (sectionAdviserProfile) {
@@ -110,6 +112,7 @@ export default async function ViewResearchPage({
       .from('profiles')
       .select('first_name, last_name')
       .eq('id', research.adviser_id)
+      .eq('is_active', true)
       .single()
 
     if (adviserProfile) {
@@ -123,6 +126,7 @@ export default async function ViewResearchPage({
     const { data: profiles } = await supabase
       .from('profiles')
       .select('id, first_name, last_name, course_program')
+      .eq('is_active', true)
       .in('id', research.members)
 
     if (profiles) {

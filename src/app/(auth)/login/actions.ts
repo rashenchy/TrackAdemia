@@ -8,6 +8,7 @@ import { rethrowIfRedirectError } from '@/lib/core/redirect-error'
 import { createClient } from '@/lib/supabase/server'
 import { isAllowedCourseProgram } from '@/lib/core/course-programs'
 import { isValidStudentNumber, normalizeStudentNumber } from '@/lib/core/student-number'
+import { getProfileAccessState } from '@/lib/users/access'
 import {
   clearPendingRegistration,
   createPendingRegistrationSession,
@@ -42,13 +43,14 @@ export async function login(formData: FormData) {
   let redirectPath = '/dashboard'
 
   if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    const profile = await getProfileAccessState(supabase, user.id)
 
-    if (profile?.role === 'admin') {
+    if (!profile?.is_active) {
+      await supabase.auth.signOut()
+      redirect('/login?error=' + encodeURIComponent('This account has been deactivated. Please contact an administrator.'))
+    }
+
+    if (profile.role === 'admin') {
       redirectPath = '/admin'
     }
   }

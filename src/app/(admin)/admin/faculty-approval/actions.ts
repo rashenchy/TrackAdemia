@@ -1,7 +1,9 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createNotification } from '@/lib/notifications/service'
+import { getProfileAccessState } from '@/lib/users/access'
 
 interface Faculty {
   id: string
@@ -18,6 +20,7 @@ interface Faculty {
  */
 export async function getPendingFaculty(): Promise<Faculty[]> {
   const supabase = await createClient()
+  const adminSupabase = createAdminClient()
 
   try {
     // Get pending faculty (mentors with is_verified = false)
@@ -26,6 +29,7 @@ export async function getPendingFaculty(): Promise<Faculty[]> {
       .select('id, first_name, last_name, course_program, is_verified, updated_at')
       .eq('role', 'mentor')
       .eq('is_verified', false)
+      .eq('is_active', true)
       .order('updated_at', { ascending: false })
 
     if (error) {
@@ -38,13 +42,15 @@ export async function getPendingFaculty(): Promise<Faculty[]> {
     
     if (profiles && profiles.length > 0) {
       for (const profile of profiles) {
-        const { data: { user } } = await supabase.auth.admin.getUserById(profile.id)
+        const { data: authUser } = adminSupabase
+          ? await adminSupabase.auth.admin.getUserById(profile.id)
+          : { data: { user: null } }
         
         facultyWithEmails.push({
           id: profile.id,
           first_name: profile.first_name,
           last_name: profile.last_name,
-          email: user?.email || 'N/A',
+          email: authUser.user?.email || 'N/A',
           course_program: profile.course_program,
           is_verified: profile.is_verified,
           updated_at: profile.updated_at
@@ -72,13 +78,9 @@ export async function verifyFaculty(userId: string): Promise<{ success: boolean;
       return { success: false, error: 'Not authenticated' }
     }
 
-    const { data: adminProfile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', currentUser.id)
-      .single()
+    const adminProfile = await getProfileAccessState(supabase, currentUser.id)
 
-    if (!adminProfile || adminProfile.role !== 'admin') {
+    if (!adminProfile?.is_active || adminProfile.role !== 'admin') {
       return { success: false, error: 'Insufficient permissions' }
     }
 
@@ -123,13 +125,9 @@ export async function rejectFaculty(userId: string): Promise<{ success: boolean;
       return { success: false, error: 'Not authenticated' }
     }
 
-    const { data: adminProfile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', currentUser.id)
-      .single()
+    const adminProfile = await getProfileAccessState(supabase, currentUser.id)
 
-    if (!adminProfile || adminProfile.role !== 'admin') {
+    if (!adminProfile?.is_active || adminProfile.role !== 'admin') {
       return { success: false, error: 'Insufficient permissions' }
     }
 

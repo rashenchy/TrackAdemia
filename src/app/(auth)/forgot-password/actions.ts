@@ -4,12 +4,14 @@ import { redirect } from 'next/navigation'
 import { sendPasswordRecoveryEmail } from '@/lib/core/email'
 import { rethrowIfRedirectError } from '@/lib/core/redirect-error'
 import { findAuthUserByEmail } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import {
   createPasswordResetSession,
   passwordResetConfig,
   readPasswordResetSessionFromToken,
   resendPasswordResetCode,
 } from '@/lib/users/password-reset-session'
+import { getProfileAccessState } from '@/lib/users/access'
 import { maskEmailAddress } from '@/lib/users/pending-registration'
 
 function buildResetPasswordUrl(
@@ -45,8 +47,15 @@ export async function recoverPassword(formData: FormData) {
 
   try {
     const authUser = await findAuthUserByEmail(email)
+    const supabase = await createClient()
 
     if (!authUser?.id) {
+      redirect('/forgot-password?error=' + encodeURIComponent('No account was found for that email address.'))
+    }
+
+    const profile = await getProfileAccessState(supabase, authUser.id)
+
+    if (!profile?.is_active) {
       redirect('/forgot-password?error=' + encodeURIComponent('No account was found for that email address.'))
     }
 

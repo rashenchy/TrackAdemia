@@ -113,6 +113,7 @@ export async function getTeacherSubmissionData(
       ? supabase
           .from('profiles')
           .select('id, first_name, last_name')
+          .eq('is_active', true)
           .in('id', sectionStudentIds)
       : Promise.resolve({ data: [] }),
   ])
@@ -172,6 +173,7 @@ export async function getTeacherSubmissionData(
     const { data: extraProfiles } = await supabase
       .from('profiles')
       .select('id, first_name, last_name')
+      .eq('is_active', true)
       .in('id', [...new Set(missingAdviseeIds)])
 
     for (const profile of extraProfiles || []) {

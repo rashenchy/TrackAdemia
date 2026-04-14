@@ -28,6 +28,7 @@ import {
   Send,
 } from 'lucide-react'
 import Link from 'next/link'
+import { usePopup } from '@/components/ui/PopupProvider'
 
 import {
   addAnnotation,
@@ -465,6 +466,7 @@ export default function AnnotatePage({
   const searchParams = useSearchParams()
   const router = useRouter()
   const [supabase] = useState(() => createClient())
+  const { confirm, notify } = usePopup()
   const versionParam = searchParams.get('version')
   const selectedVersionNumber = versionParam ? Number(versionParam) : null
 
@@ -1265,6 +1267,18 @@ export default function AnnotatePage({
   const handleToggleResolve = async (annotationId: string, currentStatus: boolean) => {
     if (!canParticipate) return
 
+    if (!currentStatus) {
+      const confirmed = await confirm({
+        title: 'Mark feedback as resolved?',
+        message: 'This feedback thread will move to resolved once you confirm.',
+        confirmLabel: 'Resolve feedback',
+      })
+
+      if (!confirmed) {
+        return
+      }
+    }
+
     setAnnotations((current) =>
       current.map((annotation) =>
         annotation.id === annotationId
@@ -1289,6 +1303,18 @@ export default function AnnotatePage({
             : annotation
         )
       )
+
+      if (selectedAnnotation?.id === annotationId) {
+        setSelectedAnnotation((current) =>
+          current ? { ...current, is_resolved: currentStatus } : current
+        )
+      }
+
+      notify({
+        title: 'Update failed',
+        message: 'We could not update this feedback item right now. Please try again.',
+        variant: 'error',
+      })
     }
   }
 

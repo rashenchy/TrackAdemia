@@ -220,12 +220,25 @@ export async function createSectionTask(formData: FormData) {
             .single(),
     ])
 
-    // Initialize completion records for each student
-    if (members && members.length > 0) {
+    const memberIds = members?.map((member) => member.user_id).filter(Boolean) || []
+    let activeStudentIds = memberIds
 
-        const completions = members.map(m => ({
+    if (memberIds.length > 0) {
+        const { data: activeProfiles } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('is_active', true)
+            .in('id', memberIds)
+
+        activeStudentIds = (activeProfiles || []).map((profile) => profile.id)
+    }
+
+    // Initialize completion records for each student
+    if (activeStudentIds.length > 0) {
+
+        const completions = activeStudentIds.map((studentId) => ({
             task_id: task.id,
-            student_id: m.user_id,
+            student_id: studentId,
             is_completed: false
         }))
 
@@ -241,15 +254,15 @@ export async function createSectionTask(formData: FormData) {
 
         await createNotifications(
             supabase,
-            members.map((member) => ({
-                user_id: member.user_id,
+            activeStudentIds.map((studentId) => ({
+                user_id: studentId,
                 actor_id: user.id,
                 title: 'New assigned task',
                 message: `${teacherName} assigned "${title}"${section?.name ? ` in ${section.name}` : ''}.`,
                 notification_type: 'task_assigned',
                 reference_id: task.id,
                 section_id: sectionId,
-                event_key: `task-assigned:${task.id}:${member.user_id}`,
+                event_key: `task-assigned:${task.id}:${studentId}`,
             }))
         )
     }

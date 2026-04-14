@@ -4,8 +4,6 @@ import {
     Clock,
     GraduationCap,
     Trash2,
-    CheckCircle,
-    Circle,
     ArrowRight,
     AlertCircle,
     ExternalLink,
@@ -13,13 +11,14 @@ import {
     Edit,
     BookOpen
 } from 'lucide-react'
-import { createTask, toggleTaskStatus, deleteTask, createSectionTask, editTask } from './actions'
+import { createTask, deleteTask, createSectionTask, editTask } from './actions'
 import { SubmitButton } from '@/components/auth/SubmitButton'
 import Link from 'next/link'
 import { TeacherAnalytics } from '@/components/dashboard/TeacherAnalytics'
 import PaginationLinks from '@/components/ui/PaginationLinks'
 import { appendFromParam } from '@/lib/navigation'
 import { TasksRealtimeRefresh } from '@/components/dashboard/TasksRealtimeRefresh'
+import { TaskResolveButton } from '@/components/dashboard/TaskResolveButton'
 
 type TaskSource = 'teacher' | 'personal' | 'annotation'
 
@@ -526,17 +525,11 @@ const { data: profile } = await supabase
                                     }`}
                             >
                                 {/* Checkbox Toggle */}
-                                <form action={toggleTaskStatus.bind(null, task.id, task.status, task.source)}>
-                                    <button
-                                        type="submit"
-                                        className={`mt-1 p-1 rounded-full transition-all ${task.status === 'resolved'
-                                            ? 'text-green-500 bg-green-50 dark:bg-green-900/20'
-                                            : 'text-gray-300 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20'
-                                            }`}
-                                    >
-                                        {task.status === 'resolved' ? <CheckCircle size={24} /> : <Circle size={24} />}
-                                    </button>
-                                </form>
+                                <TaskResolveButton
+                                    taskId={task.id}
+                                    currentStatus={task.status}
+                                    source={task.source}
+                                />
 
                                 <div className="flex-1 min-w-0">
                                     {/* Task Header */}
