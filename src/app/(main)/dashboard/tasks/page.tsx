@@ -215,7 +215,6 @@ const { data: profile } = await supabase
 
                     {/* Analytics Panel */}
                     <div className="space-y-6">
-                        <TeacherAnalytics data={analyticsData} />
                         <div className="bg-purple-600 p-6 rounded-2xl text-white shadow-lg shadow-purple-200 dark:shadow-none">
                             <h3 className="font-bold flex items-center gap-2 mb-2">
                                 <AlertCircle size={18} /> Feedback Audit
@@ -292,6 +291,8 @@ const { data: profile } = await supabase
                     totalCount={teacherAssignedTasks.length}
                     pageSize={pageSize}
                 />
+
+                <TeacherAnalytics data={analyticsData} />
             </div>
         )
     }
