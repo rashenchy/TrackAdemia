@@ -582,6 +582,46 @@ export async function toggleAnnotationResolved(
   return data
 }
 
+export async function deleteAnnotation(annotationId: string) {
+  const { supabase, user } = await requireReviewer()
+
+  const { data: annotation, error: annotationError } = await supabase
+    .from('annotations')
+    .select('id, research_id')
+    .eq('id', annotationId)
+    .single()
+
+  if (annotationError || !annotation) {
+    throw new Error('Annotation not found.')
+  }
+
+  const { error: repliesError } = await supabase
+    .from('annotation_replies')
+    .delete()
+    .eq('annotation_id', annotationId)
+
+  if (repliesError) {
+    throw repliesError
+  }
+
+  const { error: deleteError } = await supabase
+    .from('annotations')
+    .delete()
+    .eq('id', annotationId)
+
+  if (deleteError) {
+    throw deleteError
+  }
+
+  await syncResearchReviewStatus(supabase, annotation.research_id, user.id, null)
+  revalidatePath('/dashboard')
+  revalidatePath(`/dashboard/research/${annotation.research_id}`)
+  revalidatePath(`/dashboard/research/${annotation.research_id}/annotate`)
+  revalidatePath('/dashboard/tasks')
+
+  return { annotationId, researchId: annotation.research_id }
+}
+
 
 
 // Retrieves all replies associated with a specific annotation

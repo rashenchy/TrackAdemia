@@ -26,6 +26,7 @@ import {
   MessageSquare,
   Save,
   Send,
+  Trash2,
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePopup } from '@/components/ui/PopupProvider'
@@ -33,6 +34,7 @@ import { usePopup } from '@/components/ui/PopupProvider'
 import {
   addAnnotation,
   addReply,
+  deleteAnnotation,
   getAnnotations,
   getReplies,
   getResearchFile,
@@ -501,6 +503,7 @@ export default function AnnotatePage({
   const [replyText, setReplyText] = useState('')
   const [isSubmittingReply, setIsSubmittingReply] = useState(false)
   const [isLoadingReplies, setIsLoadingReplies] = useState(false)
+  const [deletingAnnotationId, setDeletingAnnotationId] = useState<string | null>(null)
 
   const [showCommentBox, setShowCommentBox] = useState(false)
   const [activePdfHighlight, setActivePdfHighlight] = useState<RenderHighlightTargetProps | null>(
@@ -1318,6 +1321,58 @@ export default function AnnotatePage({
     }
   }
 
+  const handleDeleteAnnotation = async (annotationId: string) => {
+    if (!canReview || deletingAnnotationId) return
+
+    const confirmed = await confirm({
+      title: 'Delete this feedback?',
+      message:
+        'This will permanently remove the annotation and its replies. Use this only for feedback that was added by mistake.',
+      confirmLabel: 'Delete feedback',
+      variant: 'danger',
+    })
+
+    if (!confirmed) {
+      return
+    }
+
+    const previousAnnotations = annotations
+    const previousSelectedAnnotation = selectedAnnotation
+    const previousReplies = threadReplies
+
+    setDeletingAnnotationId(annotationId)
+    setAnnotations((current) => current.filter((annotation) => annotation.id !== annotationId))
+
+    if (selectedAnnotation?.id === annotationId) {
+      setSelectedAnnotation(null)
+      setThreadReplies([])
+      setViewMode('list')
+    }
+
+    try {
+      await deleteAnnotation(annotationId)
+      notify({
+        title: 'Feedback deleted',
+        message: 'The annotation has been removed.',
+        variant: 'success',
+      })
+    } catch {
+      setAnnotations(previousAnnotations)
+      setSelectedAnnotation(previousSelectedAnnotation)
+      setThreadReplies(previousReplies)
+      if (previousSelectedAnnotation?.id === annotationId) {
+        setViewMode('thread')
+      }
+      notify({
+        title: 'Delete failed',
+        message: 'We could not delete this feedback item right now. Please try again.',
+        variant: 'error',
+      })
+    } finally {
+      setDeletingAnnotationId(null)
+    }
+  }
+
   const handleSendReply = async (event?: React.FormEvent) => {
     event?.preventDefault()
     if (!replyText.trim() || !selectedAnnotation || isSubmittingReply) return
@@ -1925,22 +1980,39 @@ export default function AnnotatePage({
                       Back to list
                     </button>
                     {canParticipate ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void handleToggleResolve(
-                            selectedAnnotation.id,
+                      <div className="flex flex-col items-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleToggleResolve(
+                              selectedAnnotation.id,
+                              selectedAnnotation.is_resolved
+                            )
+                          }
+                          className={`rounded-full px-3 py-1.5 text-xs font-bold ${
                             selectedAnnotation.is_resolved
-                          )
-                        }
-                        className={`rounded-full px-3 py-1.5 text-xs font-bold ${
-                          selectedAnnotation.is_resolved
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-gray-100 text-gray-700'
-                        }`}
-                      >
-                        {selectedAnnotation.is_resolved ? 'Resolved' : 'Mark resolved'}
-                      </button>
+                              ? 'bg-green-100 text-green-700'
+                              : 'bg-gray-100 text-gray-700'
+                          }`}
+                        >
+                          {selectedAnnotation.is_resolved ? 'Resolved' : 'Mark resolved'}
+                        </button>
+                        {canReview ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteAnnotation(selectedAnnotation.id)}
+                            disabled={deletingAnnotationId === selectedAnnotation.id}
+                            className="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {deletingAnnotationId === selectedAnnotation.id ? (
+                              <Loader2 size={12} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={12} />
+                            )}
+                            Delete
+                          </button>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
 
