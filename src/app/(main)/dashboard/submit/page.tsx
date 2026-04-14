@@ -218,6 +218,7 @@ export default async function SubmitResearchPage() {
 
       <ResearchSubmissionForm
         isTeacher={isTeacher}
+        currentUserId={user.id}
         classmates={classmatesList}
         sections={userSections}
         adviserOptions={adviserOptions}

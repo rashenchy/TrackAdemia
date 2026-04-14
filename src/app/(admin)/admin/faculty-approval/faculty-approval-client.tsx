@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Users, CheckCircle, XCircle, Loader2, AlertCircle } from 'lucide-react'
 import { getPendingFaculty, verifyFaculty, rejectFaculty } from './actions'
 import PaginationControl from '@/components/ui/PaginationControl'
@@ -23,6 +24,7 @@ interface FacultyApprovalClientProps {
 export default function FacultyApprovalClient({
   initialFaculty,
 }: FacultyApprovalClientProps) {
+  const router = useRouter()
   const [faculty, setFaculty] = useState<Faculty[]>(initialFaculty)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -66,6 +68,8 @@ export default function FacultyApprovalClient({
         variant: 'success',
       })
       setFaculty((currentFaculty) => currentFaculty.filter((f) => f.id !== userId))
+      window.dispatchEvent(new CustomEvent('admin-pending-approvals-changed'))
+      router.refresh()
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {
       setError(result.error || 'Failed to verify faculty member')
@@ -84,7 +88,7 @@ export default function FacultyApprovalClient({
     const confirmed = await confirm({
       title: `Reject ${fullName}?`,
       message:
-        'This will keep the account unverified and remove this request from the pending approval list.',
+        'This will reject the registration and archive the account so it no longer appears in the pending approval list.',
       confirmLabel: 'Reject request',
       variant: 'danger',
     })
@@ -97,13 +101,15 @@ export default function FacultyApprovalClient({
     const result = await rejectFaculty(userId)
 
     if (result.success) {
-      setSuccessMessage(`${fullName} request has been rejected.`)
+      setSuccessMessage(`${fullName} registration has been rejected and archived.`)
       notify({
         title: 'Faculty request rejected',
-        message: `${fullName} remains unverified.`,
+        message: `${fullName} has been archived and removed from pending approvals.`,
         variant: 'success',
       })
       setFaculty((currentFaculty) => currentFaculty.filter((f) => f.id !== userId))
+      window.dispatchEvent(new CustomEvent('admin-pending-approvals-changed'))
+      router.refresh()
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {
       setError(result.error || 'Failed to reject faculty member')

@@ -24,6 +24,7 @@ import {
   getUnresolvedAnnotationCount,
   notifyTeachersForResearchSubmission,
 } from '@/lib/research/workflow'
+import { researchHasPublishablePdf } from '@/lib/research/publication'
 
 type HighlightArea = {
   pageIndex: number
@@ -389,6 +390,14 @@ export async function updateReviewDecision(
   nextStatus: QuickReviewStatus
 ) {
   const { supabase } = await requireReviewer()
+
+  if (nextStatus === 'Published') {
+    const hasPublishablePdf = await researchHasPublishablePdf(supabase, researchId)
+
+    if (!hasPublishablePdf) {
+      throw new Error('A PDF manuscript is required before this research can be published.')
+    }
+  }
 
   const { data: currentResearch, error: currentResearchError } = await supabase
     .from('research')

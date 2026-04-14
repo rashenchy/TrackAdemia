@@ -2,7 +2,7 @@
 
 // @refresh reset
 
-import { useState, useEffect, useRef, useTransition } from 'react'
+import { useState, useEffect, useRef, useTransition, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { usePopup } from '@/components/ui/PopupProvider'
@@ -47,11 +47,37 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [userName, setUserName] = useState('')
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isNavigating, startNavigation] = useTransition()
+  const [pendingApprovalCounts, setPendingApprovalCounts] = useState({
+    faculty: 0,
+    students: 0,
+  })
   const { notify } = usePopup()
 
   const profileRef = useRef<HTMLDivElement | null>(null)
 
   const [supabase] = useState(() => createClient())
+
+  const fetchPendingApprovalCounts = useCallback(async () => {
+    const [facultyResult, studentResult] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'mentor')
+        .eq('is_verified', false)
+        .eq('is_active', true),
+      supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'student')
+        .eq('is_verified', false)
+        .eq('is_active', true),
+    ])
+
+    setPendingApprovalCounts({
+      faculty: facultyResult.count || 0,
+      students: studentResult.count || 0,
+    })
+  }, [supabase])
 
   // Authentication and Session Handlers
   const handleLogout = async () => {
@@ -77,6 +103,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (isRefreshing) return
 
     setIsRefreshing(true)
+    void fetchPendingApprovalCounts()
     notify({
       title: 'Refreshing admin workspace',
       message: 'Loading the latest system data.',
@@ -126,9 +153,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           `${profile.first_name ?? ''} ${profile.last_name ?? ''}`.trim() || 'Admin'
         )
       }
+
+      await fetchPendingApprovalCounts()
     }
     checkUserRole()
-  }, [supabase, theme])
+  }, [supabase, theme, fetchPendingApprovalCounts])
+
+  useEffect(() => {
+    const refreshPendingCounts = () => {
+      void fetchPendingApprovalCounts()
+    }
+
+    window.addEventListener('admin-pending-approvals-changed', refreshPendingCounts)
+
+    return () => {
+      window.removeEventListener('admin-pending-approvals-changed', refreshPendingCounts)
+    }
+  }, [fetchPendingApprovalCounts])
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light'
@@ -141,6 +182,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     if (pathname === href || isNavigating) return
 
     setPendingRoute(href)
+    void fetchPendingApprovalCounts()
     startNavigation(() => {
       router.push(href)
     })
@@ -152,8 +194,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const navItems = [
     { name: 'Overview', href: '/admin', icon: Shield },
     { name: 'View as User', href: '/admin/view-as-user', icon: Eye },
-    { name: 'Faculty Approval', href: '/admin/faculty-approval', icon: UserCheck },
-    { name: 'Student Verification', href: '/admin/student-verification', icon: BadgeCheck },
+    {
+      name: 'Faculty Approval',
+      href: '/admin/faculty-approval',
+      icon: UserCheck,
+      badgeCount: pendingApprovalCounts.faculty,
+    },
+    {
+      name: 'Student Verification',
+      href: '/admin/student-verification',
+      icon: BadgeCheck,
+      badgeCount: pendingApprovalCounts.students,
+    },
     { name: 'User Management', href: '/admin/users', icon: Users },
     { name: 'Master Records', href: '/admin/master-records', icon: Database },
     { name: 'Reports', href: '/admin/reports', icon: BarChart },
@@ -196,6 +248,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {navItems.map((item) => {
             const isActive = visualRoute === item.href
             const isCurrentlyLoading = isNavigating && pendingRoute === item.href
+            const hasBadge = (item.badgeCount || 0) > 0
 
             return (
               <button
@@ -216,6 +269,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   }`}
                 >
                   <item.icon size={22} className={`min-w-[22px] ${isActive ? 'text-purple-600' : ''}`} />
+                  {hasBadge && (
+                    <span className="absolute -top-1.5 -right-1.5 flex min-h-4 min-w-4 items-center justify-center rounded-full border-2 border-[var(--sidebar-bg)] bg-red-500 px-1 text-[10px] font-bold leading-none text-white">
+                      {(item.badgeCount || 0) > 99 ? '99+' : item.badgeCount}
+                    </span>
+                  )}
                 </div>
                 <div
                   className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${
@@ -225,7 +283,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <span className="block font-medium">{item.name}</span>
                 </div>
                 {!isCollapsed && (
-                  <span className="ml-auto flex h-4 w-4 items-center justify-center">
+                  <span className="ml-auto flex min-w-[1rem] items-center justify-end">
                     {isCurrentlyLoading && (
                       <Loader2 size={16} className="animate-spin text-purple-500" />
                     )}

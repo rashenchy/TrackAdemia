@@ -1,5 +1,10 @@
+const emailVerificationMode =
+  process.env.REGISTRATION_EMAIL_VERIFICATION?.trim().toLowerCase() === 'off'
+    ? 'off'
+    : 'on'
+
 export const registrationConfig = {
-  emailVerification: 'on',
+  emailVerification: emailVerificationMode,
 } as const
 
 export function isRegistrationEmailVerificationEnabled() {

@@ -117,6 +117,7 @@ function MemberComboBox({
 
 export function ResearchSubmissionForm({
   isTeacher = false,
+  currentUserId,
   classmates = [],
   sections = [],
   adviserOptions = [],
@@ -125,6 +126,7 @@ export function ResearchSubmissionForm({
   editId = null
 }: {
   isTeacher?: boolean,
+  currentUserId: string,
   classmates?: ClassmateOption[],
   sections?: { id: string, name: string, course_code: string }[],
   adviserOptions?: AdviserOption[],
@@ -216,20 +218,29 @@ export function ResearchSubmissionForm({
     effectiveSubmissionFormat === 'pdf' || effectiveSubmissionFormat === 'both'
   const showsTextEditor =
     effectiveSubmissionFormat === 'text' || effectiveSubmissionFormat === 'both'
+  const selectedSectionAdviserId = selectedSubjectCode
+    ? sectionAdvisers[selectedSubjectCode]?.id || ''
+    : ''
+  const filteredStudentAdviserOptions = adviserOptions.filter(
+    (adviser) => adviser.id !== selectedSectionAdviserId
+  )
+  const effectiveAdviserOptions = isTeacher
+    ? adviserOptions
+    : filteredStudentAdviserOptions
 
-  const adviserSelectOptions = adviserOptions.some(
+  const adviserSelectOptions = effectiveAdviserOptions.some(
     (adviser) => adviser.id === selectedAdviserId
   )
-    ? adviserOptions
+    ? effectiveAdviserOptions
     : selectedAdviserId
       ? [
-        ...adviserOptions,
+        ...effectiveAdviserOptions,
         {
           id: selectedAdviserId,
           name: `Saved adviser (${selectedAdviserId})`,
         },
       ]
-      : adviserOptions
+      : effectiveAdviserOptions
 
   // Dynamic keyword handlers
   const addKeyword = () => setKeywordsList([...keywordsList, ''])
@@ -253,6 +264,23 @@ export function ResearchSubmissionForm({
     const newMembers = [...members]
     newMembers[index] = newId
     setMembers(newMembers)
+  }
+
+  const enableGroupMode = () => {
+    setIsGroup(true)
+
+    const hasSelectedMembers = members.some((memberId) => memberId.trim().length > 0)
+    if (!hasSelectedMembers) {
+      setMembers((currentMembers) => {
+        if (currentMembers.length === 0) {
+          return [currentUserId]
+        }
+
+        const nextMembers = [...currentMembers]
+        nextMembers[0] = currentUserId
+        return nextMembers
+      })
+    }
   }
 
   // Form reset logic
@@ -433,6 +461,16 @@ export function ResearchSubmissionForm({
               onChange={(e) => {
                 const nextSubjectCode = e.target.value
                 setSelectedSubjectCode(nextSubjectCode)
+
+                if (!isTeacher) {
+                  const nextSectionAdviserId = nextSubjectCode
+                    ? sectionAdvisers[nextSubjectCode]?.id || ''
+                    : ''
+
+                  if (selectedAdviserId && nextSectionAdviserId === selectedAdviserId) {
+                    setSelectedAdviserId('')
+                  }
+                }
               }}
               required={!isDraftMode && !isTeacher}
               disabled={isTeacher && isIndependentResearch}
@@ -498,7 +536,16 @@ export function ResearchSubmissionForm({
                 <select
                   name="adviser"
                   value={selectedAdviserId}
-                  onChange={(e) => setSelectedAdviserId(e.target.value)}
+                  onChange={(e) => {
+                    const nextAdviserId = e.target.value
+
+                    if (nextAdviserId && nextAdviserId === selectedSectionAdviserId) {
+                      setSelectedAdviserId('')
+                      return
+                    }
+
+                    setSelectedAdviserId(nextAdviserId)
+                  }}
                   disabled={!useExternalAdviser}
                   className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer disabled:cursor-not-allowed disabled:bg-gray-100 dark:disabled:bg-gray-800"
                 >
@@ -538,7 +585,7 @@ export function ResearchSubmissionForm({
           </div>
           <div className="flex items-center bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
             <button type="button" onClick={() => setIsGroup(false)} className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${!isGroup ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'}`}>Individual</button>
-            <button type="button" onClick={() => setIsGroup(true)} className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${isGroup ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'}`}>Group</button>
+            <button type="button" onClick={enableGroupMode} className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${isGroup ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'}`}>Group</button>
           </div>
         </div>
 

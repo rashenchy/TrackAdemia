@@ -196,16 +196,28 @@ export async function regenerateJoinCode(sectionId: string) {
 
   const newCode = Math.random().toString(36).substring(2, 8).toUpperCase()
 
-  const { error } = await supabase
+  const { data: updatedSection, error } = await supabase
     .from('sections')
     .update({ join_code: newCode })
     .eq('id', sectionId)
+    .eq('teacher_id', user.id)
+    .select('id, join_code')
+    .single()
 
-  if (error) return { error: 'Failed to regenerate code.' }
+  if (error || !updatedSection) {
+    console.error('Regenerate Join Code Error:', error)
+    return {
+      error:
+        'Failed to regenerate code. Make sure your database update policy allows teachers to update their own sections.',
+    }
+  }
 
   revalidatePath('/dashboard/sections')
 
-  return { success: 'New join code generated!', joinCode: newCode }
+  return {
+    success: 'New join code generated!',
+    joinCode: updatedSection.join_code,
+  }
 }
 
 

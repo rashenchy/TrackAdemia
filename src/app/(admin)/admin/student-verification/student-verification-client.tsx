@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Users, CheckCircle, XCircle, Loader2, AlertCircle, IdCard } from 'lucide-react'
 import { getPendingStudents, verifyStudent, rejectStudent } from './actions'
 import PaginationControl from '@/components/ui/PaginationControl'
@@ -23,6 +24,7 @@ interface StudentVerificationClientProps {
 export default function StudentVerificationClient({
   initialStudents,
 }: StudentVerificationClientProps) {
+  const router = useRouter()
   const [students, setStudents] = useState<Student[]>(initialStudents)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -48,6 +50,8 @@ export default function StudentVerificationClient({
     if (result.success) {
       setSuccessMessage(`${firstName} ${lastName} has been verified successfully!`)
       setStudents((currentStudents) => currentStudents.filter((student) => student.id !== userId))
+      window.dispatchEvent(new CustomEvent('admin-pending-approvals-changed'))
+      router.refresh()
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {
       setError(result.error || 'Failed to verify student')
@@ -61,8 +65,10 @@ export default function StudentVerificationClient({
     const result = await rejectStudent(userId)
 
     if (result.success) {
-      setSuccessMessage(`${firstName} ${lastName} request has been reviewed.`)
+      setSuccessMessage(`${firstName} ${lastName} registration has been rejected and archived.`)
       setStudents((currentStudents) => currentStudents.filter((student) => student.id !== userId))
+      window.dispatchEvent(new CustomEvent('admin-pending-approvals-changed'))
+      router.refresh()
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {
       setError(result.error || 'Failed to process student request')
@@ -183,7 +189,7 @@ export default function StudentVerificationClient({
                           className="inline-flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
                         >
                           {processing === student.id ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
-                          {processing === student.id ? 'Processing...' : 'Hold'}
+                          {processing === student.id ? 'Processing...' : 'Reject'}
                         </button>
                       </div>
                     </td>

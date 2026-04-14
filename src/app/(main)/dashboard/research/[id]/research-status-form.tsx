@@ -5,13 +5,21 @@ import { Loader2 } from 'lucide-react'
 import { useFormStatus } from 'react-dom'
 import { MANUAL_RESEARCH_STATUS_OPTIONS } from '@/lib/research/status'
 
-function StatusControls({ currentStatus }: { currentStatus: string }) {
+function StatusControls({
+  currentStatus,
+  canPublish,
+}: {
+  currentStatus: string
+  canPublish: boolean
+}) {
   const { pending } = useFormStatus()
   const [selectedStatus, setSelectedStatus] = useState(
     MANUAL_RESEARCH_STATUS_OPTIONS.some((option) => option.value === currentStatus)
       ? currentStatus
       : ''
   )
+  const availableOptions = MANUAL_RESEARCH_STATUS_OPTIONS
+    .filter((option) => option.value !== 'Published' || canPublish)
 
   return (
     <>
@@ -25,7 +33,7 @@ function StatusControls({ currentStatus }: { currentStatus: string }) {
         <option value="" disabled>
           {currentStatus}
         </option>
-        {MANUAL_RESEARCH_STATUS_OPTIONS.map((option) => (
+        {availableOptions.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
@@ -39,6 +47,11 @@ function StatusControls({ currentStatus }: { currentStatus: string }) {
         {pending && <Loader2 size={14} className="animate-spin" />}
         {pending ? 'Updating...' : 'Update'}
       </button>
+      {!canPublish && (
+        <span className="px-2 text-[11px] font-medium text-amber-600">
+          Upload a PDF to enable publishing.
+        </span>
+      )}
     </>
   )
 }
@@ -46,16 +59,18 @@ function StatusControls({ currentStatus }: { currentStatus: string }) {
 export function ResearchStatusForm({
   action,
   currentStatus,
+  canPublish,
 }: {
   action: (formData: FormData) => void
   currentStatus: string
+  canPublish: boolean
 }) {
   return (
     <form
       action={action}
       className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200 shadow-sm w-fit dark:border-gray-800 dark:bg-gray-900/50"
     >
-      <StatusControls currentStatus={currentStatus} />
+      <StatusControls currentStatus={currentStatus} canPublish={canPublish} />
     </form>
   )
 }

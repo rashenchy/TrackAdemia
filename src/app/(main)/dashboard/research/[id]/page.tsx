@@ -222,6 +222,7 @@ export default async function ViewResearchPage({
           <ResearchStatusForm
             action={updateStatusAction}
             currentStatus={research.status}
+            canPublish={latestHasPdf}
           />
         ) : (
           <span

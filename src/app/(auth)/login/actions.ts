@@ -15,6 +15,63 @@ import {
 } from '@/lib/users/pending-registration'
 import { createAdminClient } from '@/lib/supabase/admin'
 
+type RegistrationProfilePayload = {
+  first_name: string
+  middle_name: string | null
+  last_name: string
+  course_program: string
+  role: 'student' | 'mentor'
+  is_verified: boolean
+  student_number: string | null
+}
+
+async function syncRegistrationProfile(
+  userId: string,
+  profile: RegistrationProfilePayload
+) {
+  const adminSupabase = createAdminClient()
+
+  if (adminSupabase) {
+    const { error } = await adminSupabase
+      .from('profiles')
+      .upsert(
+        {
+          id: userId,
+          ...profile,
+          is_active: true,
+          deleted_at: null,
+          deleted_by: null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'id' }
+      )
+
+    if (error) {
+      throw error
+    }
+
+    return
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('profiles')
+    .upsert(
+      {
+        id: userId,
+        ...profile,
+        is_active: true,
+        deleted_at: null,
+        deleted_by: null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    )
+
+  if (error) {
+    throw error
+  }
+}
 
 export async function login(formData: FormData) {
 
@@ -170,7 +227,7 @@ export async function finalizeVerifiedSignup({
 }) {
   const metadata = {
     first_name: firstName,
-    middle_name: middleName,
+    middle_name: middleName || null,
     last_name: lastName,
     course_program: course,
     role,
@@ -190,6 +247,10 @@ export async function finalizeVerifiedSignup({
 
     if (error) {
       throw error
+    }
+
+    if (data.user?.id) {
+      await syncRegistrationProfile(data.user.id, metadata)
     }
 
     const supabase = await createClient()
@@ -227,6 +288,10 @@ export async function finalizeVerifiedSignup({
 
   if (error) {
     throw error
+  }
+
+  if (data.user?.id) {
+    await syncRegistrationProfile(data.user.id, metadata)
   }
 
   if (!data.session) {

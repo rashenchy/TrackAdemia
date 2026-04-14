@@ -127,7 +127,13 @@ export async function rejectStudent(userId: string): Promise<{ success: boolean;
 
     const { error } = await supabase
       .from('profiles')
-      .update({ is_verified: false, updated_at: new Date().toISOString() })
+      .update({
+        is_verified: false,
+        is_active: false,
+        deleted_at: new Date().toISOString(),
+        deleted_by: currentUser.id,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', userId)
 
     if (error) {
@@ -138,8 +144,8 @@ export async function rejectStudent(userId: string): Promise<{ success: boolean;
     await createNotification(supabase, {
       user_id: userId,
       actor_id: currentUser.id,
-      title: 'Account review updated',
-      message: 'Your student account is still pending approval. Contact an administrator if you need help.',
+      title: 'Account registration rejected',
+      message: 'Your student registration was not approved and the account has been archived. Contact an administrator if you need help.',
       notification_type: 'account_rejected',
       reference_id: userId,
       event_key: `account-rejected:${userId}:${new Date().toISOString()}`,

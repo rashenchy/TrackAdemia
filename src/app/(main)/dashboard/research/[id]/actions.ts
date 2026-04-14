@@ -1,7 +1,10 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { getPublishedAtForStatusChange } from '@/lib/research/publication'
+import {
+  getPublishedAtForStatusChange,
+  researchHasPublishablePdf,
+} from '@/lib/research/publication'
 import { isManualResearchStatus } from '@/lib/research/status'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
@@ -33,6 +36,14 @@ export async function updateResearchStatus(researchId: string, formData: FormDat
 
   if (!isManualResearchStatus(status)) {
     throw new Error('Only final review decisions can be updated manually.')
+  }
+
+  if (status === 'Published') {
+    const hasPublishablePdf = await researchHasPublishablePdf(supabase, researchId)
+
+    if (!hasPublishablePdf) {
+      throw new Error('A PDF manuscript is required before this research can be published.')
+    }
   }
 
   const { data: currentResearch, error: currentResearchError } = await supabase
