@@ -42,18 +42,23 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
 
   // Fetch the research authors based on member IDs
   let authorNames = 'Unknown Authors'
+  const authorIds =
+    research.members && research.members.length > 0 ? research.members : [research.user_id]
 
-  if (research.members && research.members.length > 0) {
+  if (authorIds.length > 0) {
 
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('first_name, last_name')
+      .select('id, first_name, last_name')
       .eq('is_active', true)
-      .in('id', research.members)
+      .in('id', authorIds)
 
     if (profiles) {
-      authorNames = profiles
-        .map(p => `${p.first_name} ${p.last_name}`)
+      authorNames = authorIds
+        .map((authorId: string) => {
+          const profile = profiles.find((candidate) => candidate.id === authorId)
+          return profile ? `${profile.first_name} ${profile.last_name}` : 'Unknown Author'
+        })
         .join(', ')
     }
   }

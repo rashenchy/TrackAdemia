@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useMemo, useState } from 'react'
+import { useActionState, useEffect, useMemo, useState } from 'react'
 import { createSection, regenerateJoinCode, toggleSectionFreeze, removeStudent } from './actions'
 import { SubmitButton } from '@/components/auth/SubmitButton'
 import PaginationControl from '@/components/ui/PaginationControl'
@@ -57,12 +57,17 @@ export default function SectionsPageUI({
   const [copiedSectionId, setCopiedSectionId] = useState<string | null>(null)
   const [sectionsPage, setSectionsPage] = useState(1)
   const [rosterPage, setRosterPage] = useState(1)
+  const [localSections, setLocalSections] = useState(sections)
   const { confirm, notify, prompt } = usePopup()
   const pageSize = 10
 
+  useEffect(() => {
+    setLocalSections(sections)
+  }, [sections])
+
   const pagedSections = useMemo(
-    () => sections.slice((sectionsPage - 1) * pageSize, sectionsPage * pageSize),
-    [sections, sectionsPage]
+    () => localSections.slice((sectionsPage - 1) * pageSize, sectionsPage * pageSize),
+    [localSections, sectionsPage]
   )
 
   const pagedRoster = useMemo(() => {
@@ -112,9 +117,26 @@ export default function SectionsPageUI({
         variant: 'error',
       })
     } else {
+      if (result.joinCode) {
+        setLocalSections((current) =>
+          current.map((section) =>
+            section.id === id ? { ...section, join_code: result.joinCode as string } : section
+          )
+        )
+
+        if (rosterModal?.id === id) {
+          setRosterModal((current) =>
+            current ? { ...current, join_code: result.joinCode as string } : current
+          )
+        }
+      }
+
       notify({
         title: 'Join code updated',
-        message: result?.success ?? 'A new join code is now active for this section.',
+        message:
+          result?.joinCode
+            ? `The new join code is ${result.joinCode}.`
+            : result?.success ?? 'A new join code is now active for this section.',
         variant: 'success',
       })
     }
@@ -396,7 +418,7 @@ export default function SectionsPageUI({
             <PaginationControl
               page={sectionsPage}
               pageSize={pageSize}
-              totalCount={sections.length}
+              totalCount={localSections.length}
               onPageChange={setSectionsPage}
             />
           </div>

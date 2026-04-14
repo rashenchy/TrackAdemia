@@ -663,6 +663,32 @@ export default function AnnotatePage({
     })
   }, [annotations, filter, resolvedAnnotations, unresolvedAnnotations])
 
+  const textFeedbackBySection = useMemo(() => {
+    return annotations.reduce<Record<string, Array<{
+      id: string
+      commentText: string
+      isResolved: boolean
+    }>>>((accumulator, annotation) => {
+      if (!isTextAnnotationPosition(annotation.position_data)) {
+        return accumulator
+      }
+
+      const sectionKey = annotation.position_data.sectionKey
+
+      if (!accumulator[sectionKey]) {
+        accumulator[sectionKey] = []
+      }
+
+      accumulator[sectionKey].push({
+        id: annotation.id,
+        commentText: annotation.comment_text,
+        isResolved: annotation.is_resolved,
+      })
+
+      return accumulator
+    }, {})
+  }, [annotations])
+
   useEffect(() => {
     if (activeFormat !== 'text') {
       setActiveTextAnnotationId(null)
@@ -1298,7 +1324,7 @@ export default function AnnotatePage({
 
     try {
       await toggleAnnotationResolved(annotationId, !currentStatus)
-    } catch {
+    } catch (error) {
       setAnnotations((current) =>
         current.map((annotation) =>
           annotation.id === annotationId
@@ -1315,7 +1341,10 @@ export default function AnnotatePage({
 
       notify({
         title: 'Update failed',
-        message: 'We could not update this feedback item right now. Please try again.',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'We could not update this feedback item right now. Please try again.',
         variant: 'error',
       })
     }
@@ -1683,7 +1712,7 @@ export default function AnnotatePage({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {previousVersion ? (
+            {activeFormat === 'text' && previousVersion ? (
               <Link
                 href={appendFromParam(
                   buildPathWithSearch(`/dashboard/research/${researchId}/compare`, [
@@ -1850,6 +1879,14 @@ export default function AnnotatePage({
                 editable={canEditTextWorkspace}
                 onSectionMouseUp={handleTextSelection}
                 onSectionRef={handleSectionRef}
+                sectionFeedback={textFeedbackBySection}
+                activeFeedbackId={activeTextAnnotationId}
+                onFeedbackSelect={(annotationId) => {
+                  const annotation = annotations.find((item) => item.id === annotationId)
+                  if (annotation) {
+                    void openThread(annotation)
+                  }
+                }}
               />
             )}
 

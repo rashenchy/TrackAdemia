@@ -91,19 +91,18 @@ export default async function RepositoryPage({
 
   const { data: papers } = await dbQuery
 
-  let authorsMap: Record<string, string> = {}
-  let adviserMap: Record<string, string> = {}
+  const authorsMap: Record<string, string> = {}
+  const adviserMap: Record<string, string> = {}
   let filteredPapers = papers ?? []
 
   if (papers && papers.length > 0) {
 
     const allProfileIds = new Set<string>()
 
-    papers.forEach(p =>
-      p.members?.forEach((m: string) =>
-        allProfileIds.add(m)
-      )
-    )
+    papers.forEach((paper) => {
+      allProfileIds.add(paper.user_id)
+      paper.members?.forEach((memberId: string) => allProfileIds.add(memberId))
+    })
 
     papers.forEach((paper) => {
       if (paper.adviser_id) {
@@ -133,8 +132,10 @@ export default async function RepositoryPage({
     const normalizedQuery = normalizeSearchValue(query)
 
     filteredPapers = filteredPapers.filter((paper) => {
+      const authorIds =
+        paper.members && paper.members.length > 0 ? paper.members : [paper.user_id]
       const authorNames =
-        paper.members?.map((id: string) =>
+        authorIds.map((id: string) =>
           authorsMap[id] || 'Unknown'
         ).join(' ') || ''
       const adviserName = paper.adviser_id
@@ -196,9 +197,11 @@ export default async function RepositoryPage({
         ) : (
 
           pagedPapers.map((paper) => {
+            const authorIds =
+              paper.members && paper.members.length > 0 ? paper.members : [paper.user_id]
 
             const authorNames =
-              paper.members?.map((id: string) =>
+              authorIds.map((id: string) =>
                 authorsMap[id] || 'Unknown'
               ).join(', ')
 

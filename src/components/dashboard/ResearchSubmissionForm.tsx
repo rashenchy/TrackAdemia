@@ -583,67 +583,68 @@ export function ResearchSubmissionForm({
         )}
       </div>
 
-      {/* Timeline section */}
-      <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
-        <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-4">
-          <Calendar className="text-blue-600" size={20} />
-          <h2 className="text-lg font-bold text-[var(--foreground)]">Timeline</h2>
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-3">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-[var(--foreground)]">Start Date</label>
-            <input type="date" name="startDate" defaultValue={initialData?.start_date || ""} required={!isDraftMode && !isTeacher} className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-text" />
+      {!isTeacher && (
+        <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
+          <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-4">
+            <Calendar className="text-blue-600" size={20} />
+            <h2 className="text-lg font-bold text-[var(--foreground)]">Timeline</h2>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-[var(--foreground)]">Target Defense Date</label>
-            <input
-              type="date"
-              name="targetDefenseDate"
-              value={targetDefenseDate}
-              onChange={(e) => {
-                setTargetDefenseDate(e.target.value)
-                if (e.target.value) {
-                  setIsTargetDefenseTbd(false)
-                }
-              }}
-              disabled={isTargetDefenseTbd}
-              className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-text disabled:cursor-not-allowed disabled:opacity-60"
-            />
-            <label className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-300">
+
+          <div className="grid gap-6 md:grid-cols-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold text-[var(--foreground)]">Start Date</label>
+              <input type="date" name="startDate" defaultValue={initialData?.start_date || ""} required={!isDraftMode && !isTeacher} className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-text" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold text-[var(--foreground)]">Target Defense Date</label>
               <input
-                type="checkbox"
-                checked={isTargetDefenseTbd}
+                type="date"
+                name="targetDefenseDate"
+                value={targetDefenseDate}
                 onChange={(e) => {
-                  const checked = e.target.checked
-                  setIsTargetDefenseTbd(checked)
-                  if (checked) {
-                    setTargetDefenseDate('')
+                  setTargetDefenseDate(e.target.value)
+                  if (e.target.value) {
+                    setIsTargetDefenseTbd(false)
                   }
                 }}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
+                disabled={isTargetDefenseTbd}
+                className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-text disabled:cursor-not-allowed disabled:opacity-60"
               />
-              To be determined
-            </label>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-semibold text-[var(--foreground)]">Current Stage</label>
-            <select
-              name="currentStage"
-              value={selectedCurrentStage}
-              onChange={(event) => {
-                const nextStage = getNormalizedResearchStage(event.target.value)
-                setSelectedCurrentStage(nextStage)
-              }}
-              className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer"
-            >
-              <option value="Proposal">Proposal</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Final Manuscript">Final Manuscript</option>
-            </select>
+              <label className="flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-300">
+                <input
+                  type="checkbox"
+                  checked={isTargetDefenseTbd}
+                  onChange={(e) => {
+                    const checked = e.target.checked
+                    setIsTargetDefenseTbd(checked)
+                    if (checked) {
+                      setTargetDefenseDate('')
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-600"
+                />
+                To be determined
+              </label>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold text-[var(--foreground)]">Current Stage</label>
+              <select
+                name="currentStage"
+                value={selectedCurrentStage}
+                onChange={(event) => {
+                  const nextStage = getNormalizedResearchStage(event.target.value)
+                  setSelectedCurrentStage(nextStage)
+                }}
+                className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all cursor-pointer"
+              >
+                <option value="Proposal">Proposal</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Final Manuscript">Final Manuscript</option>
+              </select>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
         <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-4">

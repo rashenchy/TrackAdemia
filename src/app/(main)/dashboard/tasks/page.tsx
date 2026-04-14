@@ -346,7 +346,7 @@ const { data: profile } = await supabase
     const annotationTasksData: AnnotationTaskRecord[] = annotationTasksResult.data || []
 
     // Normalize and combine task sources
-    let allTasks: StudentTaskItem[] = [
+    const allTasks: StudentTaskItem[] = [
         ...(teacherTasksData || []).map(t => ({
             ...t,
             source: 'teacher' as const,
@@ -369,10 +369,7 @@ const { data: profile } = await supabase
         }))
     ]
 
-    // Apply status filter
-    if (activeFilter !== 'all') {
-        allTasks = allTasks.filter(t => t.status === activeFilter)
-    }
+    const summaryTasks = [...allTasks]
 
     // Priority ordering
     const priority: Record<TaskSource, number> = {
@@ -381,19 +378,26 @@ const { data: profile } = await supabase
         personal: 2
     }
 
-    allTasks.sort((a, b) => {
+    summaryTasks.sort((a, b) => {
         if (priority[a.source as keyof typeof priority] !== priority[b.source as keyof typeof priority]) {
             return priority[a.source as keyof typeof priority] - priority[b.source as keyof typeof priority]
         }
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
 
+    let filteredTasks = summaryTasks
+
+    // Apply status filter only to the visible list
+    if (activeFilter !== 'all') {
+        filteredTasks = summaryTasks.filter(t => t.status === activeFilter)
+    }
+
     // Calculate progress statistics
-    const totalTasks = allTasks.length
-    const completedCount = allTasks.filter(t => t.status === 'resolved').length
+    const totalTasks = summaryTasks.length
+    const completedCount = summaryTasks.filter(t => t.status === 'resolved').length
     const progressPercentage = totalTasks > 0 ? Math.round((completedCount / totalTasks) * 100) : 0
-    const teacherTasksCount = allTasks.filter(t => t.source === 'teacher' || t.source === 'annotation').length
-    const pagedTasks = allTasks.slice((page - 1) * pageSize, page * pageSize)
+    const teacherTasksCount = summaryTasks.filter(t => t.source === 'teacher' || t.source === 'annotation').length
+    const pagedTasks = filteredTasks.slice((page - 1) * pageSize, page * pageSize)
 
     return (
         <div className="max-w-4xl mx-auto space-y-8">
@@ -473,7 +477,7 @@ const { data: profile } = await supabase
 
             {/* Task List */}
             <div className="space-y-3">
-                {allTasks.length === 0 ? (
+                {filteredTasks.length === 0 ? (
                     <div className="text-center py-16 border-2 border-dashed border-gray-100 dark:border-gray-800 rounded-3xl text-gray-400">
                         <AlertCircle size={48} className="mx-auto mb-4 opacity-10" />
                         <p className="font-medium text-lg capitalize">No {activeFilter} tasks found.</p>
@@ -619,7 +623,7 @@ const { data: profile } = await supabase
             <PaginationLinks
                 pathname="/dashboard/tasks"
                 searchParams={{ ...resolvedParams, page: String(page) }}
-                totalCount={allTasks.length}
+                totalCount={filteredTasks.length}
                 pageSize={pageSize}
             />
         </div>

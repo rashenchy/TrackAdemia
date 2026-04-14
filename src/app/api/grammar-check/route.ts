@@ -6,6 +6,12 @@ interface GrammarCheckRequest {
   text: string
 }
 
+type GrammarCorrection = {
+  original_sentence: string
+  corrected_sentence: string
+  explanation: string
+}
+
 function extractJsonBlock(value: string) {
   const trimmed = value.trim()
 
@@ -17,6 +23,61 @@ function extractJsonBlock(value: string) {
   }
 
   return trimmed
+}
+
+function normalizeSentence(value: string) {
+  return value.replace(/\s+/g, ' ').trim()
+}
+
+function isLikelyStyleOnlySuggestion(explanation: string) {
+  const normalizedExplanation = explanation.toLowerCase()
+
+  return [
+    'more formal',
+    'formal tone',
+    'better wording',
+    'clearer',
+    'clarity',
+    'more concise',
+    'concise',
+    'readability',
+    'style',
+    'tone',
+    'flow',
+    'awkward',
+    'rephrase',
+    'rewritten',
+  ].some((phrase) => normalizedExplanation.includes(phrase))
+}
+
+function sanitizeCorrections(corrections: GrammarCorrection[]) {
+  const seen = new Set<string>()
+
+  return corrections.filter((correction) => {
+    const originalSentence = normalizeSentence(correction.original_sentence)
+    const correctedSentence = normalizeSentence(correction.corrected_sentence)
+    const explanation = correction.explanation?.trim() ?? ''
+
+    if (!originalSentence || !correctedSentence || !explanation) {
+      return false
+    }
+
+    if (originalSentence === correctedSentence) {
+      return false
+    }
+
+    if (isLikelyStyleOnlySuggestion(explanation)) {
+      return false
+    }
+
+    const dedupeKey = `${originalSentence}::${correctedSentence}`
+    if (seen.has(dedupeKey)) {
+      return false
+    }
+
+    seen.add(dedupeKey)
+    return true
+  })
 }
 
 export async function POST(req: Request) {
@@ -91,7 +152,7 @@ export async function POST(req: Request) {
     }
 
     const prompt = `
-    Detect grammar mistakes in the text.
+    Detect only objective grammar, punctuation, capitalization, agreement, article, preposition, or verb tense mistakes in the text.
 
     Return ONLY JSON in this format:
 
@@ -110,6 +171,9 @@ export async function POST(req: Request) {
     - Provide the corrected version of the entire sentence.
     - Do NOT return only phrases.
     - Do not rewrite sentences that are already correct.
+    - Do not suggest stylistic improvements, tone changes, clearer wording, or paraphrases.
+    - Do not change wording unless it is required to fix a real grammar error.
+    - Ignore sentences that are acceptable in standard academic English even if they could be phrased differently.
     - Preserve the original tense unless the tense itself is incorrect.
     - If no errors exist return {"corrections":[]}
 
@@ -164,11 +228,7 @@ export async function POST(req: Request) {
     }
 
     let parsed: {
-      corrections?: Array<{
-        original_sentence: string
-        corrected_sentence: string
-        explanation: string
-      }>
+      corrections?: GrammarCorrection[]
     }
 
     try {
@@ -177,9 +237,7 @@ export async function POST(req: Request) {
       parsed = { corrections: [] }
     }
 
-    if (!parsed.corrections) {
-      parsed.corrections = []
-    }
+    parsed.corrections = sanitizeCorrections(parsed.corrections || [])
 
     await logRequest('success', trimmedText.length, parsed.corrections.length)
     return NextResponse.json(parsed)

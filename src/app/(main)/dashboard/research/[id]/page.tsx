@@ -122,21 +122,27 @@ export default async function ViewResearchPage({
 
   // Fetch team member profiles
   let teamMembers: TeamMember[] = []
-  if (research.members && research.members.length > 0) {
+  const authorIds =
+    research.members && research.members.length > 0 ? research.members : [research.user_id]
+
+  if (authorIds.length > 0) {
     const { data: profiles } = await supabase
       .from('profiles')
       .select('id, first_name, last_name, course_program')
       .eq('is_active', true)
-      .in('id', research.members)
+      .in('id', authorIds)
 
     if (profiles) {
-      teamMembers = research.members.map((memberId: string, index: number) => {
+      teamMembers = authorIds.map((memberId: string, index: number) => {
         const p = profiles.find(prof => prof.id === memberId)
         return {
           id: memberId,
           name: p ? `${p.first_name} ${p.last_name}` : 'Unknown Student',
           course: p?.course_program || 'N/A',
-          role: research.member_roles?.[index] || 'Member'
+          role:
+            research.members && research.members.length > 0
+              ? research.member_roles?.[index] || 'Member'
+              : 'Primary Author'
         }
       })
     }
@@ -348,7 +354,7 @@ export default async function ViewResearchPage({
           </p>
         </div>
 
-        {!isViewerOnly && displayVersions.length > 1 && (
+        {!isViewerOnly && activeDocumentView === 'text' && displayVersions.length > 1 && (
           <div className="flex justify-end">
             <Link
               href={appendFromParam(`/dashboard/research/${researchId}/compare`, currentPageHref)}
@@ -463,7 +469,7 @@ export default async function ViewResearchPage({
                     </div>
 
                     <div className="flex items-center gap-2 w-full md:w-auto">
-                        {previousVersion && (
+                        {activeDocumentView === 'text' && previousVersion && (
                           <Link
                             href={appendFromParam(
                               buildPathWithSearch(`/dashboard/research/${research.id}/compare`, [

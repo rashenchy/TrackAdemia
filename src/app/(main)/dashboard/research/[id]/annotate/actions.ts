@@ -6,6 +6,10 @@ import { syncResearchReviewStatus } from '@/lib/research/review'
 import { createNotifications } from '@/lib/notifications/service'
 import {
   hasResearchTextContent,
+  getPlainTextFromRichText,
+  getResearchDocumentSections,
+  isTextAnnotationPosition,
+  normalizeResearchDocumentContent,
   type ResearchDocumentContent,
   type TextAnnotationPosition,
 } from '@/lib/research/document'
@@ -35,6 +39,13 @@ type AnnotationHighlightData = {
 }
 
 type ActiveAnnotationVersionContext = AnnotationVersionLike
+
+type StudentChangeRecord = {
+  changedAt: string
+  content: unknown
+  fileUrl: string | null
+  source: 'draft' | 'version'
+}
 
 async function getAuthenticatedUserContext() {
   const supabase = await createClient()
@@ -124,6 +135,174 @@ async function requireAnnotationParticipant(annotationId: string) {
   await requireResearchParticipant(annotation.research_id)
 
   return { ...context, annotation }
+}
+
+function normalizeComparableText(value: string | null | undefined) {
+  return (value ?? '').replace(/\s+/g, ' ').trim()
+}
+
+function getSectionPlainText(content: unknown, sectionKey: string) {
+  const normalized = normalizeResearchDocumentContent(content)
+  const section = getResearchDocumentSections(normalized).find(
+    (candidate) => candidate.id === sectionKey
+  )
+
+  return normalizeComparableText(getPlainTextFromRichText(section?.content ?? ''))
+}
+
+async function getAnnotatedVersionRecord(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  {
+    annotationId,
+    researchId,
+    versionId,
+    versionNumber,
+  }: {
+    annotationId: string
+    researchId: string
+    versionId?: string | null
+    versionNumber?: number | null
+  }
+) {
+  if (versionId) {
+    const { data: versionById } = await supabase
+      .from('research_versions')
+      .select('id, content_json, file_url')
+      .eq('id', versionId)
+      .maybeSingle()
+
+    if (versionById) {
+      return versionById
+    }
+  }
+
+  if (versionNumber != null) {
+    const { data: versionByNumber } = await supabase
+      .from('research_versions')
+      .select('id, content_json, file_url')
+      .eq('research_id', researchId)
+      .eq('version_number', versionNumber)
+      .maybeSingle()
+
+    if (versionByNumber) {
+      return versionByNumber
+    }
+  }
+
+  const { data: fallbackResearch } = await supabase
+    .from('research')
+    .select('id, content_json, file_url')
+    .eq('id', researchId)
+    .maybeSingle()
+
+  if (!fallbackResearch) {
+    throw new Error(`Could not load the manuscript snapshot for annotation ${annotationId}.`)
+  }
+
+  return fallbackResearch
+}
+
+async function ensureStudentCanResolveAnnotation(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  annotation: {
+    id: string
+    research_id: string
+    created_at: string
+    position_data: unknown
+    version_id?: string | null
+    version_number?: number | null
+  }
+) {
+  const [{ data: studentDraft }, { data: latestStudentVersion }] = await Promise.all([
+    supabase
+      .from('research_drafts')
+      .select('updated_at, content_json')
+      .eq('research_id', annotation.research_id)
+      .eq('owner_role', 'student')
+      .eq('owner_user_id', userId)
+      .eq('is_active', true)
+      .maybeSingle(),
+    supabase
+      .from('research_versions')
+      .select('created_at, content_json, file_url')
+      .eq('research_id', annotation.research_id)
+      .eq('uploaded_by', userId)
+      .eq('created_by_role', 'student')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  const studentChanges: StudentChangeRecord[] = []
+
+  if (studentDraft?.updated_at && studentDraft.updated_at > annotation.created_at) {
+    studentChanges.push({
+      changedAt: studentDraft.updated_at,
+      content: studentDraft.content_json,
+      fileUrl: null,
+      source: 'draft',
+    })
+  }
+
+  if (latestStudentVersion?.created_at && latestStudentVersion.created_at > annotation.created_at) {
+    studentChanges.push({
+      changedAt: latestStudentVersion.created_at,
+      content: latestStudentVersion.content_json,
+      fileUrl: latestStudentVersion.file_url ?? null,
+      source: 'version',
+    })
+  }
+
+  if (studentChanges.length === 0) {
+    throw new Error(
+      'You need to save or submit changes to your manuscript before marking this feedback as resolved.'
+    )
+  }
+
+  if (!isTextAnnotationPosition(annotation.position_data)) {
+    const hasNewStudentVersion = studentChanges.some((change) => change.source === 'version')
+
+    if (!hasNewStudentVersion) {
+      throw new Error(
+        'PDF feedback can only be resolved after you submit a newer student version.'
+      )
+    }
+
+    return
+  }
+
+  const latestTextChange = [...studentChanges]
+    .filter((change) => change.content)
+    .sort((first, second) => second.changedAt.localeCompare(first.changedAt))[0]
+
+  if (!latestTextChange) {
+    throw new Error(
+      'Text feedback can only be resolved after you save or submit editor changes.'
+    )
+  }
+
+  const annotatedVersion = await getAnnotatedVersionRecord(supabase, {
+    annotationId: annotation.id,
+    researchId: annotation.research_id,
+    versionId: annotation.version_id,
+    versionNumber: annotation.version_number,
+  })
+
+  const previousSectionText = getSectionPlainText(
+    annotatedVersion.content_json,
+    annotation.position_data.sectionKey
+  )
+  const currentSectionText = getSectionPlainText(
+    latestTextChange.content,
+    annotation.position_data.sectionKey
+  )
+
+  if (!currentSectionText || previousSectionText === currentSectionText) {
+    throw new Error(
+      'Update the annotated section in the manuscript editor before marking this feedback as resolved.'
+    )
+  }
 }
 
 
@@ -563,6 +742,29 @@ export async function toggleAnnotationResolved(
 ) {
   const { supabase, user } = await requireAnnotationParticipant(annotationId)
 
+  const { data: annotationRecord, error: annotationLookupError } = await supabase
+    .from('annotations')
+    .select('id, research_id, created_at, position_data, version_id, version_number')
+    .eq('id', annotationId)
+    .single()
+
+  if (annotationLookupError || !annotationRecord) {
+    throw new Error('Annotation not found.')
+  }
+
+  const { data: research } = await supabase
+    .from('research')
+    .select('user_id, members')
+    .eq('id', annotationRecord.research_id)
+    .single()
+
+  const isStudentAuthor =
+    user.id === research?.user_id ||
+    (Array.isArray(research?.members) && research.members.includes(user.id))
+
+  if (newStatus && isStudentAuthor) {
+    await ensureStudentCanResolveAnnotation(supabase, user.id, annotationRecord)
+  }
 
   // Update annotation status and return the updated record
   const { data, error } = await supabase

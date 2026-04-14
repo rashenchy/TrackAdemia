@@ -178,6 +178,21 @@ export async function leaveSection(sectionId: string) {
 // Generate a new join code for a section
 export async function regenerateJoinCode(sectionId: string) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: 'You must be logged in to regenerate a join code.' }
+  }
+
+  const { data: section } = await supabase
+    .from('sections')
+    .select('id, teacher_id')
+    .eq('id', sectionId)
+    .maybeSingle()
+
+  if (!section || section.teacher_id !== user.id) {
+    return { error: 'You are not allowed to regenerate the join code for this section.' }
+  }
 
   const newCode = Math.random().toString(36).substring(2, 8).toUpperCase()
 
@@ -190,7 +205,7 @@ export async function regenerateJoinCode(sectionId: string) {
 
   revalidatePath('/dashboard/sections')
 
-  return { success: 'New join code generated!' }
+  return { success: 'New join code generated!', joinCode: newCode }
 }
 
 

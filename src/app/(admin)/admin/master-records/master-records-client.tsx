@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Database, Trash2, AlertCircle, Loader2, Archive, CheckCircle } from 'lucide-react'
-import { getAllResearch, forceDeleteResearch, overrideResearchStatus, archiveAllSections } from './actions'
+import { Database, Trash2, AlertCircle, Loader2, CheckCircle } from 'lucide-react'
+import { getAllResearch, forceDeleteResearch, overrideResearchStatus } from './actions'
 import { RESEARCH_TYPE_OPTIONS, getResearchTypeLabel } from '@/lib/research/types'
 import { RESEARCH_STATUS_OPTIONS } from '@/lib/research/status'
 import PaginationControl from '@/components/ui/PaginationControl'
@@ -37,8 +37,6 @@ export default function MasterRecordsClient({
   const [typeFilter, setTypeFilter] = useState('all')
   const [actionInProgress, setActionInProgress] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
-  const [archivingInProgress, setArchivingInProgress] = useState(false)
-  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false)
   const [page, setPage] = useState(1)
   const { confirm, notify } = usePopup()
   const pageSize = 10
@@ -127,31 +125,6 @@ export default function MasterRecordsClient({
     setActionInProgress(null)
   }
 
-  const handleArchiveAllSections = async () => {
-    setArchivingInProgress(true)
-    const result = await archiveAllSections()
-
-    if (result.success) {
-      setSuccessMessage(`${result.archivedCount} section${result.archivedCount !== 1 ? 's' : ''} have been archived`)
-      setShowArchiveConfirm(false)
-      notify({
-        title: 'Sections archived',
-        message: `${result.archivedCount} section${result.archivedCount !== 1 ? 's have' : ' has'} been archived.`,
-        variant: 'success',
-      })
-      setTimeout(() => setSuccessMessage(null), 5000)
-    } else {
-      setError(result.error || 'Failed to archive sections')
-      notify({
-        title: 'Archive failed',
-        message: result.error || 'Failed to archive sections',
-        variant: 'error',
-      })
-    }
-
-    setArchivingInProgress(false)
-  }
-
   return (
     <div className="max-w-7xl">
       <div className="flex items-start gap-4 mb-8">
@@ -166,35 +139,6 @@ export default function MasterRecordsClient({
 
       {successMessage && <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl text-green-800 dark:text-green-300 flex items-center gap-3"><CheckCircle size={20} /><span className="font-medium">{successMessage}</span></div>}
       {error && <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl text-red-800 dark:text-red-300 flex items-center gap-3"><AlertCircle size={20} /><span className="font-medium">{error}</span></div>}
-
-      <div className="mb-8 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-2xl p-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-blue-900 dark:text-blue-300 mb-2">End of Semester Setup</h2>
-            <p className="text-sm text-blue-800 dark:text-blue-200 mb-4">Archive all active sections and freeze them for the semester.</p>
-          </div>
-          <button onClick={() => setShowArchiveConfirm(true)} disabled={archivingInProgress} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap">
-            {archivingInProgress ? <Loader2 size={18} className="animate-spin" /> : <Archive size={18} />}
-            {archivingInProgress ? 'Archiving...' : 'Archive Sections'}
-          </button>
-        </div>
-      </div>
-
-      {showArchiveConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-800">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">Archive All Sections?</h3>
-            <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">This will archive and freeze all active sections.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setShowArchiveConfirm(false)} disabled={archivingInProgress} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold disabled:opacity-50">Cancel</button>
-              <button onClick={handleArchiveAllSections} disabled={archivingInProgress} className="flex-1 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                {archivingInProgress ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />}
-                Archive All
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="mb-6 flex flex-col md:flex-row gap-4">
         <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1) }} className="px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-purple-500">

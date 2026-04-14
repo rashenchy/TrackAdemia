@@ -1,6 +1,6 @@
 'use client'
 
-import { Plus, Trash2, Library } from 'lucide-react'
+import { CheckCircle2, MessageSquare, Plus, Trash2, Library } from 'lucide-react'
 import { ResearchChapterSectionsEditor } from '@/components/dashboard/ResearchChapterSectionsEditor'
 import { ResearchRichTextEditor } from '@/components/dashboard/ResearchRichTextEditor'
 import {
@@ -15,6 +15,12 @@ function buildSectionSummary(sectionCount: number) {
   return `${sectionCount} chapter${sectionCount === 1 ? '' : 's'}`
 }
 
+type SectionFeedbackItem = {
+  id: string
+  commentText: string
+  isResolved: boolean
+}
+
 export function ResearchDocumentStructureEditor({
   inputName,
   value,
@@ -22,6 +28,9 @@ export function ResearchDocumentStructureEditor({
   editable = true,
   onSectionMouseUp,
   onSectionRef,
+  sectionFeedback = {},
+  activeFeedbackId = null,
+  onFeedbackSelect,
 }: {
   inputName?: string
   value: ResearchDocumentContent
@@ -29,6 +38,9 @@ export function ResearchDocumentStructureEditor({
   editable?: boolean
   onSectionMouseUp?: (sectionId: string) => void
   onSectionRef?: (sectionId: string, node: HTMLElement | null) => void
+  sectionFeedback?: Record<string, SectionFeedbackItem[]>
+  activeFeedbackId?: string | null
+  onFeedbackSelect?: (annotationId: string) => void
 }) {
   const documentSections = value.sections
 
@@ -69,6 +81,53 @@ export function ResearchDocumentStructureEditor({
     commitSections(documentSections.filter((section) => section.id !== sectionId))
   }
 
+  const renderSectionFeedback = (sectionId: string) => {
+    const feedbackItems = sectionFeedback[sectionId] || []
+
+    if (feedbackItems.length === 0) {
+      return null
+    }
+
+    return (
+      <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-amber-800">
+            <MessageSquare size={14} />
+            Section Feedback
+          </p>
+          <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-amber-800">
+            {feedbackItems.length} item{feedbackItems.length === 1 ? '' : 's'}
+          </span>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {feedbackItems.map((item, index) => {
+            const isActive = item.id === activeFeedbackId
+
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onFeedbackSelect?.(item.id)}
+                className={`inline-flex max-w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs font-medium transition ${
+                  isActive
+                    ? 'border-blue-300 bg-blue-50 text-blue-800'
+                    : item.isResolved
+                      ? 'border-green-200 bg-green-50 text-green-800'
+                      : 'border-amber-200 bg-white text-amber-900 hover:bg-amber-100/70'
+                }`}
+              >
+                {item.isResolved ? <CheckCircle2 size={13} /> : <MessageSquare size={13} />}
+                <span className="truncate">
+                  {index + 1}. {item.commentText}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
   if (!editable) {
     return (
       <div className="space-y-4">
@@ -86,6 +145,7 @@ export function ResearchDocumentStructureEditor({
               <h3 className="text-sm font-bold uppercase tracking-wide text-gray-500">
                 {section.title}
               </h3>
+              <div className="mt-3">{renderSectionFeedback(section.id)}</div>
               {section.kind === 'structured' ? (
                 <div className="mt-3">
                   <ResearchChapterSectionsEditor
@@ -166,7 +226,11 @@ export function ResearchDocumentStructureEditor({
           <section
             key={section.id}
             ref={(node) => onSectionRef?.(section.id, node)}
-            className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+            className={`rounded-2xl border bg-white p-5 shadow-sm ${
+              (sectionFeedback[section.id] || []).length > 0
+                ? 'border-amber-200'
+                : 'border-gray-200'
+            }`}
           >
             <span data-document-section-title="true" className="sr-only">
               {section.title}
@@ -194,6 +258,8 @@ export function ResearchDocumentStructureEditor({
                 Remove
               </button>
             </div>
+
+            {renderSectionFeedback(section.id)}
 
             {section.kind === 'structured' ? (
               <ResearchChapterSectionsEditor

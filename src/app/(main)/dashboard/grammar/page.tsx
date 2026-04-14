@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { Sparkles, AlertCircle, Loader2, CheckCircle2, Type } from 'lucide-react';
 
 interface Correction {
@@ -9,11 +9,95 @@ interface Correction {
   explanation: string;
 }
 
+type HighlightSegment = {
+  text: string;
+  highlighted: boolean;
+  correctionIndex?: number;
+};
+
+function buildHighlightSegments(text: string, corrections: Correction[]): HighlightSegment[] {
+  if (!text) {
+    return [];
+  }
+
+  if (corrections.length === 0) {
+    return [{ text, highlighted: false }];
+  }
+
+  const matches: Array<{ start: number; end: number; correctionIndex: number }> = [];
+
+  corrections.forEach((correction, correctionIndex) => {
+    const sentence = correction.original_sentence.trim();
+    if (!sentence) {
+      return;
+    }
+
+    let searchStart = 0;
+    while (searchStart < text.length) {
+      const foundAt = text.indexOf(sentence, searchStart);
+      if (foundAt === -1) {
+        break;
+      }
+
+      matches.push({
+        start: foundAt,
+        end: foundAt + sentence.length,
+        correctionIndex,
+      });
+      searchStart = foundAt + sentence.length;
+    }
+  });
+
+  if (matches.length === 0) {
+    return [{ text, highlighted: false }];
+  }
+
+  matches.sort((left, right) => left.start - right.start || left.end - right.end);
+
+  const segments: HighlightSegment[] = [];
+  let cursor = 0;
+
+  for (const match of matches) {
+    if (match.start < cursor) {
+      continue;
+    }
+
+    if (match.start > cursor) {
+      segments.push({
+        text: text.slice(cursor, match.start),
+        highlighted: false,
+      });
+    }
+
+    segments.push({
+      text: text.slice(match.start, match.end),
+      highlighted: true,
+      correctionIndex: match.correctionIndex,
+    });
+    cursor = match.end;
+  }
+
+  if (cursor < text.length) {
+    segments.push({
+      text: text.slice(cursor),
+      highlighted: false,
+    });
+  }
+
+  return segments;
+}
+
 export default function GrammarCheckerPage() {
   const [inputText, setInputText] = useState('');
   const [corrections, setCorrections] = useState<Correction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasChecked, setHasChecked] = useState(false);
+
+  const highlightSegments = useMemo(
+    () => buildHighlightSegments(inputText, corrections),
+    [inputText, corrections]
+  );
 
   const handleCheckGrammar = async () => {
     if (!inputText.trim()) {
@@ -24,6 +108,7 @@ export default function GrammarCheckerPage() {
     setIsLoading(true);
     setError(null);
     setCorrections([]);
+    setHasChecked(true);
 
     try {
       const response = await fetch('/api/grammar-check', {
@@ -41,8 +126,8 @@ export default function GrammarCheckerPage() {
       }
 
       setCorrections(data.corrections || []);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to check grammar.');
     } finally {
       setIsLoading(false);
     }
@@ -120,6 +205,39 @@ export default function GrammarCheckerPage() {
             </div>
           )}
 
+          {!error && inputText.trim() && (
+            <div className="mb-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-[var(--foreground)]">
+                  Highlighted Review
+                </p>
+                {corrections.length > 0 ? (
+                  <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-bold text-amber-700">
+                    {corrections.length} issue{corrections.length === 1 ? '' : 's'} highlighted
+                  </span>
+                ) : hasChecked && !isLoading ? (
+                  <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
+                    No grammar issues found
+                  </span>
+                ) : null}
+              </div>
+              <div className="max-h-48 overflow-y-auto rounded-lg bg-gray-50 dark:bg-gray-900/40 p-4 text-sm leading-7 text-gray-700 dark:text-gray-200 whitespace-pre-wrap">
+                {highlightSegments.map((segment, index) =>
+                  segment.highlighted ? (
+                    <mark
+                      key={`${index}-${segment.correctionIndex ?? 'issue'}`}
+                      className="rounded bg-amber-200 px-1 py-0.5 text-inherit"
+                    >
+                      {segment.text}
+                    </mark>
+                  ) : (
+                    <Fragment key={index}>{segment.text}</Fragment>
+                  )
+                )}
+              </div>
+            </div>
+          )}
+
           {/* LOADING STATE */}
           {isLoading && corrections.length === 0 && (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-4">
@@ -131,11 +249,20 @@ export default function GrammarCheckerPage() {
           )}
 
           {/* EMPTY STATE */}
-          {!isLoading && corrections.length === 0 && !error && (
+          {!isLoading && corrections.length === 0 && !error && !hasChecked && (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-3">
               <Type size={40} className="opacity-20" />
               <p className="text-sm">
                 Your grammar suggestions will appear here.
+              </p>
+            </div>
+          )}
+
+          {!isLoading && corrections.length === 0 && !error && hasChecked && (
+            <div className="flex-1 flex flex-col items-center justify-center text-green-600 gap-3">
+              <CheckCircle2 size={40} className="opacity-80" />
+              <p className="text-sm font-medium">
+                No grammar issues were found in the submitted text.
               </p>
             </div>
           )}
