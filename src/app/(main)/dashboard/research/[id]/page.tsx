@@ -435,7 +435,6 @@ export default async function ViewResearchPage({
               // Author/Teacher Mode: Full version history
               displayVersions.map((v, index: number) => {
                 const isLatest = index === 0
-                const previousVersion = displayVersions[index + 1]
                 return (
                   <div
                     key={v.id}
@@ -469,20 +468,6 @@ export default async function ViewResearchPage({
                     </div>
 
                     <div className="flex items-center gap-2 w-full md:w-auto">
-                        {activeDocumentView === 'text' && previousVersion && (
-                          <Link
-                            href={appendFromParam(
-                              buildPathWithSearch(`/dashboard/research/${research.id}/compare`, [
-                                ['target', String(v.version_number)],
-                                ['base', String(previousVersion.version_number)],
-                              ]),
-                              currentPageHref
-                            )}
-                            className="flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 hover:bg-gray-200 rounded-lg font-semibold transition-colors text-sm flex-1"
-                          >
-                            <GitCompareArrows size={16} /> Compare
-                          </Link>
-                        )}
                         {(isTeacher || isAuthor) && (
                           <Link
                             href={appendFromParam(
