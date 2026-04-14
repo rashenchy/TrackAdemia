@@ -52,6 +52,10 @@ function encryptSession(session: PasswordResetSession) {
   return `${iv.toString('base64url')}.${tag.toString('base64url')}.${encrypted.toString('base64url')}`
 }
 
+function serializeSession(session: PasswordResetSession) {
+  return encryptSession(session)
+}
+
 function decryptSession(serialized: string) {
   const [ivPart, tagPart, encryptedPart] = serialized.split('.')
 
@@ -144,6 +148,20 @@ export async function readPasswordResetSession() {
   return session
 }
 
+export async function readPasswordResetSessionFromToken(flowToken?: string | null) {
+  if (!flowToken) {
+    return readPasswordResetSession()
+  }
+
+  const cookieSession = await readPasswordResetSession()
+
+  if (cookieSession) {
+    return cookieSession
+  }
+
+  return decryptSession(flowToken)
+}
+
 export async function createPasswordResetSession(email: string) {
   const normalizedEmail = email.trim().toLowerCase()
   const code = generateVerificationCode()
@@ -163,6 +181,7 @@ export async function createPasswordResetSession(email: string) {
   return {
     code,
     expiresAt: session.expiresAt,
+    flowToken: serializeSession(session),
   }
 }
 
@@ -232,11 +251,12 @@ export async function resendPasswordResetCode(session: PasswordResetSession) {
     ok: true as const,
     code,
     expiresAt: nextSession.expiresAt,
+    flowToken: serializeSession(nextSession),
   }
 }
 
-export async function verifyPasswordResetCode(code: string) {
-  const session = await readPasswordResetSession()
+export async function verifyPasswordResetCode(code: string, flowToken?: string | null) {
+  const session = await readPasswordResetSessionFromToken(flowToken)
 
   if (!session) {
     return {

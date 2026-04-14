@@ -7,13 +7,33 @@ import { findAuthUserByEmail } from '@/lib/supabase/admin'
 import {
   createPasswordResetSession,
   passwordResetConfig,
-  readPasswordResetSession,
+  readPasswordResetSessionFromToken,
   resendPasswordResetCode,
 } from '@/lib/users/password-reset-session'
 import { maskEmailAddress } from '@/lib/users/pending-registration'
 
-function redirectToResetPassword(messageType: 'error' | 'success', message: string) {
-  redirect(`/reset-password?${messageType}=${encodeURIComponent(message)}`)
+function buildResetPasswordUrl(
+  messageType: 'error' | 'success',
+  message: string,
+  flowToken?: string | null
+) {
+  const params = new URLSearchParams({
+    [messageType]: message,
+  })
+
+  if (flowToken) {
+    params.set('flow', flowToken)
+  }
+
+  return `/reset-password?${params.toString()}`
+}
+
+function redirectToResetPassword(
+  messageType: 'error' | 'success',
+  message: string,
+  flowToken?: string | null
+) {
+  redirect(buildResetPasswordUrl(messageType, message, flowToken))
 }
 
 export async function recoverPassword(formData: FormData) {
@@ -30,7 +50,7 @@ export async function recoverPassword(formData: FormData) {
       redirect('/forgot-password?error=' + encodeURIComponent('No account was found for that email address.'))
     }
 
-    const { code, expiresAt } = await createPasswordResetSession(email)
+    const { code, expiresAt, flowToken } = await createPasswordResetSession(email)
 
     await sendPasswordRecoveryEmail({
       email,
@@ -40,7 +60,8 @@ export async function recoverPassword(formData: FormData) {
 
     redirectToResetPassword(
       'success',
-      `We sent a ${passwordResetConfig.codeLength}-character reset code to ${maskEmailAddress(email)}.`
+      `We sent a ${passwordResetConfig.codeLength}-character reset code to ${maskEmailAddress(email)}.`,
+      flowToken
     )
   } catch (error) {
     rethrowIfRedirectError(error)
@@ -54,8 +75,9 @@ export async function recoverPassword(formData: FormData) {
   }
 }
 
-export async function resendRecoveryCode() {
-  const session = await readPasswordResetSession()
+export async function resendRecoveryCode(formData: FormData) {
+  const flowToken = (formData.get('flowToken') as string | null)?.trim() || null
+  const session = await readPasswordResetSessionFromToken(flowToken)
 
   if (!session) {
     redirect(
@@ -76,12 +98,14 @@ export async function resendRecoveryCode() {
       case 'cooldown':
         redirectToResetPassword(
           'error',
-          `Please wait ${resendResult.retryAfterSeconds} seconds before requesting another reset code.`
+          `Please wait ${resendResult.retryAfterSeconds} seconds before requesting another reset code.`,
+          flowToken
         )
       case 'too-many-resends':
         redirectToResetPassword(
           'error',
-          'Too many resend requests for this password reset. Start over to get a fresh code.'
+          'Too many resend requests for this password reset. Start over to get a fresh code.',
+          flowToken
         )
     }
 
@@ -97,7 +121,8 @@ export async function resendRecoveryCode() {
 
     redirectToResetPassword(
       'success',
-      `A new reset code was sent to ${maskEmailAddress(session.email)}.`
+      `A new reset code was sent to ${maskEmailAddress(session.email)}.`,
+      resendResult.flowToken
     )
   } catch (error) {
     rethrowIfRedirectError(error)
@@ -105,6 +130,6 @@ export async function resendRecoveryCode() {
     const message =
       error instanceof Error ? error.message : 'Unable to resend the reset code.'
 
-    redirectToResetPassword('error', message)
+    redirectToResetPassword('error', message, flowToken)
   }
 }

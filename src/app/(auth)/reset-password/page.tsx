@@ -6,17 +6,18 @@ import { SubmitButton } from '@/components/auth/SubmitButton'
 import { resendRecoveryCode } from '@/app/(auth)/forgot-password/actions'
 import {
   passwordResetConfig,
-  readPasswordResetSession,
+  readPasswordResetSessionFromToken,
 } from '@/lib/users/password-reset-session'
 import { maskEmailAddress } from '@/lib/users/pending-registration'
 
 export default async function ResetPasswordPage({
   searchParams,
 }: {
-  searchParams: Promise<{ success?: string; error?: string }>
+  searchParams: Promise<{ success?: string; error?: string; flow?: string }>
 }) {
   const resolvedSearchParams = await searchParams
-  const session = await readPasswordResetSession()
+  const flowToken = resolvedSearchParams.flow ?? null
+  const session = await readPasswordResetSessionFromToken(flowToken)
   const maskedEmail = session ? maskEmailAddress(session.email) : null
 
   return (
@@ -131,9 +132,10 @@ export default async function ResetPasswordPage({
                   {passwordResetConfig.codeTtlMinutes} minutes.
                 </div>
 
-                <ResetPasswordForm />
+                <ResetPasswordForm flowToken={flowToken} />
 
                 <form action={resendRecoveryCode}>
+                  {flowToken ? <input type="hidden" name="flowToken" value={flowToken} /> : null}
                   <SubmitButton className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-bold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50">
                     <RefreshCcw size={16} />
                     Resend Code

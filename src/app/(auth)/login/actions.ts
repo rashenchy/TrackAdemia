@@ -108,7 +108,7 @@ export async function signup(formData: FormData) {
       redirect(outcome.redirectPath)
     }
 
-    const { code, expiresAt, maskedEmail } = await createPendingRegistrationSession({
+    const { code, expiresAt, flowToken, maskedEmail } = await createPendingRegistrationSession({
       email,
       password,
       firstName,
@@ -132,7 +132,8 @@ export async function signup(formData: FormData) {
 
     redirect(
       '/verify-email?success=' +
-        encodeURIComponent(`We sent a verification code to ${maskedEmail}.`)
+        encodeURIComponent(`We sent a verification code to ${maskedEmail}.`) +
+        `&flow=${encodeURIComponent(flowToken)}`
     )
   } catch (error) {
     rethrowIfRedirectError(error)

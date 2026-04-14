@@ -6,9 +6,10 @@ import { useState } from 'react'
 import { SubmitButton } from '@/components/auth/SubmitButton'
 import { completePasswordReset } from './actions'
 
-export function ResetPasswordForm() {
+export function ResetPasswordForm({ flowToken }: { flowToken?: string | null }) {
   return (
     <form action={completePasswordReset} className="space-y-6">
+      {flowToken ? <input type="hidden" name="flowToken" value={flowToken} /> : null}
       <div className="space-y-5">
         <label className="block">
           <span className="text-sm font-semibold text-slate-700">Verification Code</span>

@@ -75,6 +75,10 @@ function encryptSession(session: PendingRegistrationSession) {
   return `${iv.toString('base64url')}.${tag.toString('base64url')}.${encrypted.toString('base64url')}`
 }
 
+function serializeSession(session: PendingRegistrationSession) {
+  return encryptSession(session)
+}
+
 function decryptSession(serialized: string): PendingRegistrationSession | null {
   const [ivPart, tagPart, encryptedPart] = serialized.split('.')
 
@@ -156,6 +160,20 @@ export async function readPendingRegistration() {
   return session
 }
 
+export async function readPendingRegistrationFromToken(flowToken?: string | null) {
+  if (!flowToken) {
+    return readPendingRegistration()
+  }
+
+  const cookieSession = await readPendingRegistration()
+
+  if (cookieSession) {
+    return cookieSession
+  }
+
+  return decryptSession(flowToken)
+}
+
 export function generateVerificationCode() {
   let code = ''
 
@@ -202,6 +220,7 @@ export async function createPendingRegistrationSession(
   return {
     code,
     expiresAt: session.expiresAt,
+    flowToken: serializeSession(session),
     maskedEmail: maskEmailAddress(payload.email),
   }
 }
@@ -285,11 +304,15 @@ export async function resendPendingRegistrationCode(
     ok: true as const,
     code,
     expiresAt: nextSession.expiresAt,
+    flowToken: serializeSession(nextSession),
   }
 }
 
-export async function verifyPendingRegistrationCode(code: string) {
-  const session = await readPendingRegistration()
+export async function verifyPendingRegistrationCode(
+  code: string,
+  flowToken?: string | null
+) {
+  const session = await readPendingRegistrationFromToken(flowToken)
 
   if (!session) {
     return {

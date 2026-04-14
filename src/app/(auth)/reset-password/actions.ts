@@ -8,43 +8,53 @@ import {
   verifyPasswordResetCode,
 } from '@/lib/users/password-reset-session'
 
+function buildResetPasswordUrl(message: string, flowToken?: string | null) {
+  const params = new URLSearchParams({
+    error: message,
+  })
+
+  if (flowToken) {
+    params.set('flow', flowToken)
+  }
+
+  return `/reset-password?${params.toString()}`
+}
+
 export async function completePasswordReset(formData: FormData) {
   const code = (formData.get('code') as string | null)?.trim().toUpperCase() || ''
   const newPassword = (formData.get('newPassword') as string | null) || ''
   const confirmPassword = (formData.get('confirmPassword') as string | null) || ''
+  const flowToken = (formData.get('flowToken') as string | null)?.trim() || null
 
   if (!code) {
     redirect(
-      '/reset-password?error=' +
-        encodeURIComponent(
-          `Enter the ${passwordResetConfig.codeLength}-character verification code from your email.`
-        )
+      buildResetPasswordUrl(
+        `Enter the ${passwordResetConfig.codeLength}-character verification code from your email.`,
+        flowToken
+      )
     )
   }
 
   if (!newPassword || !confirmPassword) {
-    redirect('/reset-password?error=' + encodeURIComponent('Please complete both password fields.'))
+    redirect(buildResetPasswordUrl('Please complete both password fields.', flowToken))
   }
 
   if (newPassword !== confirmPassword) {
-    redirect(
-      '/reset-password?error=' +
-        encodeURIComponent('New password and confirmation password do not match.')
-    )
+    redirect(buildResetPasswordUrl('New password and confirmation password do not match.', flowToken))
   }
 
   const passwordPattern = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/
 
   if (newPassword.length < 8 || !passwordPattern.test(newPassword)) {
     redirect(
-      '/reset-password?error=' +
-        encodeURIComponent(
-          'New password must be at least 8 characters and include uppercase, lowercase, and a number.'
-        )
+      buildResetPasswordUrl(
+        'New password must be at least 8 characters and include uppercase, lowercase, and a number.',
+        flowToken
+      )
     )
   }
 
-  const result = await verifyPasswordResetCode(code)
+  const result = await verifyPasswordResetCode(code, flowToken)
 
   if (!result.ok) {
     switch (result.reason) {
@@ -56,23 +66,15 @@ export async function completePasswordReset(formData: FormData) {
             encodeURIComponent('Your password reset session expired. Request a new reset code.')
         )
       case 'expired-code':
-        redirect(
-          '/reset-password?error=' +
-            encodeURIComponent('This reset code expired. Request a new code to continue.')
-        )
+        redirect(buildResetPasswordUrl('This reset code expired. Request a new code to continue.', flowToken))
       case 'too-many-attempts':
-        redirect(
-          '/reset-password?error=' +
-            encodeURIComponent(
-              'Too many failed attempts. Request a new reset code to continue.'
-            )
-        )
+        redirect(buildResetPasswordUrl('Too many failed attempts. Request a new reset code to continue.', flowToken))
       case 'invalid-code':
         redirect(
-          '/reset-password?error=' +
-            encodeURIComponent(
-              `That code does not match. You have ${passwordResetConfig.maxVerifyAttempts} attempts total before a new code is required.`
-            )
+          buildResetPasswordUrl(
+            `That code does not match. You have ${passwordResetConfig.maxVerifyAttempts} attempts total before a new code is required.`,
+            flowToken
+          )
         )
     }
   }
@@ -80,10 +82,7 @@ export async function completePasswordReset(formData: FormData) {
   const adminSupabase = createAdminClient()
 
   if (!adminSupabase) {
-    redirect(
-      '/reset-password?error=' +
-        encodeURIComponent('Password reset is not configured on this server.')
-    )
+    redirect(buildResetPasswordUrl('Password reset is not configured on this server.', flowToken))
   }
 
   const authUser = await findAuthUserByEmail(result.email)
@@ -101,7 +100,7 @@ export async function completePasswordReset(formData: FormData) {
   })
 
   if (error) {
-    redirect('/reset-password?error=' + encodeURIComponent(error.message))
+    redirect(buildResetPasswordUrl(error.message, flowToken))
   }
 
   await clearPasswordResetSession()

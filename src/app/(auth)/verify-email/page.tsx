@@ -3,7 +3,7 @@ import { MailCheck, RefreshCcw, ShieldCheck } from 'lucide-react'
 import { SubmitButton } from '@/components/auth/SubmitButton'
 import {
   maskEmailAddress,
-  readPendingRegistration,
+  readPendingRegistrationFromToken,
   verificationConfig,
 } from '@/lib/users/pending-registration'
 import { resendVerificationCode, verifyEmailCode } from './actions'
@@ -11,10 +11,11 @@ import { resendVerificationCode, verifyEmailCode } from './actions'
 export default async function VerifyEmailPage({
   searchParams,
 }: {
-  searchParams: Promise<{ success?: string; error?: string }>
+  searchParams: Promise<{ success?: string; error?: string; flow?: string }>
 }) {
   const resolvedSearchParams = await searchParams
-  const session = await readPendingRegistration()
+  const flowToken = resolvedSearchParams.flow ?? null
+  const session = await readPendingRegistrationFromToken(flowToken)
   const maskedEmail = session ? maskEmailAddress(session.payload.email) : null
 
   return (
@@ -58,6 +59,7 @@ export default async function VerifyEmailPage({
           )}
 
           <form action={verifyEmailCode} className="mt-8 space-y-6">
+            {flowToken ? <input type="hidden" name="flowToken" value={flowToken} /> : null}
             <div className="flex flex-col gap-2">
               <label className="text-sm font-semibold text-slate-700">Verification Code</label>
               <input
@@ -81,6 +83,7 @@ export default async function VerifyEmailPage({
           </form>
 
           <form action={resendVerificationCode} className="mt-4">
+            {flowToken ? <input type="hidden" name="flowToken" value={flowToken} /> : null}
             <SubmitButton className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 text-sm font-bold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50">
               <RefreshCcw size={16} />
               Resend Code

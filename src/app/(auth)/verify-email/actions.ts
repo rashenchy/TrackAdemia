@@ -6,25 +6,46 @@ import { sendRegistrationVerificationEmail } from '@/lib/core/email'
 import {
   clearPendingRegistration,
   maskEmailAddress,
-  readPendingRegistration,
+  readPendingRegistrationFromToken,
   resendPendingRegistrationCode,
   verificationConfig,
   verifyPendingRegistrationCode,
 } from '@/lib/users/pending-registration'
 import { rethrowIfRedirectError } from '@/lib/core/redirect-error'
 
-function redirectToVerifyEmail(messageType: 'error' | 'success', message: string) {
-  redirect(`/verify-email?${messageType}=${encodeURIComponent(message)}`)
+function buildVerifyEmailUrl(
+  messageType: 'error' | 'success',
+  message: string,
+  flowToken?: string | null
+) {
+  const params = new URLSearchParams({
+    [messageType]: message,
+  })
+
+  if (flowToken) {
+    params.set('flow', flowToken)
+  }
+
+  return `/verify-email?${params.toString()}`
+}
+
+function redirectToVerifyEmail(
+  messageType: 'error' | 'success',
+  message: string,
+  flowToken?: string | null
+) {
+  redirect(buildVerifyEmailUrl(messageType, message, flowToken))
 }
 
 export async function verifyEmailCode(formData: FormData) {
   const code = (formData.get('code') as string | null)?.trim().toUpperCase() ?? ''
+  const flowToken = (formData.get('flowToken') as string | null)?.trim() || null
 
   if (!code) {
-    redirectToVerifyEmail('error', 'Enter the 6-character verification code from your email.')
+    redirectToVerifyEmail('error', 'Enter the 6-character verification code from your email.', flowToken)
   }
 
-  const result = await verifyPendingRegistrationCode(code)
+  const result = await verifyPendingRegistrationCode(code, flowToken)
 
   if (!result.ok) {
     switch (result.reason) {
@@ -38,17 +59,20 @@ export async function verifyEmailCode(formData: FormData) {
       case 'expired-code':
         redirectToVerifyEmail(
           'error',
-          `This verification code expired. Request a new code to continue.`
+          `This verification code expired. Request a new code to continue.`,
+          flowToken
         )
       case 'too-many-attempts':
         redirectToVerifyEmail(
           'error',
-          `Too many failed attempts. Request a new code to continue.`
+          `Too many failed attempts. Request a new code to continue.`,
+          flowToken
         )
       case 'invalid-code':
         redirectToVerifyEmail(
           'error',
-          `That code does not match. You have ${verificationConfig.maxVerifyAttempts} attempts total before a new code is required.`
+          `That code does not match. You have ${verificationConfig.maxVerifyAttempts} attempts total before a new code is required.`,
+          flowToken
         )
     }
 
@@ -76,8 +100,9 @@ export async function verifyEmailCode(formData: FormData) {
   }
 }
 
-export async function resendVerificationCode() {
-  const session = await readPendingRegistration()
+export async function resendVerificationCode(formData: FormData) {
+  const flowToken = (formData.get('flowToken') as string | null)?.trim() || null
+  const session = await readPendingRegistrationFromToken(flowToken)
 
   if (!session) {
     redirect(
@@ -98,12 +123,14 @@ export async function resendVerificationCode() {
       case 'cooldown':
         redirectToVerifyEmail(
           'error',
-          `Please wait ${resendResult.retryAfterSeconds} seconds before requesting another code.`
+          `Please wait ${resendResult.retryAfterSeconds} seconds before requesting another code.`,
+          flowToken
         )
       case 'too-many-resends':
         redirectToVerifyEmail(
           'error',
-          'Too many resend requests for this registration. Start over to get a fresh session.'
+          'Too many resend requests for this registration. Start over to get a fresh session.',
+          flowToken
         )
     }
 
@@ -119,7 +146,8 @@ export async function resendVerificationCode() {
 
     redirectToVerifyEmail(
       'success',
-      `A new verification code was sent to ${maskEmailAddress(session.payload.email)}.`
+      `A new verification code was sent to ${maskEmailAddress(session.payload.email)}.`,
+      resendResult.flowToken
     )
   } catch (error) {
     rethrowIfRedirectError(error)
@@ -127,6 +155,6 @@ export async function resendVerificationCode() {
     const message =
       error instanceof Error ? error.message : 'Unable to resend the verification code.'
 
-    redirectToVerifyEmail('error', message)
+    redirectToVerifyEmail('error', message, flowToken)
   }
 }
