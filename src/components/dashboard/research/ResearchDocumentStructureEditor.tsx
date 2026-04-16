@@ -1,8 +1,8 @@
 'use client'
 
 import { CheckCircle2, MessageSquare, Plus, Trash2, Library } from 'lucide-react'
-import { ResearchChapterSectionsEditor } from '@/components/dashboard/ResearchChapterSectionsEditor'
-import { ResearchRichTextEditor } from '@/components/dashboard/ResearchRichTextEditor'
+import { ResearchChapterSectionsEditor } from '@/components/dashboard/research/ResearchChapterSectionsEditor'
+import { ResearchRichTextEditor } from '@/components/dashboard/research/ResearchRichTextEditor'
 import {
   createBibliographySection,
   createResearchDocumentSection,

@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
-import { ResearchRichTextEditor } from '@/components/dashboard/ResearchRichTextEditor'
+import { ResearchRichTextEditor } from '@/components/dashboard/research/ResearchRichTextEditor'
 import {
   createResearchChapterSection,
   parseResearchChapterSections,

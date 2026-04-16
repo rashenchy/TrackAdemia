@@ -2,11 +2,11 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Calendar, GraduationCap, Edit3, FileText, GitCompareArrows, Users } from 'lucide-react'
-import { DocumentDownloadButton } from '@/components/dashboard/DocumentDownloadButton'
+import { DocumentDownloadButton } from '@/components/dashboard/research/DocumentDownloadButton'
 import { updateResearchStatus } from './actions'
 import { ResearchStatusForm } from './research-status-form'
-import { ResearchTextWorkspaceCard } from '@/components/dashboard/ResearchTextWorkspaceCard'
-import { ResearchRealtimeRefresh } from '@/components/dashboard/ResearchRealtimeRefresh'
+import { ResearchTextWorkspaceCard } from '@/components/dashboard/research/ResearchTextWorkspaceCard'
+import { ResearchRealtimeRefresh } from '@/components/dashboard/research/ResearchRealtimeRefresh'
 import {
   hasResearchTextContent,
   normalizeResearchDocumentContent,

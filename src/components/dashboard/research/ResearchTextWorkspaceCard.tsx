@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { ChevronDown, ChevronUp, Edit3 } from 'lucide-react'
-import { ResearchDocumentSections } from '@/components/dashboard/ResearchDocumentSections'
+import { ResearchDocumentSections } from '@/components/dashboard/research/ResearchDocumentSections'
 import type { ResearchDocumentContent } from '@/lib/research/document'
 
 export function ResearchTextWorkspaceCard({

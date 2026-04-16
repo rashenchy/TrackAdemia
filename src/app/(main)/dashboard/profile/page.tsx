@@ -13,7 +13,7 @@ import {
   UserCircle2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { ProfileEditForm } from '@/components/dashboard/ProfileEditForm'
+import { ProfileEditForm } from '@/components/dashboard/profile/ProfileEditForm'
 import {
   ADMIN_VIEW_COOKIE,
   getAdminViewMeta,

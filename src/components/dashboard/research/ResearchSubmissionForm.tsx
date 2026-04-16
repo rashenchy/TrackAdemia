@@ -5,7 +5,7 @@ import { Plus, Trash2, FileText, GraduationCap, Users, Calendar, Paperclip, Aler
 import { SubmitButton } from '@/components/auth/SubmitButton'
 import { submitResearch } from '@/app/(main)/dashboard/submit/actions'
 import { updateResearch } from '@/app/(main)/dashboard/research/[id]/edit/actions'
-import { ResearchDocumentStructureEditor } from '@/components/dashboard/ResearchDocumentStructureEditor'
+import { ResearchDocumentStructureEditor } from '@/components/dashboard/research/ResearchDocumentStructureEditor'
 import { RESEARCH_TYPE_OPTIONS } from '@/lib/research/types'
 import {
   createDefaultResearchDocumentContent,

@@ -6,7 +6,10 @@ import {
   researchHasPublishablePdf,
 } from '@/lib/research/publication'
 import { isManualResearchStatus } from '@/lib/research/status'
-import { revalidatePath } from 'next/cache'
+import {
+  isResearchReviewer,
+} from '@/lib/research/permissions'
+import { revalidateResearchOverviewPaths } from '@/lib/research/cache'
 import { redirect } from 'next/navigation'
 
 export async function updateResearchStatus(researchId: string, formData: FormData) {
@@ -25,8 +28,8 @@ export async function updateResearchStatus(researchId: string, formData: FormDat
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'mentor') {
-    throw new Error('Only mentors can update research status.')
+  if (!isResearchReviewer(profile?.role)) {
+    throw new Error('Only reviewers can update research status.')
   }
 
   // INPUT EXTRACTION: Retrieve status change and optional new file reference
@@ -105,11 +108,7 @@ export async function updateResearchStatus(researchId: string, formData: FormDat
 
   // CACHE REFRESH: Revalidate pages so the updated research status appears immediately
 
-  revalidatePath(`/dashboard/research/${researchId}`)
-  revalidatePath('/dashboard')
-  revalidatePath('/dashboard', 'layout')
-  revalidatePath('/dashboard/student-submissions')
-  revalidatePath('/dashboard/repository')
+  revalidateResearchOverviewPaths(researchId)
 
   redirect(`/dashboard/research/${researchId}?updated=${Date.now()}`)
 }

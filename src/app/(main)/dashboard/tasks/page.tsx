@@ -14,11 +14,11 @@ import {
 import { createTask, deleteTask, createSectionTask, editTask } from './actions'
 import { SubmitButton } from '@/components/auth/SubmitButton'
 import Link from 'next/link'
-import { TeacherAnalytics } from '@/components/dashboard/TeacherAnalytics'
+import { TeacherAnalytics } from '@/components/dashboard/tasks/TeacherAnalytics'
 import PaginationLinks from '@/components/ui/PaginationLinks'
 import { appendFromParam } from '@/lib/navigation'
-import { TasksRealtimeRefresh } from '@/components/dashboard/TasksRealtimeRefresh'
-import { TaskResolveButton } from '@/components/dashboard/TaskResolveButton'
+import { TasksRealtimeRefresh } from '@/components/dashboard/tasks/TasksRealtimeRefresh'
+import { TaskResolveButton } from '@/components/dashboard/tasks/TaskResolveButton'
 
 type TaskSource = 'teacher' | 'personal' | 'annotation'
 

@@ -1,4 +1,4 @@
-import { ResearchDocumentStructureEditor } from '@/components/dashboard/ResearchDocumentStructureEditor'
+import { ResearchDocumentStructureEditor } from '@/components/dashboard/research/ResearchDocumentStructureEditor'
 import type { ResearchDocumentContent } from '@/lib/research/document'
 
 export function ResearchDocumentSections({

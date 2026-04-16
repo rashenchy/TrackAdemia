@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import SectionsPageUI from './SectionsPageUI'
-import StudentSectionsUI from '@/components/dashboard/StudentSectionsUI'
+import StudentSectionsUI from '@/components/dashboard/sections/StudentSectionsUI'
 
 export default async function SectionsPage({
   searchParams

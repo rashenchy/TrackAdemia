@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { ResearchSubmissionForm } from '@/components/dashboard/ResearchSubmissionForm'
+import { ResearchSubmissionForm } from '@/components/dashboard/research/ResearchSubmissionForm'
 import { BackButton } from '@/components/navigation/BackButton'
 import { canTeacherEditPublishedResearch } from '@/lib/research/permissions'
 import { redirect } from 'next/navigation'

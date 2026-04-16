@@ -1,4 +1,4 @@
-import { JoinSectionForm } from '@/components/dashboard/JoinSectionForm'
+import { JoinSectionForm } from '@/components/dashboard/sections/JoinSectionForm'
 
 export default function JoinSectionPage() {
   return (

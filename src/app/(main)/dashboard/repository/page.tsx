@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { RepositorySearch } from '@/components/dashboard/RepositorySearch'
+import { RepositorySearch } from '@/components/dashboard/repository/RepositorySearch'
 import { BookOpen, Calendar, Users, Hash, ChevronRight, Search, Eye, Download } from 'lucide-react'
 import PaginationLinks from '@/components/ui/PaginationLinks'
 

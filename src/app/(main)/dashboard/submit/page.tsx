@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { ResearchSubmissionForm } from '@/components/dashboard/ResearchSubmissionForm'
+import { ResearchSubmissionForm } from '@/components/dashboard/research/ResearchSubmissionForm'
 import { redirect } from 'next/navigation'
 
 type DraftResearch = {

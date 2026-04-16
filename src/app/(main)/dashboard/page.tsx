@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
-import { SubmissionsTable } from '@/components/dashboard/SubmissionsTable'
+import { SubmissionsTable } from '@/components/dashboard/home/SubmissionsTable'
 import {
   AlertCircle,
   CheckCircle2,
@@ -10,8 +10,8 @@ import {
   TriangleAlert,
 } from 'lucide-react'
 import Link from 'next/link'
-import RotatingQuote from '@/components/dashboard/RotatingQuote'
-import HomeSectionRemovalAlerts from '@/components/dashboard/HomeSectionRemovalAlerts'
+import RotatingQuote from '@/components/dashboard/home/RotatingQuote'
+import HomeSectionRemovalAlerts from '@/components/dashboard/home/HomeSectionRemovalAlerts'
 import { getActiveAnnouncements } from '@/app/(admin)/admin/announcements/actions'
 import { getTeacherSubmissionData, type TeacherSubmissionRecord } from '@/lib/users/teacher-submissions'
 import {

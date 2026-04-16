@@ -4,6 +4,16 @@ type PublishedResearchAccessRecord = {
   subject_code?: string | null
 }
 
+export type ResearchUserRole = 'student' | 'mentor' | 'admin' | null | undefined
+
+export function isResearchReviewer(role: ResearchUserRole) {
+  return role === 'mentor' || role === 'admin'
+}
+
+export function isResearchMentor(role: ResearchUserRole) {
+  return role === 'mentor'
+}
+
 export async function canTeacherEditPublishedResearch(
   supabase: { from: (table: string) => unknown },
   teacherId: string | null | undefined,
