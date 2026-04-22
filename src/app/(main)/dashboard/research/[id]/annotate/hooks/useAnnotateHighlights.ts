@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  clearHighlightRegistry,
+  ensureHighlightStyles,
   findScrollableAncestor,
   getEditorRoot,
-  getHighlightConstructor,
-  getHighlightRegistry,
+  getHighlightConstructorForDocument,
+  getHighlightRegistryForDocument,
+  getRangeViewportRect,
   getTextSelectionDetails,
   resolveTextAnnotationRange,
   scrollElementIntoContainer,
@@ -16,7 +19,6 @@ export function useAnnotateHighlights({
   activeFormat,
   annotations,
   canReview,
-  canEditTextWorkspace,
   selectedVersionContent,
   workspaceContent,
   selectedAnnotation,
@@ -27,7 +29,6 @@ export function useAnnotateHighlights({
   activeFormat: 'pdf' | 'text'
   annotations: AnnotationRecord[]
   canReview: boolean
-  canEditTextWorkspace: boolean
   selectedVersionContent: unknown
   workspaceContent: unknown
   selectedAnnotation: AnnotationRecord | null
@@ -40,6 +41,7 @@ export function useAnnotateHighlights({
   const textAnnotationRangesRef = useRef<Record<string, Range>>({})
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
   const workspaceScrollRef = useRef<HTMLDivElement | null>(null)
+  const selectionFrameRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (activeFormat !== 'text') {
@@ -47,15 +49,11 @@ export function useAnnotateHighlights({
       return
     }
 
-    const highlightRegistry = getHighlightRegistry()
-    const Highlight = getHighlightConstructor()
-
-    if (!highlightRegistry || !Highlight) return
-
     const openRanges: Range[] = []
     const resolvedRanges: Range[] = []
     let activeRange: Range | null = null
     const nextRanges: Record<string, Range> = {}
+    const touchedDocuments = new Set<Document>()
 
     for (const annotation of annotations) {
       if (!isTextAnnotationPosition(annotation.position_data)) continue
@@ -66,6 +64,7 @@ export function useAnnotateHighlights({
       const range = resolveTextAnnotationRange(editorRoot, annotation.position_data)
       if (!range) continue
 
+      touchedDocuments.add(range.startContainer.ownerDocument)
       nextRanges[annotation.id] = range
 
       if (annotation.id === activeTextAnnotationId) {
@@ -79,34 +78,47 @@ export function useAnnotateHighlights({
 
     textAnnotationRangesRef.current = nextRanges
 
-    if (openRanges.length > 0) {
-      highlightRegistry.set('trackademia-text-feedback-open', new Highlight(...openRanges))
-    } else {
-      highlightRegistry.delete('trackademia-text-feedback-open')
-    }
+    for (const doc of touchedDocuments) {
+      const highlightRegistry = getHighlightRegistryForDocument(doc)
+      const Highlight = getHighlightConstructorForDocument(doc)
 
-    if (resolvedRanges.length > 0) {
-      highlightRegistry.set('trackademia-text-feedback-resolved', new Highlight(...resolvedRanges))
-    } else {
-      highlightRegistry.delete('trackademia-text-feedback-resolved')
-    }
+      if (!highlightRegistry || !Highlight) {
+        continue
+      }
 
-    if (activeRange) {
-      highlightRegistry.set('trackademia-text-feedback-active', new Highlight(activeRange))
-    } else {
-      highlightRegistry.delete('trackademia-text-feedback-active')
+      ensureHighlightStyles(doc)
+      clearHighlightRegistry(doc)
+
+      const docOpenRanges = openRanges.filter((range) => range.startContainer.ownerDocument === doc)
+      const docResolvedRanges = resolvedRanges.filter(
+        (range) => range.startContainer.ownerDocument === doc
+      )
+      const docActiveRange =
+        activeRange?.startContainer.ownerDocument === doc ? activeRange : null
+
+      if (docOpenRanges.length > 0) {
+        highlightRegistry.set('trackademia-text-feedback-open', new Highlight(...docOpenRanges))
+      }
+
+      if (docResolvedRanges.length > 0) {
+        highlightRegistry.set(
+          'trackademia-text-feedback-resolved',
+          new Highlight(...docResolvedRanges)
+        )
+      }
+
+      if (docActiveRange) {
+        highlightRegistry.set('trackademia-text-feedback-active', new Highlight(docActiveRange))
+      }
     }
 
     return () => {
-      highlightRegistry.delete('trackademia-text-feedback-open')
-      highlightRegistry.delete('trackademia-text-feedback-resolved')
-      highlightRegistry.delete('trackademia-text-feedback-active')
+      touchedDocuments.forEach((doc) => clearHighlightRegistry(doc))
     }
   }, [
     activeFormat,
     activeTextAnnotationId,
     annotations,
-    canEditTextWorkspace,
     selectedVersionContent,
     setActiveTextAnnotationId,
     textHighlightRefreshTick,
@@ -128,7 +140,7 @@ export function useAnnotateHighlights({
         (editorRoot ? resolveTextAnnotationRange(editorRoot, annotation.position_data) : null)
 
       if (range) {
-        const rect = range.getBoundingClientRect()
+        const rect = getRangeViewportRect(range)
         const scrollContainer =
           workspaceScrollRef.current ?? findScrollableAncestor(sectionContainer ?? null)
 
@@ -233,26 +245,44 @@ export function useAnnotateHighlights({
     }
   }, [activeFormat, selectedAnnotation, workspaceContent])
 
-  const handleTextSelection = (sectionKey: string) => {
-    if (!canReview || !canEditTextWorkspace) return
-
-    const selection = window.getSelection()
-    const sectionContainer = sectionRefs.current[sectionKey]
-    const editorRoot = getEditorRoot(sectionContainer)
-
-    if (!selection || selection.rangeCount === 0 || !editorRoot) {
-      setActiveTextSelection(null)
-      return
+  useEffect(() => {
+    return () => {
+      if (selectionFrameRef.current != null) {
+        window.cancelAnimationFrame(selectionFrameRef.current)
+      }
     }
+  }, [])
 
-    const range = selection.getRangeAt(0)
-    if (range.collapsed || !editorRoot.contains(range.commonAncestorContainer)) {
-      setActiveTextSelection(null)
-      return
-    }
+  const handleTextSelection = useCallback(
+    (sectionKey: string) => {
+      if (!canReview) return
 
-    setActiveTextSelection(getTextSelectionDetails(range, editorRoot, sectionKey))
-  }
+      if (selectionFrameRef.current != null) {
+        window.cancelAnimationFrame(selectionFrameRef.current)
+      }
+
+      selectionFrameRef.current = window.requestAnimationFrame(() => {
+        const sectionContainer = sectionRefs.current[sectionKey]
+        const editorRoot = getEditorRoot(sectionContainer)
+        const selection =
+          editorRoot?.ownerDocument.defaultView?.getSelection() ?? window.getSelection()
+
+        if (!selection || selection.rangeCount === 0 || !editorRoot) {
+          setActiveTextSelection(null)
+          return
+        }
+
+        const range = selection.getRangeAt(0)
+        if (range.collapsed || !editorRoot.contains(range.commonAncestorContainer)) {
+          setActiveTextSelection(null)
+          return
+        }
+
+        setActiveTextSelection(getTextSelectionDetails(range, editorRoot, sectionKey))
+      })
+    },
+    [canReview, setActiveTextSelection]
+  )
 
   return {
     registerHighlightRef,

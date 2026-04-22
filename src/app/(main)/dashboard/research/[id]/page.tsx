@@ -16,6 +16,7 @@ import { getVersionLabel } from '@/lib/research/versioning'
 import { BackButton } from '@/components/navigation/BackButton'
 import { appendFromParam, buildPathWithSearch } from '@/lib/navigation'
 import { canTeacherEditPublishedResearch } from '@/lib/research/permissions'
+import { isFacultyRole } from '@/lib/users/access'
 
 type TeamMember = {
   id: string
@@ -63,7 +64,7 @@ export default async function ViewResearchPage({
     .eq('is_active', true)
     .single()
 
-  const isTeacher = profile?.role === 'mentor'
+  const isTeacher = isFacultyRole(profile?.role)
 
   // Fetch research details
   const { data: research } = await supabase

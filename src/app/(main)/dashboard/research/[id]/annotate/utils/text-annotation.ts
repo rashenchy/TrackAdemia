@@ -5,6 +5,8 @@ import {
   type TextSelectionDraft,
 } from '../types'
 
+const HIGHLIGHT_STYLE_ID = 'trackademia-text-highlight-styles'
+
 export function getTextSelectionDetails(
   selectionRange: Range,
   container: HTMLElement,
@@ -19,6 +21,18 @@ export function getTextSelectionDetails(
   const endOffset = startOffset + selectionRange.toString().length
   const fullText = getSectionTextContent(container)
 
+  const selectionRect = selectionRange.getBoundingClientRect()
+  const ownerWindow = selectionRange.startContainer.ownerDocument.defaultView
+  const frameElement = ownerWindow?.frameElement
+  const frameRect =
+    frameElement instanceof HTMLElement ? frameElement.getBoundingClientRect() : null
+  const x = frameRect
+    ? frameRect.left + selectionRect.left + selectionRect.width / 2 + window.scrollX
+    : selectionRect.left + selectionRect.width / 2 + window.scrollX
+  const y = frameRect
+    ? frameRect.top + selectionRect.bottom + window.scrollY
+    : selectionRect.bottom + window.scrollY
+
   return {
     type: 'text',
     sectionKey,
@@ -30,8 +44,8 @@ export function getTextSelectionDetails(
     suffixText: fullText.slice(endOffset, Math.min(fullText.length, endOffset + 40)),
     startOffset,
     endOffset,
-    x: selectionRange.getBoundingClientRect().left + window.scrollX,
-    y: selectionRange.getBoundingClientRect().bottom + window.scrollY,
+    x,
+    y,
   }
 }
 
@@ -118,7 +132,8 @@ function buildTextRangeWithinRoot(
   startOffset: number,
   endOffset: number
 ) {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  const doc = root.ownerDocument
+  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT)
   let currentOffset = 0
   let startNode: Node | null = null
   let endNode: Node | null = null
@@ -148,7 +163,7 @@ function buildTextRangeWithinRoot(
     return null
   }
 
-  const range = document.createRange()
+  const range = doc.createRange()
   range.setStart(startNode, startNodeOffset)
   range.setEnd(endNode, endNodeOffset)
   return range
@@ -157,7 +172,36 @@ function buildTextRangeWithinRoot(
 export function getEditorRoot(container: HTMLElement | null) {
   if (!container) return null
 
+  const iframe = container.querySelector('iframe')
+  if (iframe?.contentDocument?.body) {
+    return iframe.contentDocument.body
+  }
+
   return container
+}
+
+export function getRangeViewportRect(range: Range) {
+  const rect = range.getBoundingClientRect()
+  const ownerWindow = range.startContainer.ownerDocument.defaultView
+  const frameElement = ownerWindow?.frameElement
+
+  if (!(frameElement instanceof HTMLElement)) {
+    return rect
+  }
+
+  const frameRect = frameElement.getBoundingClientRect()
+
+  return {
+    top: frameRect.top + rect.top,
+    right: frameRect.left + rect.right,
+    bottom: frameRect.top + rect.bottom,
+    left: frameRect.left + rect.left,
+    width: rect.width,
+    height: rect.height,
+    x: frameRect.left + rect.x,
+    y: frameRect.top + rect.y,
+    toJSON: () => rect.toJSON(),
+  } satisfies DOMRect
 }
 
 export function findScrollableAncestor(node: HTMLElement | null) {
@@ -273,20 +317,55 @@ export function resolveTextAnnotationRange(
   return buildTextRangeFromOffsets(container, bestMatch.startOffset, bestMatch.endOffset)
 }
 
-export function getHighlightRegistry() {
+export function ensureHighlightStyles(doc: Document) {
+  if (doc.getElementById(HIGHLIGHT_STYLE_ID)) {
+    return
+  }
+
+  const style = doc.createElement('style')
+  style.id = HIGHLIGHT_STYLE_ID
+  style.textContent = `
+    ::highlight(trackademia-text-feedback-open) {
+      background: rgba(250, 204, 21, 0.38);
+    }
+
+    ::highlight(trackademia-text-feedback-resolved) {
+      background: rgba(34, 197, 94, 0.22);
+    }
+
+    ::highlight(trackademia-text-feedback-active) {
+      background: rgba(59, 130, 246, 0.4);
+    }
+  `
+
+  doc.head.appendChild(style)
+}
+
+export function getHighlightRegistryForDocument(doc: Document) {
   return (
-    (globalThis as typeof globalThis & {
+    (doc.defaultView as typeof globalThis & {
       CSS?: {
         highlights?: HighlightRegistryLike
       }
-    }).CSS?.highlights ?? null
+    } | null)?.CSS?.highlights ?? null
   )
 }
 
-export function getHighlightConstructor() {
+export function getHighlightConstructorForDocument(doc: Document) {
   return (
-    (globalThis as typeof globalThis & {
+    (doc.defaultView as typeof globalThis & {
       Highlight?: HighlightConstructor
-    }).Highlight ?? null
+    } | null)?.Highlight ?? null
   )
+}
+
+export function clearHighlightRegistry(doc: Document) {
+  const highlightRegistry = getHighlightRegistryForDocument(doc)
+  if (!highlightRegistry) {
+    return
+  }
+
+  highlightRegistry.delete('trackademia-text-feedback-open')
+  highlightRegistry.delete('trackademia-text-feedback-resolved')
+  highlightRegistry.delete('trackademia-text-feedback-active')
 }

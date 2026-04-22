@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { stopViewAsUser } from '@/app/(admin)/admin/view-as-user/actions'
+import { stopViewAsUser } from '@/app/(main)/dashboard/settings/view-as-user/actions'
 import { getTeacherSubmissionData } from '@/lib/users/teacher-submissions'
 import { usePopup } from '@/components/ui/PopupProvider'
 import {
@@ -29,6 +29,7 @@ import {
   Sparkles,
   ShieldAlert,
   Files,
+  BadgeCheck,
 } from 'lucide-react'
 
 export default function DashboardLayoutClient({
@@ -49,7 +50,7 @@ export default function DashboardLayoutClient({
   const router = useRouter()
   const pathname = usePathname()
   const [isCollapsed, setIsCollapsed] = useState(true)
-  const [isTeacher, setIsTeacher] = useState(previewRole === 'mentor')
+  const [isFaculty, setIsFaculty] = useState(previewRole === 'mentor' || previewRole === 'admin')
   const [isVerified, setIsVerified] = useState(previewIsVerified)
   const [isStudent, setIsStudent] = useState(previewRole === 'student')
   const [pendingRoute, setPendingRoute] = useState<string | null>(null)
@@ -60,29 +61,35 @@ export default function DashboardLayoutClient({
   const [userRole, setUserRole] = useState(previewRole)
   const [unresolvedCount, setUnresolvedCount] = useState(0)
   const [submissionAlertCount, setSubmissionAlertCount] = useState(0)
+  const [pendingStudentCount, setPendingStudentCount] = useState(0)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isNavigating, startNavigation] = useTransition()
   const { notify } = usePopup()
   const profileRef = useRef<HTMLDivElement | null>(null)
-  const isTeacherRef = useRef(false)
+  const isFacultyRef = useRef(false)
   const currentUserIdRef = useRef<string | null>(null)
   const [supabase] = useState(() => createClient())
   const effectiveUserName = isAdminPreview ? previewDisplayName : userName
   const effectiveUserRole = isAdminPreview ? previewRole : userRole
-  const effectiveIsTeacher = isAdminPreview ? previewRole === 'mentor' : isTeacher
+  const effectiveIsFaculty = isAdminPreview
+    ? previewRole === 'mentor' || previewRole === 'admin'
+    : isFaculty
   const effectiveIsStudent = isAdminPreview ? previewRole === 'student' : isStudent
-  const effectiveIsVerified = isAdminPreview ? previewIsVerified : isVerified
+  const effectiveIsVerified =
+    isAdminPreview && previewRole === 'admin' ? true : isAdminPreview ? previewIsVerified : isVerified
   const effectiveUnresolvedCount = isAdminPreview ? 0 : unresolvedCount
   const effectiveSubmissionAlertCount = isAdminPreview ? 0 : submissionAlertCount
+  const effectivePendingStudentCount = isAdminPreview ? 0 : pendingStudentCount
   const pendingAccessAllowedPaths = [
     '/dashboard/repository',
     '/dashboard/profile',
     '/dashboard/settings',
   ]
-  const isTeacherPendingApproval = effectiveIsTeacher && !effectiveIsVerified
+  const isFacultyPendingApproval =
+    effectiveIsFaculty && effectiveUserRole !== 'admin' && !effectiveIsVerified
   const isStudentPendingApproval = effectiveIsStudent && !effectiveIsVerified
   const isPendingAccessLocked =
-    (isStudentPendingApproval || isTeacherPendingApproval) &&
+    (isStudentPendingApproval || isFacultyPendingApproval) &&
     !pendingAccessAllowedPaths.some(
       (allowedPath) => pathname === allowedPath || pathname.startsWith(`${allowedPath}/`)
     )
@@ -144,7 +151,7 @@ export default function DashboardLayoutClient({
     localStorage.setItem('theme', 'light')
 
     if (isAdminPreview) {
-      isTeacherRef.current = previewRole === 'mentor'
+      isFacultyRef.current = previewRole === 'mentor' || previewRole === 'admin'
       return
     }
 
@@ -168,20 +175,20 @@ export default function DashboardLayoutClient({
         setUserRole(profile.role)
       }
 
-      if (profile?.role === 'mentor') {
-        setIsTeacher(true)
+      if (profile?.role === 'mentor' || profile?.role === 'admin') {
+        setIsFaculty(true)
         setIsStudent(false)
-        isTeacherRef.current = true
-        setIsVerified(profile.is_verified || false)
+        isFacultyRef.current = true
+        setIsVerified(profile.role === 'admin' ? true : profile.is_verified || false)
       } else if (profile?.role === 'student') {
-        setIsTeacher(false)
+        setIsFaculty(false)
         setIsStudent(true)
-        isTeacherRef.current = false
+        isFacultyRef.current = false
         setIsVerified(profile.is_verified || false)
       } else {
-        setIsTeacher(false)
+        setIsFaculty(false)
         setIsStudent(false)
-        isTeacherRef.current = false
+        isFacultyRef.current = false
       }
     }
 
@@ -226,11 +233,21 @@ export default function DashboardLayoutClient({
 
       setUnresolvedCount((personalCount || 0) + (teacherCount || 0) + (annotationCount || 0))
 
-      if (isTeacherRef.current) {
+      if (isFacultyRef.current) {
         const { attentionCount } = await getTeacherSubmissionData(supabase, user.id)
         setSubmissionAlertCount(attentionCount)
+
+        const { count } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('role', 'student')
+          .eq('is_verified', false)
+          .eq('is_active', true)
+
+        setPendingStudentCount(count || 0)
       } else {
         setSubmissionAlertCount(0)
+        setPendingStudentCount(0)
       }
     }
 
@@ -239,6 +256,12 @@ export default function DashboardLayoutClient({
     }
 
     fetchCounts()
+
+    const refreshFacultyCounts = () => {
+      fetchCounts()
+    }
+
+    window.addEventListener('faculty-pending-approvals-changed', refreshFacultyCounts)
 
     const channel = supabase
       .channel('task-updates')
@@ -263,7 +286,7 @@ export default function DashboardLayoutClient({
         (payload: { new?: { status?: string; title?: string }; old?: { status?: string } }) => {
           if (payload.new?.status === 'Resubmitted' && payload.old?.status !== 'Resubmitted') {
             if (
-              isTeacherRef.current &&
+              isFacultyRef.current &&
               'Notification' in window &&
               Notification.permission === 'granted'
             ) {
@@ -286,6 +309,7 @@ export default function DashboardLayoutClient({
       .subscribe()
 
     return () => {
+      window.removeEventListener('faculty-pending-approvals-changed', refreshFacultyCounts)
       supabase.removeChannel(channel)
     }
   }, [isAdminPreview, supabase, router, userRole])
@@ -305,39 +329,42 @@ export default function DashboardLayoutClient({
     { name: 'Home', href: '/dashboard', icon: Home },
     { name: 'Submit Research', href: '/dashboard/submit', icon: FilePlus },
     { name: 'Task Manager', href: '/dashboard/tasks', icon: CheckSquare },
-    ...((effectiveIsTeacher && effectiveIsVerified) || effectiveIsStudent
+
+    ...(effectiveIsFaculty && effectiveIsVerified
       ? [
-          {
-            name: effectiveIsTeacher ? 'Manage Sections' : 'My Sections',
-            href: '/dashboard/sections',
-            icon: GraduationCap,
-          },
-        ]
+        {
+          name: 'Student Submissions',
+          href: '/dashboard/student-submissions',
+          icon: Files,
+        },
+      ]
       : []),
-    ...(effectiveIsTeacher && effectiveIsVerified
+
+    ...(effectiveIsFaculty && effectiveIsVerified
       ? [
-          {
-            name: 'Student Submissions',
-            href: '/dashboard/student-submissions',
-            icon: Files,
-          },
-        ]
+        {
+          name: 'Student Verification',
+          href: '/dashboard/student-verification',
+          icon: BadgeCheck,
+        },
+      ]
       : []),
+
+    ...((effectiveIsFaculty && effectiveIsVerified) || effectiveIsStudent
+      ? [
+        {
+          name: effectiveIsFaculty ? 'Manage Sections' : 'My Sections',
+          href: '/dashboard/sections',
+          icon: GraduationCap,
+        },
+      ]
+      : []),
+
     { name: 'Grammar Checker', href: '/dashboard/grammar', icon: Sparkles },
     { name: 'Plagiarism Checker', href: '/dashboard/plagiarism', icon: ShieldAlert },
     { name: 'Repository', href: '/dashboard/repository', icon: BookOpen },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },
-  ]
-
-  if (userRole === 'admin') {
-    if (!isAdminPreview) {
-      return <>{children}</>
-    }
-  }
-
-  if (effectiveUserRole === 'admin' && !isAdminPreview) {
-    return <>{children}</>
-  }
+  ];
 
   return (
     <div className="flex h-screen transition-colors duration-300">
@@ -350,9 +377,8 @@ export default function DashboardLayoutClient({
           className={`p-4 flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'}`}
         >
           <div
-            className={`overflow-hidden transition-all duration-300 ${
-              isCollapsed ? 'w-0 opacity-0 -translate-x-3' : 'ml-2 w-10 opacity-100 translate-x-0'
-            }`}
+            className={`overflow-hidden transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0 -translate-x-3' : 'ml-2 w-10 opacity-100 translate-x-0'
+              }`}
           >
             <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-700">
               <img
@@ -371,9 +397,8 @@ export default function DashboardLayoutClient({
         </div>
 
         <nav
-          className={`mt-4 flex-1 px-3 pb-4 space-y-2 ${
-            isCollapsed ? 'overflow-y-hidden' : 'sidebar-scrollbar overflow-y-auto'
-          }`}
+          className={`mt-4 flex-1 px-3 pb-4 space-y-2 ${isCollapsed ? 'overflow-y-hidden' : 'sidebar-scrollbar overflow-y-auto'
+            }`}
         >
           {navItems.map((item) => {
             const isActive = visualRoute === item.href
@@ -381,10 +406,14 @@ export default function DashboardLayoutClient({
             const isTaskBadge = item.name === 'Task Manager' && effectiveUnresolvedCount > 0
             const isSubmissionBadge =
               item.name === 'Student Submissions' && effectiveSubmissionAlertCount > 0
-            const hasBadge = isTaskBadge || isSubmissionBadge
+            const isVerificationBadge =
+              item.name === 'Student Verification' && effectivePendingStudentCount > 0
+            const hasBadge = isTaskBadge || isSubmissionBadge || isVerificationBadge
             const badgeValue =
               item.name === 'Student Submissions'
-                  ? effectiveSubmissionAlertCount
+                ? effectiveSubmissionAlertCount
+                : item.name === 'Student Verification'
+                  ? effectivePendingStudentCount
                   : effectiveUnresolvedCount
 
             return (
@@ -392,18 +421,15 @@ export default function DashboardLayoutClient({
                 key={item.name}
                 type="button"
                 onClick={() => handleSidebarNavigation(item.href)}
-                className={`group relative flex items-center overflow-hidden p-3 transition-colors ${
-                  isCollapsed ? 'justify-center' : 'w-full'
-                } rounded-lg ${
-                  isActive
+                className={`group relative flex items-center overflow-hidden p-3 transition-colors ${isCollapsed ? 'justify-center' : 'w-full'
+                  } rounded-lg ${isActive
                     ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 font-bold'
                     : 'text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-700'
-                }`}
+                  }`}
               >
                 <div
-                  className={`relative min-w-[22px] transition-transform duration-300 ${
-                    isCollapsed ? 'translate-x-0' : 'translate-x-1'
-                  }`}
+                  className={`relative min-w-[22px] transition-transform duration-300 ${isCollapsed ? 'translate-x-0' : 'translate-x-1'
+                    }`}
                 >
                   <item.icon
                     size={22}
@@ -416,9 +442,8 @@ export default function DashboardLayoutClient({
                   )}
                 </div>
                 <div
-                  className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${
-                    isCollapsed ? 'ml-0 max-w-0 opacity-0 -translate-x-3' : 'ml-4 max-w-[11rem] opacity-100 translate-x-0'
-                  }`}
+                  className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'ml-0 max-w-0 opacity-0 -translate-x-3' : 'ml-4 max-w-[11rem] opacity-100 translate-x-0'
+                    }`}
                 >
                   <span className="block font-medium">{item.name}</span>
                 </div>
@@ -440,11 +465,10 @@ export default function DashboardLayoutClient({
               if (!isLoggingOut) setShowLogoutConfirm(true)
             }}
             disabled={isLoggingOut}
-            className={`w-full flex items-center ${isCollapsed ? 'justify-center' : ''} p-3 rounded-lg text-red-600 transition-all ${
-              isLoggingOut
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center' : ''} p-3 rounded-lg text-red-600 transition-all ${isLoggingOut
                 ? 'cursor-not-allowed opacity-60 bg-red-50 dark:bg-red-900/10'
                 : 'hover:bg-red-50 dark:hover:bg-red-900/10'
-            }`}
+              }`}
           >
             {isLoggingOut ? (
               <Loader2 size={22} className="min-w-[22px] animate-spin" />
@@ -452,9 +476,8 @@ export default function DashboardLayoutClient({
               <LogOut size={22} className="min-w-[22px]" />
             )}
             <div
-              className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${
-                isCollapsed ? 'ml-0 max-w-0 opacity-0 -translate-x-3' : 'ml-4 max-w-[10rem] opacity-100 translate-x-0'
-              }`}
+              className={`overflow-hidden whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'ml-0 max-w-0 opacity-0 -translate-x-3' : 'ml-4 max-w-[10rem] opacity-100 translate-x-0'
+                }`}
             >
               <span className="block font-medium">
                 {isLoggingOut ? 'Logging out...' : 'Logout'}
@@ -473,7 +496,7 @@ export default function DashboardLayoutClient({
                 className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200 dark:hover:bg-blue-950/50"
               >
                 <ArrowLeft size={16} />
-                Return to Admin
+                Return to Faculty Settings
               </button>
             )}
             <div>
@@ -482,7 +505,7 @@ export default function DashboardLayoutClient({
               </h1>
               {isAdminPreview && (
                 <p className="text-xs font-medium uppercase tracking-[0.2em] text-blue-600 dark:text-blue-300">
-                  Previewing {previewMode === 'mentor' ? 'teacher' : previewMode === 'student-pending' ? 'unapproved student' : 'student'} mode
+                  Previewing {previewMode === 'mentor' ? 'faculty' : previewMode === 'student-pending' ? 'unapproved student' : 'student'} mode
                 </p>
               )}
             </div>
@@ -517,8 +540,8 @@ export default function DashboardLayoutClient({
                         {effectiveUserName || 'Loading...'}
                       </p>
                       <p className="text-xs text-gray-500 capitalize mt-0.5">
-                        {effectiveUserRole === 'mentor'
-                          ? 'Teacher / Adviser'
+                        {effectiveUserRole === 'mentor' || effectiveUserRole === 'admin'
+                          ? 'Faculty / Adviser'
                           : effectiveUserRole || 'User'}
                       </p>
                     </div>
@@ -538,11 +561,10 @@ export default function DashboardLayoutClient({
                           setShowLogoutConfirm(true)
                         }}
                         disabled={isLoggingOut}
-                        className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left font-medium rounded-lg transition-all ${
-                          isLoggingOut
+                        className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm text-left font-medium rounded-lg transition-all ${isLoggingOut
                             ? 'cursor-not-allowed text-red-500 opacity-60 bg-red-50 dark:bg-red-900/10'
                             : 'text-red-600 hover:bg-red-50 dark:hover:bg-red-900/10'
-                        }`}
+                          }`}
                       >
                         {isLoggingOut ? (
                           <Loader2 size={16} className="animate-spin" />
@@ -559,7 +581,7 @@ export default function DashboardLayoutClient({
           </div>
         </header>
 
-        {effectiveIsTeacher && !effectiveIsVerified && (
+        {effectiveIsFaculty && effectiveUserRole !== 'admin' && !effectiveIsVerified && (
           <div className="flex items-center justify-center gap-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 p-3 text-amber-800 dark:text-amber-400 text-sm font-medium">
             <AlertCircle size={16} />
             Your faculty account is pending verification by an administrator.
@@ -575,9 +597,8 @@ export default function DashboardLayoutClient({
 
         <main
           aria-busy={isNavigating}
-          className={`relative flex-1 overflow-y-auto p-8 transition-opacity ${
-            isNavigating ? 'opacity-70' : 'opacity-100'
-          }`}
+          className={`relative flex-1 overflow-y-auto p-8 transition-opacity ${isNavigating ? 'opacity-70' : 'opacity-100'
+            }`}
         >
           {isNavigating && (
             <div className="pointer-events-none absolute inset-x-8 top-4 z-10 h-1 overflow-hidden rounded-full bg-blue-100 dark:bg-blue-950/40">
@@ -593,11 +614,11 @@ export default function DashboardLayoutClient({
                   <AlertCircle size={28} />
                 </div>
                 <h2 className="mt-5 text-2xl font-black tracking-tight text-slate-950 dark:text-white">
-                  {isTeacherPendingApproval ? 'Verification Pending' : 'Approval Pending'}
+                  {isFacultyPendingApproval ? 'Verification Pending' : 'Approval Pending'}
                 </h2>
                 <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
-                  {isTeacherPendingApproval
-                    ? 'Your faculty account is still being reviewed by an administrator. You can check your profile, settings, notifications, and the repository while you wait. Full teacher tools will unlock automatically after approval.'
+                  {isFacultyPendingApproval
+                    ? 'Your faculty account is still being reviewed by an administrator. You can check your profile, settings, notifications, and the repository while you wait. Full faculty tools will unlock automatically after approval.'
                     : 'Your student account is still being reviewed by an administrator. You can explore the repository now, and the rest of the workspace will unlock automatically after approval.'}
                 </p>
                 <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -623,17 +644,15 @@ export default function DashboardLayoutClient({
       {showLogoutConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div
-            className={`bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-800 transition-all duration-200 ${
-              isLoggingOut ? 'scale-[0.985] opacity-95' : 'scale-100 opacity-100'
-            }`}
+            className={`bg-white dark:bg-gray-900 rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-800 transition-all duration-200 ${isLoggingOut ? 'scale-[0.985] opacity-95' : 'scale-100 opacity-100'
+              }`}
           >
             <div className="flex items-center justify-between mb-4">
               <div
-                className={`p-2 rounded-lg text-red-600 transition-all ${
-                  isLoggingOut
+                className={`p-2 rounded-lg text-red-600 transition-all ${isLoggingOut
                     ? 'bg-red-100 dark:bg-red-900/30 animate-pulse'
                     : 'bg-red-50 dark:bg-red-900/20'
-                }`}
+                  }`}
               >
                 {isLoggingOut ? <Loader2 size={24} className="animate-spin" /> : <LogOut size={24} />}
               </div>
@@ -642,11 +661,10 @@ export default function DashboardLayoutClient({
                   if (!isLoggingOut) setShowLogoutConfirm(false)
                 }}
                 disabled={isLoggingOut}
-                className={`rounded-full transition-colors ${
-                  isLoggingOut
+                className={`rounded-full transition-colors ${isLoggingOut
                     ? 'cursor-not-allowed text-gray-300 dark:text-gray-700'
                     : 'text-gray-400 hover:text-gray-600 dark:hover:bg-gray-800'
-                }`}
+                  }`}
               >
                 <X size={20} />
               </button>
@@ -663,20 +681,18 @@ export default function DashboardLayoutClient({
               <button
                 onClick={() => setShowLogoutConfirm(false)}
                 disabled={isLoggingOut}
-                className={`flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold transition-all ${
-                  isLoggingOut ? 'cursor-not-allowed opacity-50' : ''
-                }`}
+                className={`flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold transition-all ${isLoggingOut ? 'cursor-not-allowed opacity-50' : ''
+                  }`}
               >
                 Cancel
               </button>
               <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
-                className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all inline-flex items-center justify-center gap-2 ${
-                  isLoggingOut
+                className={`flex-1 px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition-all inline-flex items-center justify-center gap-2 ${isLoggingOut
                     ? 'bg-red-500 opacity-85 cursor-not-allowed'
                     : 'bg-red-600 hover:bg-red-700'
-                }`}
+                  }`}
               >
                 {isLoggingOut && <Loader2 size={16} className="animate-spin" />}
                 {isLoggingOut ? 'Logging out...' : 'Logout'}

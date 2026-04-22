@@ -16,6 +16,7 @@ import {
   notifyTeachersForResearchVersionUpload,
 } from '@/lib/research/workflow'
 import { redirect } from 'next/navigation'
+import { isFacultyRole } from '@/lib/users/access'
 
 type FormState = {
   error?: string
@@ -40,7 +41,7 @@ export async function updateResearch(editId: string, prevState: FormState | null
     .select('role')
     .eq('id', user.id)
     .single()
-  const isTeacher = profile?.role === 'mentor'
+  const isTeacher = isFacultyRole(profile?.role)
 
   // Fetch current record for security validation
   const { data: current } = await supabase
@@ -157,7 +158,7 @@ export async function updateResearch(editId: string, prevState: FormState | null
     if (needsPdf && !effectiveFileUrl) {
       return {
         error: isTeacher
-          ? 'Teacher submissions require a PDF manuscript.'
+          ? 'Faculty submissions require a PDF manuscript.'
           : 'Please upload a PDF manuscript for the selected submission format.',
       }
     }

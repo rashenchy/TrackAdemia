@@ -1,4 +1,4 @@
-import { MessageSquare } from 'lucide-react'
+import { MessageSquare, X } from 'lucide-react'
 import { getAnnotationSourceType } from '@/lib/research/annotation-versioning'
 import { getVersionLabel } from '@/lib/research/versioning'
 import { type FormEvent } from 'react'
@@ -33,6 +33,7 @@ type AnnotationSidebarProps = {
   onDeleteAnnotation: (annotationId: string) => void
   onReplyTextChange: (value: string) => void
   onSendReply: (event?: FormEvent) => void
+  onDismiss?: () => void
 }
 
 export function AnnotationSidebar({
@@ -57,9 +58,10 @@ export function AnnotationSidebar({
   onDeleteAnnotation,
   onReplyTextChange,
   onSendReply,
+  onDismiss,
 }: AnnotationSidebarProps) {
   return (
-    <div className="relative flex min-h-0 w-full flex-col overflow-hidden bg-white xl:w-[350px] xl:min-w-[350px]">
+    <div className="relative flex min-h-0 w-full flex-col overflow-hidden rounded-l-3xl border-l border-gray-200 bg-white xl:w-[380px] xl:min-w-[380px]">
       <div
         className="absolute inset-0 flex transition-transform duration-300 ease-in-out"
         style={{ transform: viewMode === 'list' ? 'translateX(0)' : 'translateX(-100%)' }}
@@ -71,9 +73,21 @@ export function AnnotationSidebar({
                 <MessageSquare size={18} className="text-blue-600" />
                 Feedback
               </h2>
-              <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-500">
-                {annotations.length} total
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-500">
+                  {annotations.length} total
+                </span>
+                {onDismiss ? (
+                  <button
+                    type="button"
+                    onClick={onDismiss}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:bg-gray-50"
+                    aria-label="Close annotations"
+                  >
+                    <X size={16} />
+                  </button>
+                ) : null}
+              </div>
             </div>
             <div className="grid grid-cols-3 gap-1 rounded-lg bg-gray-100 p-1">
               {(['all', 'unresolved', 'resolved'] as const).map((nextFilter) => (

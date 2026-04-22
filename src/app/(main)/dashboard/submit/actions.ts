@@ -11,6 +11,7 @@ import {
 import { getNextStudentVersion } from '@/lib/research/versioning'
 import { notifyTeachersForResearchSubmission } from '@/lib/research/workflow'
 import { redirect } from 'next/navigation'
+import { isFacultyRole } from '@/lib/users/access'
 
 type FormState = {
   error?: string
@@ -37,7 +38,7 @@ export async function submitResearch(prevState: FormState | null, formData: Form
     .eq('id', user.id)
     .single()
 
-  const isTeacher = profile?.role === 'mentor'
+  const isTeacher = isFacultyRole(profile?.role)
   const isIndependentResearch = formData.get('isIndependentResearch') === 'true'
 
   // Determine research status
@@ -132,7 +133,7 @@ export async function submitResearch(prevState: FormState | null, formData: Form
     if (needsPdf && !fileUrl) {
       return {
         error: isTeacher
-          ? 'Teacher submissions require a PDF manuscript.'
+          ? 'Faculty submissions require a PDF manuscript.'
           : 'Please upload a PDF manuscript for the selected submission format.',
       }
     }

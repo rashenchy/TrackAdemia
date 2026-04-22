@@ -775,9 +775,9 @@ export function ResearchSubmissionForm({
         {showsTextEditor && (
           <div className="space-y-5">
             <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50/60 p-4 dark:border-gray-700 dark:bg-gray-900/20">
-              <p className="text-sm font-semibold text-[var(--foreground)]">Structured Manuscript Editor</p>
+              <p className="text-sm font-semibold text-[var(--foreground)]">Flexible Manuscript Editor</p>
               <p className="mt-1 text-xs text-gray-500">
-                Your selected research type provides a starting structure, but every chapter and section remains editable.
+                Start in chapter mode by default, or switch to a single full-document editor when the manuscript is still empty.
               </p>
             </div>
             <ResearchDocumentStructureEditor

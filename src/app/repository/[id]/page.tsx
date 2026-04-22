@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ArrowLeft, BookOpen, Calendar, GraduationCap, Users, FileText, Hash, Eye, Download } from 'lucide-react'
 import { PublicDownloadButton } from '@/components/public/PublicDownloadButton'
 import { canTeacherEditPublishedResearch } from '@/lib/research/permissions'
+import { isFacultyRole } from '@/lib/users/access'
 
 export default async function PublicResearchPage({ params }: { params: Promise<{ id: string }> }) {
 
@@ -89,7 +90,7 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
       .eq('is_active', true)
       .maybeSingle()
 
-    if (profile?.role === 'mentor') {
+    if (isFacultyRole(profile?.role)) {
       canEditPublishedResearch = await canTeacherEditPublishedResearch(
         supabase,
         user.id,

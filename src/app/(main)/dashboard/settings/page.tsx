@@ -13,6 +13,7 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { isElevatedFacultyRole } from '@/lib/users/access'
 import {
   ADMIN_VIEW_COOKIE,
   getAdminViewMeta,
@@ -44,13 +45,15 @@ export default async function SettingsPage() {
   const roleLabel =
     isAdminPreview
       ? previewMeta?.role === 'mentor'
-        ? 'Teacher / Adviser'
+        ? 'Faculty / Adviser'
         : 'Student'
       : profile?.role === 'mentor'
-      ? 'Teacher / Adviser'
+      ? 'Faculty / Adviser'
       : profile?.role === 'admin'
-        ? 'Administrator'
+        ? 'Faculty Administrator'
         : 'Student'
+
+  const canManageFacultySettings = isElevatedFacultyRole(profile?.role)
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -118,9 +121,81 @@ export default async function SettingsPage() {
               title="Go to submissions"
               description="Start or continue your research workflow."
             />
+            {(profile?.role === 'mentor' || profile?.role === 'admin') && (
+              <ShortcutLink
+                href="/dashboard/student-verification"
+                icon={<ShieldCheck size={18} className="text-blue-600" />}
+                title="Student verification"
+                description="Review pending student accounts from the main faculty workflow."
+              />
+            )}
           </div>
         </div>
       </section>
+
+      {canManageFacultySettings && (
+        <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <p className="text-sm font-bold uppercase tracking-[0.24em] text-blue-700">
+            Faculty Settings
+          </p>
+          <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-950">
+            Elevated administration tools
+          </h2>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
+            These tools were moved into Settings so faculty shares one workspace while elevated accounts still manage system-wide tasks.
+          </p>
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <ShortcutLink
+              href="/dashboard/settings/faculty-approval"
+              icon={<ShieldCheck size={18} className="text-emerald-600" />}
+              title="Faculty approval"
+              description="Approve or reject pending faculty accounts."
+            />
+            <ShortcutLink
+              href="/dashboard/settings/users"
+              icon={<IdCard size={18} className="text-violet-600" />}
+              title="User management"
+              description="Review user accounts, roles, and statuses."
+            />
+            <ShortcutLink
+              href="/dashboard/settings/master-records"
+              icon={<BookOpen size={18} className="text-amber-600" />}
+              title="Master records"
+              description="Maintain shared institutional records and reference data."
+            />
+            <ShortcutLink
+              href="/dashboard/settings/reports"
+              icon={<FolderKanban size={18} className="text-blue-600" />}
+              title="Reports"
+              description="Open reporting and oversight views for the system."
+            />
+            <ShortcutLink
+              href="/dashboard/settings/announcements"
+              icon={<Mail size={18} className="text-emerald-600" />}
+              title="Announcements"
+              description="Publish announcements visible throughout the workspace."
+            />
+            <ShortcutLink
+              href="/dashboard/settings/api-monitoring"
+              icon={<LifeBuoy size={18} className="text-rose-600" />}
+              title="API monitoring"
+              description="Review usage and health data for connected services."
+            />
+            <ShortcutLink
+              href="/dashboard/settings/view-as-user"
+              icon={<CircleHelp size={18} className="text-sky-600" />}
+              title="View as user"
+              description="Preview the experience from student and faculty perspectives."
+            />
+            <ShortcutLink
+              href="/dashboard/settings/analytics"
+              icon={<BookOpen size={18} className="text-indigo-600" />}
+              title="Analytics"
+              description="Inspect the system-wide analytics dashboard."
+            />
+          </div>
+        </section>
+      )}
 
       <section className="grid gap-6 md:grid-cols-2">
         <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">

@@ -1,6 +1,26 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { getProfileAccessState } from '@/lib/users/access'
+import {
+  getProfileAccessState,
+  isElevatedFacultyRole,
+  isFacultyRole,
+} from '@/lib/users/access'
+
+function mapLegacyAdminPath(pathname: string) {
+  if (!pathname.startsWith('/admin')) {
+    return pathname
+  }
+
+  if (pathname === '/admin' || pathname === '/admin/') {
+    return '/dashboard/settings'
+  }
+
+  if (pathname.startsWith('/admin/student-verification')) {
+    return pathname.replace('/admin/student-verification', '/dashboard/student-verification')
+  }
+
+  return pathname.replace('/admin', '/dashboard/settings')
+}
 
 function isMissingRefreshTokenError(error: unknown) {
   return Boolean(
@@ -48,7 +68,7 @@ export async function updateSession(request: NextRequest) {
         setAll(cookiesToSet) {
 
           // Update cookies on the request object
-          cookiesToSet.forEach(({ name, value, options }) =>
+          cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           )
 
@@ -113,7 +133,7 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  // Protect admin routes - check if user is authenticated and has admin role
+  // Legacy admin routes now live inside the shared faculty dashboard experience.
   if (request.nextUrl.pathname.startsWith('/admin')) {
     if (!user) {
       const url = request.nextUrl.clone()
@@ -121,14 +141,26 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(url)
     }
 
-    // Check if user has admin role
     const profile = await getProfileAccessState(supabase, user.id)
 
-    if (!profile || profile.role !== 'admin') {
+    if (!profile || !isFacultyRole(profile.role)) {
       const url = request.nextUrl.clone()
       url.pathname = '/dashboard'
       return NextResponse.redirect(url)
     }
+
+    if (
+      request.nextUrl.pathname !== '/admin/student-verification' &&
+      !isElevatedFacultyRole(profile.role)
+    ) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/dashboard'
+      return NextResponse.redirect(url)
+    }
+
+    const url = request.nextUrl.clone()
+    url.pathname = mapLegacyAdminPath(request.nextUrl.pathname)
+    return NextResponse.redirect(url)
   }
 
   // Allow the request to continue if authentication is valid

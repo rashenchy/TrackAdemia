@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { BellRing } from 'lucide-react'
 import { SubmissionsTable } from '@/components/dashboard/home/SubmissionsTable'
 import { getTeacherSubmissionData } from '@/lib/users/teacher-submissions'
+import { isFacultyRole } from '@/lib/users/access'
 
 export default async function StudentSubmissionsPage() {
   const supabase = await createClient()
@@ -20,7 +21,7 @@ export default async function StudentSubmissionsPage() {
     .eq('id', user.id)
     .single()
 
-  if (profile?.role !== 'mentor') {
+  if (!isFacultyRole(profile?.role)) {
     redirect('/dashboard')
   }
 
@@ -32,7 +33,7 @@ export default async function StudentSubmissionsPage() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.24em] text-slate-500 dark:text-slate-400">
-              Teacher Workspace
+              Faculty Workspace
             </p>
             <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950 dark:text-white">
               Student Submissions

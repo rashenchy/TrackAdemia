@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Save,
   Send,
+  PanelRightOpen,
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePopup } from '@/components/ui/PopupProvider'
@@ -57,6 +58,7 @@ export default function AnnotatePage({
   const selectedVersionNumber = versionParam ? Number(versionParam) : null
 
   const [filter, setFilter] = useState<'all' | 'unresolved' | 'resolved'>('unresolved')
+  const [annotationPanelOpen, setAnnotationPanelOpen] = useState(true)
 
   const {
     research,
@@ -208,7 +210,6 @@ export default function AnnotatePage({
     activeFormat,
     annotations,
     canReview,
-    canEditTextWorkspace,
     selectedVersionContent,
     workspaceContent,
     selectedAnnotation,
@@ -237,9 +238,14 @@ export default function AnnotatePage({
         : unresolvedAnnotations[0]
 
     if (nextAnnotation) {
+      setAnnotationPanelOpen(true)
       void openThread(nextAnnotation)
     }
   }
+
+  const viewportWidth = typeof window === 'undefined' ? 1280 : window.innerWidth
+  const viewportScrollX = typeof window === 'undefined' ? 0 : window.scrollX
+  const viewportScrollY = typeof window === 'undefined' ? 0 : window.scrollY
 
   const highlightPluginInstance = highlightPlugin({
     renderHighlightTarget: (renderProps: RenderHighlightTargetProps) =>
@@ -438,6 +444,14 @@ export default function AnnotatePage({
               <Eye size={16} />
               Details
             </Link>
+            <button
+              type="button"
+              onClick={() => setAnnotationPanelOpen((current) => !current)}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+            >
+              <MessageSquare size={16} />
+              {annotationPanelOpen ? 'Hide Annotations' : 'View Annotations'}
+            </button>
           </div>
         </div>
       </div>
@@ -498,10 +512,9 @@ export default function AnnotatePage({
         <div className="min-h-0 min-w-0 flex-1 border-b border-gray-200 bg-gray-50 xl:border-b-0 xl:border-r">
         <div ref={workspaceScrollRef} className="h-full overflow-y-auto p-5 xl:p-6">
           <div
-            className={`mx-auto flex h-full min-h-full max-w-5xl flex-col space-y-4 ${
+            className={`flex h-full min-h-full w-full flex-col space-y-4 ${
               canReview &&
               activeFormat === 'text' &&
-              canEditTextWorkspace &&
               activeTextSelection &&
               !showCommentBox
                 ? 'pb-16'
@@ -524,6 +537,30 @@ export default function AnnotatePage({
                       : `You are viewing Version ${effectiveVersionLabel}. Switch back to the latest version to keep editing.`}
                   </div>
                 ) : null}
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
+                    Workspace Header
+                  </p>
+                  <p className="mt-1 text-sm text-gray-600">
+                    The editor uses a full-width writing surface while annotations stay one click away.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAnnotationPanelOpen(true)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                  >
+                    <PanelRightOpen size={16} />
+                    View Annotations
+                  </button>
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-600">
+                    {annotations.length} note{annotations.length === 1 ? '' : 's'}
+                  </span>
+                </div>
               </div>
 
               {activeFormat === 'text' && canEditTextWorkspace ? (
@@ -602,7 +639,7 @@ export default function AnnotatePage({
                 </div>
               )
             ) : (
-              <div className="flex-1 min-h-[72vh] xl:min-h-0 [&_.trackademia-editor]:min-h-[360px]">
+              <div className="flex-1 min-h-[72vh] xl:min-h-0 [&_.trackademia-editor]:min-h-[480px]">
                 <ResearchDocumentStructureEditor
                   value={canEditTextWorkspace ? workspaceContent : selectedVersionContent}
                   onChange={canEditTextWorkspace ? setWorkspaceContent : undefined}
@@ -611,63 +648,74 @@ export default function AnnotatePage({
                   onSectionRef={handleSectionRef}
                   sectionFeedback={textFeedbackBySection}
                   activeFeedbackId={activeTextAnnotationId}
-                  onFeedbackSelect={(annotationId) => {
-                    const annotation = annotations.find((item) => item.id === annotationId)
-                    if (annotation) {
-                      void openThread(annotation)
-                    }
-                  }}
+                      onFeedbackSelect={(annotationId) => {
+                        const annotation = annotations.find((item) => item.id === annotationId)
+                        if (annotation) {
+                          setAnnotationPanelOpen(true)
+                          void openThread(annotation)
+                        }
+                      }}
                 />
               </div>
             )}
 
-            {canReview &&
-            activeFormat === 'text' &&
-            canEditTextWorkspace &&
-            activeTextSelection &&
-            !showCommentBox ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setActivePdfHighlight(null)
-                  setShowCommentBox(true)
-                }}
-                className="sticky bottom-4 z-20 ml-auto rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-700"
-              >
-                Add feedback
-              </button>
-            ) : null}
           </div>
         </div>
         </div>
 
-        <AnnotationSidebar
-          viewMode={viewMode}
-          filter={filter}
-          annotations={annotations}
-          unresolvedCount={unresolvedAnnotations.length}
-          resolvedCount={resolvedAnnotations.length}
-          displayedAnnotations={displayedAnnotations}
-          selectedAnnotation={selectedAnnotation}
-          canParticipate={canParticipate}
-          canReview={canReview}
-          deletingAnnotationId={deletingAnnotationId}
-          isLoadingReplies={isLoadingReplies}
-          threadReplies={threadReplies}
-          replyText={replyText}
-          isSubmittingReply={isSubmittingReply}
-          onFilterChange={setFilter}
-          onOpenThread={(annotation) => void openThread(annotation)}
-          onCloseThread={closeThread}
-          onToggleResolve={(annotationId, currentStatus) =>
-            void handleToggleResolve(annotationId, currentStatus)
-          }
-          onDeleteAnnotation={(annotationId) => void handleDeleteAnnotation(annotationId)}
-          onReplyTextChange={setReplyText}
-          onSendReply={handleSendReply}
-        />
+        {annotationPanelOpen ? (
+          <AnnotationSidebar
+            viewMode={viewMode}
+            filter={filter}
+            annotations={annotations}
+            unresolvedCount={unresolvedAnnotations.length}
+            resolvedCount={resolvedAnnotations.length}
+            displayedAnnotations={displayedAnnotations}
+            selectedAnnotation={selectedAnnotation}
+            canParticipate={canParticipate}
+            canReview={canReview}
+            deletingAnnotationId={deletingAnnotationId}
+            isLoadingReplies={isLoadingReplies}
+            threadReplies={threadReplies}
+            replyText={replyText}
+            isSubmittingReply={isSubmittingReply}
+            onFilterChange={setFilter}
+            onOpenThread={(annotation) => {
+              setAnnotationPanelOpen(true)
+              void openThread(annotation)
+            }}
+            onCloseThread={closeThread}
+            onToggleResolve={(annotationId, currentStatus) =>
+              void handleToggleResolve(annotationId, currentStatus)
+            }
+            onDeleteAnnotation={(annotationId) => void handleDeleteAnnotation(annotationId)}
+            onReplyTextChange={setReplyText}
+            onSendReply={handleSendReply}
+            onDismiss={() => setAnnotationPanelOpen(false)}
+          />
+        ) : null}
       </div>
       </div>
+
+      {canReview && activeFormat === 'text' && activeTextSelection && !showCommentBox ? (
+        <button
+          type="button"
+          onClick={() => {
+            setActivePdfHighlight(null)
+            setShowCommentBox(true)
+          }}
+          className="fixed z-20 -translate-x-1/2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-700"
+          style={{
+            left: `${Math.min(
+              Math.max(activeTextSelection.x - viewportScrollX, 88),
+              viewportWidth - 88
+            )}px`,
+            top: `${Math.max(activeTextSelection.y - viewportScrollY + 10, 96)}px`,
+          }}
+        >
+          Add feedback
+        </button>
+      ) : null}
 
       <CommentComposer
         open={showCommentBox}

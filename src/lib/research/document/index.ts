@@ -28,6 +28,7 @@ export type ResearchSubmissionFormat =
   (typeof RESEARCH_SUBMISSION_FORMAT_OPTIONS)[number]['value']
 
 export type ResearchDocumentSectionKind = 'structured' | 'rich-text'
+export type ResearchDocumentEditorMode = 'chapters' | 'single'
 
 export type ResearchDocumentSection = {
   id: string
@@ -37,6 +38,7 @@ export type ResearchDocumentSection = {
 }
 
 export type ResearchDocumentContent = {
+  editorMode?: ResearchDocumentEditorMode
   sections: ResearchDocumentSection[]
 }
 
@@ -157,6 +159,7 @@ export function isTextAnnotationPosition(
 
 export function createEmptyResearchDocumentContent(): ResearchDocumentContent {
   return {
+    editorMode: 'chapters',
     sections: [],
   }
 }
@@ -204,16 +207,22 @@ export function createDefaultResearchDocumentContent(researchType: string | null
         : FALLBACK_TEMPLATE
 
   return {
+    editorMode: 'chapters',
     sections: template.map((section, index) =>
       createResearchDocumentSection(
         section.title,
-        section.kind === 'structured'
-          ? createStructuredSectionContent(section.subsectionTitles ?? ['Section 1'])
-          : '<p></p>',
-        section.kind,
+        '<p></p>',
+        'rich-text',
         `template-${index + 1}`
       )
     ),
+  }
+}
+
+export function createSingleDocumentContent() {
+  return {
+    editorMode: 'single' as const,
+    sections: [createResearchDocumentSection('Document', '<p></p>', 'rich-text', 'document-body')],
   }
 }
 
@@ -242,6 +251,10 @@ export function normalizeResearchDocumentContent(
 
   if (Array.isArray(parsed?.sections)) {
     return {
+      editorMode: getNormalizedResearchDocumentEditorMode(
+        parsed.editorMode,
+        parsed.sections as unknown[]
+      ),
       sections: parsed.sections
         .map((section, index) => normalizeDocumentSection(section, index))
         .filter((section): section is ResearchDocumentSection => Boolean(section)),
@@ -250,7 +263,7 @@ export function normalizeResearchDocumentContent(
 
   const legacySections = normalizeLegacyResearchDocumentContent(parsed)
   if (legacySections.length > 0) {
-    return { sections: legacySections }
+    return { editorMode: 'chapters', sections: legacySections }
   }
 
   if (researchType) {
@@ -292,6 +305,24 @@ export function hasResearchTextContent(
   return getResearchDocumentSections(content).some(
     (section) => getPlainTextFromRichText(section.content).trim().length > 0
   )
+}
+
+export function getResearchDocumentEditorMode(
+  content: ResearchDocumentContent
+): ResearchDocumentEditorMode {
+  return getNormalizedResearchDocumentEditorMode(content.editorMode, content.sections)
+}
+
+export function hasLegacyStructuredSections(content: ResearchDocumentContent) {
+  return content.sections.some((section) => section.kind === 'structured')
+}
+
+export function canSwitchResearchDocumentEditorMode(content: ResearchDocumentContent) {
+  if (hasLegacyStructuredSections(content)) {
+    return false
+  }
+
+  return !hasMeaningfulResearchDocumentBodyContent(content)
 }
 
 export function getSubmissionFormatLabel(format: string | null | undefined) {
@@ -449,6 +480,39 @@ function normalizeDocumentSection(section: unknown, index: number) {
     content: kind === 'structured' ? content || '<p></p>' : normalizeRichTextEditorValue(content),
     kind,
   } satisfies ResearchDocumentSection
+}
+
+function getNormalizedResearchDocumentEditorMode(
+  mode: unknown,
+  sections: unknown[]
+): ResearchDocumentEditorMode {
+  if (mode === 'single' || mode === 'chapters') {
+    return mode
+  }
+
+  if (
+    sections.length === 1 &&
+    typeof (sections[0] as { title?: unknown } | undefined)?.title === 'string' &&
+    ((sections[0] as { title?: string }).title === 'Document' ||
+      (sections[0] as { id?: string }).id === 'document-body')
+  ) {
+    return 'single'
+  }
+
+  return 'chapters'
+}
+
+function hasMeaningfulResearchDocumentBodyContent(content: ResearchDocumentContent) {
+  return content.sections.some((section) => {
+    if (section.kind === 'structured') {
+      return parseResearchChapterSections(section.content).some(
+        (subsection) => getPlainTextFromRichText(subsection.content).trim().length > 0
+      )
+    }
+
+    const plainText = getPlainTextFromRichText(section.content).trim()
+    return plainText.length > 0
+  })
 }
 
 function normalizeLegacyResearchDocumentContent(

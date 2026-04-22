@@ -3,6 +3,7 @@ import { ResearchSubmissionForm } from '@/components/dashboard/research/Research
 import { BackButton } from '@/components/navigation/BackButton'
 import { canTeacherEditPublishedResearch } from '@/lib/research/permissions'
 import { redirect } from 'next/navigation'
+import { isFacultyRole } from '@/lib/users/access'
 
 type DraftResearch = {
   id: string
@@ -50,7 +51,7 @@ export default async function EditResearchPage({
     .eq('is_active', true)
     .single()
 
-  const isTeacher = currentProfile?.role === 'mentor'
+  const isTeacher = isFacultyRole(currentProfile?.role)
 
   const { data: researchData } = await supabase
     .from('research')

@@ -17,13 +17,13 @@ const previewOptions: Array<{
 }> = [
   {
     mode: 'mentor',
-    title: 'Teacher / Adviser View',
+    title: 'Faculty / Adviser View',
     description:
-      'Open the dashboard the way a verified faculty account sees it, including teacher navigation and section-focused tools.',
+      'Open the dashboard the way a verified faculty account sees it, including faculty navigation and section-focused tools.',
     icon: GraduationCap,
     accent:
       'from-emerald-50 to-teal-100 border-emerald-200 text-emerald-700 dark:from-emerald-900/20 dark:to-teal-900/10 dark:border-emerald-900/40 dark:text-emerald-300',
-    note: 'Best for checking teacher-only navigation and submission review flow.',
+    note: 'Best for checking faculty-only navigation and submission review flow.',
   },
   {
     mode: 'student',
@@ -65,7 +65,7 @@ export default function ViewAsUserClient({
             <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
               Pick a role first, then you&apos;ll jump directly into the main dashboard shell for
               that user state. A return button will stay visible in the top bar so you can come
-              back to the admin area anytime.
+              back to faculty settings anytime.
             </p>
           </div>
         </div>

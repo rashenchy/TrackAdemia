@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import SectionsPageUI from './SectionsPageUI'
 import StudentSectionsUI from '@/components/dashboard/sections/StudentSectionsUI'
+import { isFacultyRole } from '@/lib/users/access'
 
 export default async function SectionsPage({
   searchParams
@@ -24,7 +25,7 @@ export default async function SectionsPage({
   // ======================
   // TEACHER VIEW
   // ======================
-  if (profile?.role === 'mentor') {
+  if (isFacultyRole(profile?.role)) {
 
     // Fetch teacher's sections
     const { data: sections } = await supabase

@@ -68,7 +68,7 @@ export default function FacultyApprovalClient({
         variant: 'success',
       })
       setFaculty((currentFaculty) => currentFaculty.filter((f) => f.id !== userId))
-      window.dispatchEvent(new CustomEvent('admin-pending-approvals-changed'))
+      window.dispatchEvent(new CustomEvent('faculty-pending-approvals-changed'))
       router.refresh()
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {
@@ -108,7 +108,7 @@ export default function FacultyApprovalClient({
         variant: 'success',
       })
       setFaculty((currentFaculty) => currentFaculty.filter((f) => f.id !== userId))
-      window.dispatchEvent(new CustomEvent('admin-pending-approvals-changed'))
+      window.dispatchEvent(new CustomEvent('faculty-pending-approvals-changed'))
       router.refresh()
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {

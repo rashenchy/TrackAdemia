@@ -1,9 +1,19 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
+export type AppProfileRole = 'student' | 'mentor' | 'admin'
+
 type ProfileAccessState = {
   id: string
-  role: 'student' | 'mentor' | 'admin'
+  role: AppProfileRole
   is_active: boolean
+}
+
+export function isFacultyRole(role: AppProfileRole | null | undefined) {
+  return role === 'mentor' || role === 'admin'
+}
+
+export function isElevatedFacultyRole(role: AppProfileRole | null | undefined) {
+  return role === 'admin'
 }
 
 export async function getProfileAccessState(

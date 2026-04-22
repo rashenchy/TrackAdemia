@@ -51,12 +51,12 @@ export default async function ProfilePage() {
   const roleLabel =
     isAdminPreview
       ? previewMeta?.role === 'mentor'
-        ? 'Teacher / Adviser'
+        ? 'Faculty / Adviser'
         : 'Student'
       : profile?.role === 'mentor'
-      ? 'Teacher / Adviser'
+      ? 'Faculty / Adviser'
       : profile?.role === 'admin'
-        ? 'Administrator'
+        ? 'Faculty Administrator'
         : 'Student'
 
   const statusLabel =

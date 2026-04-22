@@ -19,6 +19,7 @@ import PaginationLinks from '@/components/ui/PaginationLinks'
 import { appendFromParam } from '@/lib/navigation'
 import { TasksRealtimeRefresh } from '@/components/dashboard/tasks/TasksRealtimeRefresh'
 import { TaskResolveButton } from '@/components/dashboard/tasks/TaskResolveButton'
+import { isFacultyRole } from '@/lib/users/access'
 
 type TaskSource = 'teacher' | 'personal' | 'annotation'
 
@@ -90,7 +91,7 @@ const { data: profile } = await supabase
 
 
 
-    const isTeacher = profile?.role === 'mentor'
+    const isTeacher = isFacultyRole(profile?.role)
     // ==========================================
     // TEACHER VIEW
     // ==========================================

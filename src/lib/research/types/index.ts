@@ -1,9 +1,7 @@
 export const RESEARCH_TYPE_OPTIONS = [
   { value: 'capstone', label: 'Capstone Project' },
   { value: 'case-study', label: 'Case Study' },
-  { value: 'dissertation', label: 'Dissertation' },
   { value: 'research', label: 'General Research' },
-  { value: 'thesis', label: 'Thesis' },
 ] as const
 
 export function getResearchTypeLabel(typeValue: string) {

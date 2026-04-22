@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { ResearchSubmissionForm } from '@/components/dashboard/research/ResearchSubmissionForm'
 import { redirect } from 'next/navigation'
+import { isFacultyRole } from '@/lib/users/access'
 
 type DraftResearch = {
   id: string
@@ -47,7 +48,7 @@ export default async function SubmitResearchPage() {
     .eq('is_active', true)
     .single()
 
-  const isTeacher = currentProfile?.role === 'mentor'
+  const isTeacher = isFacultyRole(currentProfile?.role)
 
   const sectionIds = myMemberships?.map(m => m.section_id) || []
 
@@ -212,7 +213,7 @@ export default async function SubmitResearchPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold tracking-tight">Submit Research</h1>
         <p className="text-gray-500 mt-1">
-          Provide your capstone or thesis details to start tracking.
+          Provide your research details to start tracking.
         </p>
       </div>
 

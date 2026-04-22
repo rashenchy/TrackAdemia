@@ -19,6 +19,7 @@ import {
   type ResearchSubmissionFormat,
   type VersionSnapshot,
 } from '../types'
+import { isFacultyRole } from '@/lib/users/access'
 
 type ClientLike = ReturnType<typeof createClient>
 
@@ -82,7 +83,7 @@ export function useAnnotateResearchData({
       setResearch(researchData)
       setResearchStatus(researchData.status ?? 'Pending Review')
       setCanTeacherEditPublished(
-        profile?.role === 'mentor' && researchData.status === 'Published'
+        isFacultyRole(profile?.role) && researchData.status === 'Published'
           ? await canTeacherEditPublishedResearch(supabase, user.id, researchData)
           : false
       )

@@ -1,12 +1,14 @@
 'use client'
 
-import { CheckCircle2, MessageSquare, Plus, Trash2, Library } from 'lucide-react'
+import { CheckCircle2, MessageSquare, Plus, Trash2, Library, LayoutTemplate, ScrollText } from 'lucide-react'
 import { ResearchChapterSectionsEditor } from '@/components/dashboard/research/ResearchChapterSectionsEditor'
 import { ResearchRichTextEditor } from '@/components/dashboard/research/ResearchRichTextEditor'
 import {
+  canSwitchResearchDocumentEditorMode,
   createBibliographySection,
+  createSingleDocumentContent,
   createResearchDocumentSection,
-  createStructuredSectionContent,
+  getResearchDocumentEditorMode,
   type ResearchDocumentContent,
   type ResearchDocumentSection,
 } from '@/lib/research/document'
@@ -42,10 +44,12 @@ export function ResearchDocumentStructureEditor({
   activeFeedbackId?: string | null
   onFeedbackSelect?: (annotationId: string) => void
 }) {
+  const editorMode = getResearchDocumentEditorMode(value)
+  const canSwitchMode = canSwitchResearchDocumentEditorMode(value)
   const documentSections = value.sections
 
   const commitSections = (nextSections: ResearchDocumentSection[]) => {
-    onChange?.({ sections: nextSections })
+    onChange?.({ ...value, editorMode, sections: nextSections })
   }
 
   const addChapter = () => {
@@ -53,10 +57,8 @@ export function ResearchDocumentStructureEditor({
       ...documentSections,
       createResearchDocumentSection(
         `CHAPTER ${documentSections.length + 1}`,
-        createStructuredSectionContent([
-          'Section 1',
-        ]),
-        'structured'
+        '<p></p>',
+        'rich-text'
       ),
     ])
   }
@@ -75,6 +77,24 @@ export function ResearchDocumentStructureEditor({
         section.id === sectionId ? { ...section, ...updates } : section
       )
     )
+  }
+
+  const switchEditorMode = (nextMode: 'chapters' | 'single') => {
+    if (!onChange || nextMode === editorMode || !canSwitchMode) {
+      return
+    }
+
+    if (nextMode === 'single') {
+      onChange(createSingleDocumentContent())
+      return
+    }
+
+    onChange({
+      editorMode: 'chapters',
+      sections: [
+        createResearchDocumentSection('CHAPTER 1', '<p></p>', 'rich-text', 'template-1'),
+      ],
+    })
   }
 
   const removeSection = (sectionId: string) => {
@@ -131,8 +151,8 @@ export function ResearchDocumentStructureEditor({
   if (!editable) {
     return (
       <div className="space-y-4">
-        {documentSections.length > 0 ? (
-          documentSections.map((section) => (
+      {documentSections.length > 0 ? (
+        documentSections.map((section) => (
             <section
               key={section.id}
               ref={(node) => onSectionRef?.(section.id, node)}
@@ -191,24 +211,54 @@ export function ResearchDocumentStructureEditor({
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-gray-300 bg-gray-50/60 px-4 py-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
-            Dynamic Manuscript Structure
+            Manuscript Workspace
           </p>
           <p className="mt-1 text-sm text-gray-600">
-            Start with a template, then add, rename, or remove sections as needed for your paper.
+            Choose how you want to write, then manage the manuscript at full chapter scale.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center rounded-xl border border-gray-200 bg-white p-1">
+            <button
+              type="button"
+              onClick={() => switchEditorMode('single')}
+              disabled={!canSwitchMode && editorMode !== 'single'}
+              className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                editorMode === 'single'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-50'
+              } disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              <ScrollText size={14} />
+              Single Document
+            </button>
+            <button
+              type="button"
+              onClick={() => switchEditorMode('chapters')}
+              disabled={!canSwitchMode && editorMode !== 'chapters'}
+              className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                editorMode === 'chapters'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-50'
+              } disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              <LayoutTemplate size={14} />
+              By Chapter
+            </button>
+          </div>
           <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-600">
-            {buildSectionSummary(documentSections.length)}
+            {editorMode === 'single' ? '1 document' : buildSectionSummary(documentSections.length)}
           </span>
-          <button
-            type="button"
-            onClick={addChapter}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
-          >
-            <Plus size={16} />
-            Add Chapter
-          </button>
+          {editorMode === 'chapters' ? (
+            <button
+              type="button"
+              onClick={addChapter}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+            >
+              <Plus size={16} />
+              Add Chapter
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={addBibliography}
@@ -221,8 +271,54 @@ export function ResearchDocumentStructureEditor({
         </div>
       </div>
 
-      <div className="space-y-5">
-        {documentSections.map((section, index) => (
+      {!canSwitchMode && editable ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+          Existing subsection-based content is preserved as-is. The new editor mode switch only applies to new or empty manuscript content.
+        </div>
+      ) : null}
+
+      {editorMode === 'single' ? (
+        <section
+          ref={(node) => onSectionRef?.(documentSections[0]?.id || 'document-body', node)}
+          className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm"
+        >
+          <span data-document-section-title="true" className="sr-only">
+            Document
+          </span>
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
+                Full Document Editor
+              </label>
+              <p className="text-sm text-gray-600">
+                Write the entire manuscript in one continuous WYSIWYG editor.
+              </p>
+            </div>
+          </div>
+
+          <ResearchRichTextEditor
+            value={documentSections[0]?.content || '<p></p>'}
+            onChange={(nextValue) =>
+              onChange?.({
+                editorMode: 'single',
+                sections: [
+                  createResearchDocumentSection(
+                    'Document',
+                    nextValue,
+                    'rich-text',
+                    documentSections[0]?.id || 'document-body'
+                  ),
+                ],
+              })
+            }
+            placeholder="Write your manuscript here..."
+            editable={editable}
+            onMouseUp={() => onSectionMouseUp?.(documentSections[0]?.id || 'document-body')}
+          />
+        </section>
+      ) : (
+        <div className="space-y-5">
+          {documentSections.map((section, index) => (
           <section
             key={section.id}
             ref={(node) => onSectionRef?.(section.id, node)}
@@ -279,8 +375,9 @@ export function ResearchDocumentStructureEditor({
               />
             )}
           </section>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

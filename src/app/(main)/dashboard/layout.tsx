@@ -34,12 +34,6 @@ export default async function DashboardLayout({
   const previewCookie = cookieStore.get(ADMIN_VIEW_COOKIE)?.value
   const adminPreviewMode = isAdminViewMode(previewCookie) ? previewCookie : null
 
-  if (profile.role === 'admin') {
-    if (!adminPreviewMode) {
-      redirect('/admin')
-    }
-  }
-
   const previewMeta = adminPreviewMode ? getAdminViewMeta(adminPreviewMode) : null
 
   return (

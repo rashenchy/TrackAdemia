@@ -3,7 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createNotification } from '@/lib/notifications/service'
-import { getProfileAccessState } from '@/lib/users/access'
+import { getProfileAccessState, isFacultyRole } from '@/lib/users/access'
 
 interface Student {
   id: string
@@ -74,9 +74,9 @@ export async function verifyStudent(userId: string): Promise<{ success: boolean;
       return { success: false, error: 'Not authenticated' }
     }
 
-    const adminProfile = await getProfileAccessState(supabase, currentUser.id)
+    const facultyProfile = await getProfileAccessState(supabase, currentUser.id)
 
-    if (!adminProfile?.is_active || adminProfile.role !== 'admin') {
+    if (!facultyProfile?.is_active || !isFacultyRole(facultyProfile.role)) {
       return { success: false, error: 'Insufficient permissions' }
     }
 
@@ -119,9 +119,9 @@ export async function rejectStudent(userId: string): Promise<{ success: boolean;
       return { success: false, error: 'Not authenticated' }
     }
 
-    const adminProfile = await getProfileAccessState(supabase, currentUser.id)
+    const facultyProfile = await getProfileAccessState(supabase, currentUser.id)
 
-    if (!adminProfile?.is_active || adminProfile.role !== 'admin') {
+    if (!facultyProfile?.is_active || !isFacultyRole(facultyProfile.role)) {
       return { success: false, error: 'Insufficient permissions' }
     }
 

@@ -14,6 +14,7 @@ import RotatingQuote from '@/components/dashboard/home/RotatingQuote'
 import HomeSectionRemovalAlerts from '@/components/dashboard/home/HomeSectionRemovalAlerts'
 import { getActiveAnnouncements } from '@/app/(admin)/admin/announcements/actions'
 import { getTeacherSubmissionData, type TeacherSubmissionRecord } from '@/lib/users/teacher-submissions'
+import { isFacultyRole } from '@/lib/users/access'
 import {
   ADMIN_VIEW_COOKIE,
   getAdminViewMeta,
@@ -64,12 +65,6 @@ export default async function DashboardPage({
   const previewMeta = adminPreviewMode ? getAdminViewMeta(adminPreviewMode) : null
   const isAdminPreview = profile?.role === 'admin' && Boolean(previewMeta)
 
-  if (profile?.role === 'admin') {
-    if (!isAdminPreview) {
-      redirect('/admin')
-    }
-  }
-
   const activeAnnouncements = await getActiveAnnouncements()
 
   let displaySubmissions: DashboardSubmission[] = []
@@ -84,7 +79,9 @@ export default async function DashboardPage({
     notification_type: string
   }> = []
 
-  const isTeacher = isAdminPreview ? previewMeta?.role === 'mentor' : profile?.role === 'mentor'
+  const isTeacher = isAdminPreview
+    ? previewMeta?.role === 'mentor'
+    : isFacultyRole(profile?.role)
 
   if (isAdminPreview) {
     return (
@@ -99,12 +96,12 @@ export default async function DashboardPage({
           <p className="mt-3 max-w-3xl text-sm leading-7 opacity-90">
             This dashboard is being rendered as a{' '}
             {previewMeta?.role === 'mentor'
-              ? 'teacher / adviser'
+              ? 'faculty / adviser'
               : previewMeta?.isVerified
                 ? 'verified student'
                 : 'student awaiting approval'}{' '}
             so you can inspect navigation, access state, and the overall user-facing shell before
-            returning to admin tools.
+            returning to faculty settings.
           </p>
         </div>
 
