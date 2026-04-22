@@ -42,6 +42,10 @@ export async function getPublicSignedUrl(
     data: { user },
   } = await supabase.auth.getUser()
 
+  if (!user) {
+    return { error: 'Please log in or create an account to access the full research file.' }
+  }
+
   // Track download events if this request is for a download
   if (isDownload && researchId) {
 

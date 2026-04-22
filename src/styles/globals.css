@@ -32,6 +32,10 @@ body {
   transition: background 0.3s ease;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 @keyframes float {
   0%,
   100% {
@@ -60,6 +64,31 @@ body {
   100% {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes pulse_grid {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 .sidebar-scrollbar {

@@ -189,7 +189,7 @@ export default function StudentVerificationClient({
                           className="inline-flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
                         >
                           {processing === student.id ? <Loader2 size={16} className="animate-spin" /> : <XCircle size={16} />}
-                          {processing === student.id ? 'Processing...' : 'Reject'}
+                          {processing === student.id ? 'Processing...' : 'Disapprove'}
                         </button>
                       </div>
                     </td>

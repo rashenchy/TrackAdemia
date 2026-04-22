@@ -22,7 +22,8 @@ export function getTextSelectionDetails(
   const fullText = getSectionTextContent(container)
 
   const selectionRect = selectionRange.getBoundingClientRect()
-  const ownerWindow = selectionRange.startContainer.ownerDocument.defaultView
+  const ownerDocument = selectionRange.startContainer.ownerDocument ?? container.ownerDocument
+  const ownerWindow = ownerDocument.defaultView
   const frameElement = ownerWindow?.frameElement
   const frameRect =
     frameElement instanceof HTMLElement ? frameElement.getBoundingClientRect() : null
@@ -182,7 +183,12 @@ export function getEditorRoot(container: HTMLElement | null) {
 
 export function getRangeViewportRect(range: Range) {
   const rect = range.getBoundingClientRect()
-  const ownerWindow = range.startContainer.ownerDocument.defaultView
+  const ownerDocument = range.startContainer.ownerDocument
+  if (!ownerDocument) {
+    return rect
+  }
+
+  const ownerWindow = ownerDocument.defaultView
   const frameElement = ownerWindow?.frameElement
 
   if (!(frameElement instanceof HTMLElement)) {

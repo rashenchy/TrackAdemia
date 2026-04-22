@@ -11,6 +11,7 @@ type DraftResearch = {
   title?: string
   type?: string
   abstract?: string
+  academic_year?: string | null
   keywords?: string[] | string
   members?: string[]
   member_roles?: string[]
@@ -56,7 +57,7 @@ export default async function EditResearchPage({
   const { data: researchData } = await supabase
     .from('research')
     .select(
-      'id, user_id, title, type, abstract, keywords, members, member_roles, subject_code, adviser_id, research_area, start_date, target_defense_date, current_stage, file_url'
+      'id, user_id, title, type, abstract, academic_year, keywords, members, member_roles, subject_code, adviser_id, research_area, start_date, target_defense_date, current_stage, file_url'
       + ', original_file_name, submission_format, content_json, status'
     )
     .eq('id', id)

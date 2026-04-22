@@ -38,6 +38,39 @@ type SectionAdviserOption = {
   name: string
 }
 
+const MINIMUM_KEYWORDS = 5
+const ACADEMIC_YEAR_PLACEHOLDER = '____-____'
+
+function getDefaultAcademicYear(date = new Date()) {
+  const currentYear = date.getFullYear()
+  const month = date.getMonth()
+  const startYear = month <= 5 ? currentYear - 1 : currentYear
+
+  return `${startYear}-${startYear + 1}`
+}
+
+function formatAcademicYearInput(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 8)
+  const firstYear = digits.slice(0, 4).padEnd(4, '_')
+  const secondYear = digits.slice(4, 8).padEnd(4, '_')
+
+  return `${firstYear}-${secondYear}`
+}
+
+function isAcademicYearComplete(value: string) {
+  return /^\d{4}-\d{4}$/.test(value)
+}
+
+function ensureMinimumKeywordSlots(values: string[]) {
+  const nextValues = values.length > 0 ? [...values] : ['']
+
+  while (nextValues.length < MINIMUM_KEYWORDS) {
+    nextValues.push('')
+  }
+
+  return nextValues
+}
+
 function MemberComboBox({
   index, classmates, value, onChange, isDraftMode
 }: {
@@ -135,6 +168,7 @@ export function ResearchSubmissionForm({
     title?: string
     type?: string
     abstract?: string
+    academic_year?: string | null
     keywords?: string[] | string
     members?: string[]
     member_roles?: string[]
@@ -180,6 +214,10 @@ export function ResearchSubmissionForm({
   const [selectedResearchType, setSelectedResearchType] = useState(
     initialData?.type || 'capstone'
   )
+  const [academicYearInput, setAcademicYearInput] = useState(
+    formatAcademicYearInput(initialData?.academic_year || getDefaultAcademicYear())
+  )
+  const [clientError, setClientError] = useState<string | null>(null)
 
   // Keyword list initialization
   const defaultKeywords = Array.isArray(initialData?.keywords)
@@ -188,7 +226,9 @@ export function ResearchSubmissionForm({
       ? initialData.keywords.split(',').map((k: string) => k.trim())
       : ['']
 
-  const [keywordsList, setKeywordsList] = useState<string[]>(defaultKeywords)
+  const [keywordsList, setKeywordsList] = useState<string[]>(
+    ensureMinimumKeywordSlots(defaultKeywords)
+  )
   const [selectedSubjectCode, setSelectedSubjectCode] = useState(initialData?.subject_code || '')
   const [selectedAdviserId, setSelectedAdviserId] = useState(initialData?.adviser_id || '')
   const [targetDefenseDate, setTargetDefenseDate] = useState(
@@ -244,7 +284,11 @@ export function ResearchSubmissionForm({
 
   // Dynamic keyword handlers
   const addKeyword = () => setKeywordsList([...keywordsList, ''])
-  const removeKeyword = (index: number) => setKeywordsList(keywordsList.filter((_, i) => i !== index))
+  const removeKeyword = (index: number) => {
+    if (keywordsList.length <= MINIMUM_KEYWORDS) return
+
+    setKeywordsList(keywordsList.filter((_, i) => i !== index))
+  }
   const updateKeyword = (index: number, value: string) => {
     const newKeywords = [...keywordsList]
     newKeywords[index] = value
@@ -287,9 +331,11 @@ export function ResearchSubmissionForm({
   const clearForm = useCallback(() => {
     setMembers([''])
     setRoles([''])
-    setKeywordsList([''])
+    setKeywordsList(ensureMinimumKeywordSlots(['']))
     setIsGroup(false)
     setSelectedResearchType('capstone')
+    setAcademicYearInput(formatAcademicYearInput(getDefaultAcademicYear()))
+    setClientError(null)
     setSelectedSubjectCode('')
     setSelectedAdviserId('')
     setTargetDefenseDate('')
@@ -325,9 +371,52 @@ export function ResearchSubmissionForm({
     }
   }, [state])
 
+  const handleAcademicYearChange = (value: string) => {
+    setAcademicYearInput(formatAcademicYearInput(value))
+
+    if (clientError) {
+      setClientError(null)
+    }
+  }
+
+  const validateSubmission = () => {
+    if (isDraftMode) {
+      setClientError(null)
+      return true
+    }
+
+    if (!isAcademicYearComplete(academicYearInput)) {
+      setClientError('Academic year must follow the YYYY-YYYY format.')
+      return false
+    }
+
+    if (keywordsList.length < MINIMUM_KEYWORDS) {
+      setClientError(`Please provide at least ${MINIMUM_KEYWORDS} keywords.`)
+      return false
+    }
+
+    if (keywordsList.some((keyword) => keyword.trim() === '')) {
+      setClientError('Please fill in every keyword field before submitting.')
+      return false
+    }
+
+    setClientError(null)
+    return true
+  }
+
   return (
-    <form ref={formRef} action={formAction} className="space-y-8">
+    <form
+      ref={formRef}
+      action={formAction}
+      onSubmit={(event) => {
+        if (!validateSubmission()) {
+          event.preventDefault()
+        }
+      }}
+      className="space-y-8"
+    >
       <input type="hidden" name="isDraft" value={isDraftMode ? 'true' : 'false'} />
+      <input type="hidden" name="academicYear" value={academicYearInput} />
       <input
         type="hidden"
         name="isIndependentResearch"
@@ -335,11 +424,11 @@ export function ResearchSubmissionForm({
       />
 
       {/* Error notification */}
-      {state?.error && (
+      {(clientError || state?.error) && (
         <div className="flex items-center justify-between gap-3 p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-2">
             <AlertCircle size={18} />
-            <span>{state.error}</span>
+            <span>{clientError || state?.error}</span>
           </div>
           <button type="button" onClick={() => window.location.reload()} className="text-xs font-bold text-red-600 hover:underline">
             Refresh
@@ -413,9 +502,10 @@ export function ResearchSubmissionForm({
                   value={kw}
                   onChange={(e) => updateKeyword(index, e.target.value)}
                   placeholder="e.g. AI"
+                  required={!isDraftMode}
                   className="p-2 w-28 sm:w-32 text-sm bg-transparent text-[var(--foreground)] outline-none"
                 />
-                {keywordsList.length > 1 && (
+                {keywordsList.length > MINIMUM_KEYWORDS && (
                   <button type="button" onClick={() => removeKeyword(index)} className="text-red-400 hover:text-red-600 transition-colors p-2 border-l border-gray-100 dark:border-gray-700">
                     <Trash2 size={14} />
                   </button>
@@ -423,6 +513,9 @@ export function ResearchSubmissionForm({
               </div>
             ))}
           </div>
+          <p className="text-[11px] text-gray-500">
+            At least {MINIMUM_KEYWORDS} keywords are required, and every keyword field must be filled before submission.
+          </p>
         </div>
       </div>
 
@@ -451,6 +544,22 @@ export function ResearchSubmissionForm({
         )}
 
         <div className="grid gap-6 md:grid-cols-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-semibold text-[var(--foreground)]">Academic Year</label>
+            <input
+              type="text"
+              value={academicYearInput}
+              onChange={(event) => handleAcademicYearChange(event.target.value)}
+              inputMode="numeric"
+              maxLength={9}
+              placeholder={ACADEMIC_YEAR_PLACEHOLDER}
+              aria-invalid={!isDraftMode && !isAcademicYearComplete(academicYearInput)}
+              className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent font-mono tracking-[0.2em] text-[var(--foreground)] outline-none focus:border-blue-600 transition-all"
+            />
+            <p className="text-[11px] text-gray-500">
+              Use the format YYYY-YYYY. The dash stays fixed and missing digits remain as underscores.
+            </p>
+          </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-semibold text-[var(--foreground)]">
               {isTeacher ? 'Section / Subject Code' : 'Subject Code'}

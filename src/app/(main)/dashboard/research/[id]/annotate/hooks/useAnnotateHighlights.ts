@@ -64,7 +64,10 @@ export function useAnnotateHighlights({
       const range = resolveTextAnnotationRange(editorRoot, annotation.position_data)
       if (!range) continue
 
-      touchedDocuments.add(range.startContainer.ownerDocument)
+      const ownerDocument = range.startContainer.ownerDocument
+      if (!ownerDocument) continue
+
+      touchedDocuments.add(ownerDocument)
       nextRanges[annotation.id] = range
 
       if (annotation.id === activeTextAnnotationId) {

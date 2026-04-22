@@ -61,6 +61,7 @@ export default function AnnotatePage({
   const [filter, setFilter] = useState<'all' | 'unresolved' | 'resolved'>('unresolved')
   const [annotationPanelOpen, setAnnotationPanelOpen] = useState(true)
   const [isExportingPdf, setIsExportingPdf] = useState(false)
+  const [isExportingDocx, setIsExportingDocx] = useState(false)
 
   const {
     research,
@@ -236,6 +237,19 @@ export default function AnnotatePage({
       ),
     [annotations]
   )
+  const unresolvedTextAnnotations = useMemo(
+    () =>
+      annotations.filter(
+        (annotation) =>
+          !annotation.is_resolved &&
+          Boolean(
+            annotation.position_data &&
+              typeof annotation.position_data === 'object' &&
+              (annotation.position_data as { type?: string }).type === 'text'
+          )
+      ),
+    [annotations]
+  )
 
   const jumpToNextUnresolved = () => {
     const currentIndex = unresolvedAnnotations.findIndex(
@@ -296,7 +310,7 @@ export default function AnnotatePage({
       const fileNameMatch = disposition.match(/filename="([^"]+)"/i)
       const downloadFileName =
         fileNameMatch?.[1] ||
-        `${research.title.replace(/[^\w\s-]+/g, '').trim().replace(/\s+/g, '-') || 'research'}-annotated.pdf`
+        `${(research?.title ?? 'research').replace(/[^\w\s-]+/g, '').trim().replace(/\s+/g, '-') || 'research'}-annotated.pdf`
 
       const link = document.createElement('a')
       link.href = downloadUrl
@@ -322,6 +336,77 @@ export default function AnnotatePage({
       })
     } finally {
       setIsExportingPdf(false)
+    }
+  }
+
+  const handleExportAnnotatedDocx = async () => {
+    if (activeFormat !== 'text' || isExportingDocx) return
+
+    setIsExportingDocx(true)
+
+    try {
+      const params = new URLSearchParams({
+        mode: 'unresolved',
+      })
+
+      if (effectiveVersionNumber) {
+        params.set('version', String(effectiveVersionNumber))
+      }
+
+      const response = await fetch(
+        `/dashboard/research/${researchId}/annotate/export-docx?${params.toString()}`,
+        {
+          method: 'GET',
+        }
+      )
+
+      if (!response.ok) {
+        let message = 'We could not export the Word file right now.'
+        const contentType = response.headers.get('content-type')
+
+        if (contentType?.includes('application/json')) {
+          const payload = (await response.json()) as { error?: string }
+          if (payload.error) {
+            message = payload.error
+          }
+        }
+
+        throw new Error(message)
+      }
+
+      const blob = await response.blob()
+      const downloadUrl = URL.createObjectURL(blob)
+      const disposition =
+        response.headers.get('content-disposition') ??
+        response.headers.get('Content-Disposition') ??
+        ''
+      const fileNameMatch = disposition.match(/filename="([^"]+)"/i)
+      const downloadFileName =
+        fileNameMatch?.[1] ||
+        `${(research?.title ?? 'research').replace(/[^\w\s-]+/g, '').trim().replace(/\s+/g, '-') || 'research'}-feedback.docx`
+
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = downloadFileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(downloadUrl)
+
+      notify({
+        title: 'Word export ready',
+        message: 'Your unresolved text feedback has been exported with inline highlights and comments.',
+        variant: 'success',
+      })
+    } catch (error) {
+      notify({
+        title: 'Export failed',
+        message:
+          error instanceof Error ? error.message : 'We could not export the Word file right now.',
+        variant: 'error',
+      })
+    } finally {
+      setIsExportingDocx(false)
     }
   }
 
@@ -419,6 +504,8 @@ export default function AnnotatePage({
     )
   }
 
+  const safeResearch = research
+
   return (
     <div className="flex min-h-0 flex-col bg-gray-50">
       <style jsx global>{`
@@ -442,7 +529,7 @@ export default function AnnotatePage({
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
                 Unified Review Workspace
               </p>
-              <h1 className="text-xl font-bold text-gray-900">{research.title}</h1>
+              <h1 className="text-xl font-bold text-gray-900">{safeResearch.title}</h1>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
                   {researchStatus}
@@ -646,6 +733,21 @@ export default function AnnotatePage({
                       {isExportingPdf ? 'Exporting...' : 'Export Annotated PDF'}
                     </button>
                   ) : null}
+                  {activeFormat === 'text' ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleExportAnnotatedDocx()}
+                      disabled={isExportingDocx || unresolvedTextAnnotations.length === 0}
+                      className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isExportingDocx ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Download size={16} />
+                      )}
+                      {isExportingDocx ? 'Exporting...' : 'Export Word with Feedback'}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => setAnnotationPanelOpen(true)}
@@ -661,6 +763,12 @@ export default function AnnotatePage({
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-600">
                       {unresolvedPdfAnnotations.length} open PDF note
                       {unresolvedPdfAnnotations.length === 1 ? '' : 's'}
+                    </span>
+                  ) : null}
+                  {activeFormat === 'text' ? (
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-600">
+                      {unresolvedTextAnnotations.length} open text note
+                      {unresolvedTextAnnotations.length === 1 ? '' : 's'}
                     </span>
                   ) : null}
                 </div>

@@ -22,6 +22,9 @@ type FormState = {
   error?: string
 }
 
+const MINIMUM_KEYWORDS = 5
+const ACADEMIC_YEAR_PATTERN = /^\d{4}-\d{4}$/
+
 function getErrorMessage(error: unknown, fallbackMessage: string) {
   return error instanceof Error ? error.message : fallbackMessage
 }
@@ -87,6 +90,7 @@ export async function updateResearch(editId: string, prevState: FormState | null
   const title = (formData.get('title') as string)?.trim()
   const type = (formData.get('type') as string)?.trim()
   const abstract = (formData.get('abstract') as string)?.trim()
+  const academicYear = (formData.get('academicYear') as string)?.trim()
   const keywords = formData.getAll('keywords')
     .map(k => (k as string).trim())
     .filter(k => k !== '')
@@ -107,6 +111,24 @@ export async function updateResearch(editId: string, prevState: FormState | null
     isTeacher && isIndependentResearch ? null : adviser
   const normalizedStartDate = isTeacher ? startDate || null : startDate || null
   const normalizedTargetDefenseDate = targetDefenseDate || null
+
+  if (!isDraft && !ACADEMIC_YEAR_PATTERN.test(academicYear || '')) {
+    return { error: 'Academic year must follow the YYYY-YYYY format.' }
+  }
+
+  if (!isDraft && keywords.length < MINIMUM_KEYWORDS) {
+    return { error: `Please provide at least ${MINIMUM_KEYWORDS} keywords.` }
+  }
+
+  if (!isDraft) {
+    const submittedKeywordFields = formData
+      .getAll('keywords')
+      .map((keyword) => (keyword as string).trim())
+
+    if (submittedKeywordFields.some((keyword) => keyword === '')) {
+      return { error: 'Please fill in every keyword field before submitting.' }
+    }
+  }
 
   if (!isDraft && !isTeacher && !subjectCode) {
     return { error: 'Please select a section before submitting.' }
@@ -172,7 +194,7 @@ export async function updateResearch(editId: string, prevState: FormState | null
   // DATABASE UPDATE
 
   const updatePayload: Record<string, unknown> = {
-    title, type, abstract, keywords,
+    title, type, abstract, academic_year: academicYear || null, keywords,
     subject_code: normalizedSubjectCode,
     adviser_id: normalizedAdviser,
     research_area: researchArea,

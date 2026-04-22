@@ -36,7 +36,7 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
         </p>
 
         <Link
-          href="/dashboard/repository"
+          href="/repository"
           className="mt-6 text-blue-600 hover:underline font-medium"
         >
           Return to Repository
@@ -80,6 +80,10 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
   // Determine which file URL should be used for download
   const fileUrlToDownload = latestVersion?.file_url || research.file_url
   const fileNameToDownload = latestVersion?.original_file_name || research.original_file_name
+  const academicYearLabel =
+    typeof research.academic_year === 'string' && research.academic_year.trim().length > 0
+      ? research.academic_year
+      : String(new Date(research.created_at).getFullYear())
   let canEditPublishedResearch = false
 
   if (user) {
@@ -107,7 +111,7 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
 
         {/* Navigation */}
         <Link
-          href="/dashboard/repository"
+          href="/repository"
           className="inline-flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-blue-600 transition-colors"
         >
           <ArrowLeft size={16} /> Back to Repository Search
@@ -154,7 +158,7 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
               </span>
 
               <span className="flex items-center gap-2">
-                <Calendar size={16} /> {new Date(research.created_at).getFullYear()}
+                <Calendar size={16} /> {academicYearLabel}
               </span>
 
               {research.subject_code && (
@@ -220,28 +224,47 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
 
         </div>
 
-        {/* Download Section */}
+        {/* Access Section */}
         <div className="bg-blue-50 dark:bg-blue-900/10 p-8 rounded-3xl border border-blue-100 dark:border-blue-900/30 flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
 
           <div>
             <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100">
-              Read the full research
+              {user ? 'Read the full research' : 'Unlock the full manuscript'}
             </h3>
 
             <p className="text-sm text-blue-700/80 dark:text-blue-300/80 mt-1">
-              Download the latest published manuscript.
+              {user
+                ? 'Open or download the latest published manuscript.'
+                : 'Guests can browse metadata and abstracts. Log in or register to view or download the full research file.'}
             </p>
-            <p className="mt-2 text-xs font-medium text-blue-800/80 dark:text-blue-200/80">
-              {fileNameToDownload || 'No file name available'}
-            </p>
+            {user && (
+              <p className="mt-2 text-xs font-medium text-blue-800/80 dark:text-blue-200/80">
+                {fileNameToDownload || 'No file name available'}
+              </p>
+            )}
           </div>
 
-          {fileUrlToDownload ? (
+          {user && fileUrlToDownload ? (
             <PublicDownloadButton
               fileUrl={fileUrlToDownload}
               researchId={research.id}
               downloadFileName={fileNameToDownload}
             />
+          ) : !user ? (
+            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+              <Link
+                href={`/login?next=${encodeURIComponent(`/repository/${research.id}`)}`}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-700"
+              >
+                Log In to Continue
+              </Link>
+              <Link
+                href={`/register?next=${encodeURIComponent(`/repository/${research.id}`)}`}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-6 py-3 text-sm font-bold text-blue-700 transition-colors hover:bg-blue-50 dark:bg-gray-900"
+              >
+                Create Account
+              </Link>
+            </div>
           ) : (
             <span className="text-sm text-gray-500 italic">
               No manuscript available
