@@ -10,7 +10,6 @@ import {
   Menu,
   Shield,
   Users,
-  Eye,
   UserCheck,
   BadgeCheck,
   Database,
@@ -179,10 +178,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const navItems = [
     { name: 'Overview', href: '/admin', icon: Shield },
     {
-      name: 'Faculty Approval',
+      name: 'Faculty Creation',
       href: '/admin/faculty-approval',
       icon: UserCheck,
-      badgeCount: pendingApprovalCounts.faculty,
     },
     {
       name: 'Student Verification',

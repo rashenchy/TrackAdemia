@@ -127,11 +127,11 @@ export async function signup(formData: FormData) {
   const middleName = (formData.get('middleName') as string).trim()
   const lastName = (formData.get('lastName') as string).trim()
   const course = (formData.get('course') as string).trim()
-  const role = ((formData.get('role') as string) || 'student') as 'student' | 'mentor'
+  const role = 'student' as const
   const rawStudentNumber = (formData.get('studentNumber') as string | null) ?? ''
   const studentNumber = normalizeStudentNumber(rawStudentNumber)
 
-  if (role === 'student' && !isValidStudentNumber(studentNumber)) {
+  if (!isValidStudentNumber(studentNumber)) {
     redirect(
       '/register?error=' +
         encodeURIComponent(
@@ -161,7 +161,7 @@ export async function signup(formData: FormData) {
         lastName,
         course,
         role,
-        studentNumber: role === 'student' ? studentNumber : null,
+        studentNumber,
       })
 
       redirect(outcome.redirectPath)
@@ -175,7 +175,7 @@ export async function signup(formData: FormData) {
       lastName,
       course,
       role,
-      studentNumber: role === 'student' ? studentNumber : null,
+      studentNumber,
     })
 
     try {
@@ -265,7 +265,7 @@ export async function finalizeVerifiedSignup({
           '/login?success=' +
           encodeURIComponent(
             role === 'mentor'
-              ? 'Email confirmed and account created. Faculty accounts still require admin verification before full access.'
+              ? 'Email confirmed and account created successfully.'
               : 'Email confirmed and account created. Student accounts still require admin approval before full access.'
           ),
       }
@@ -306,7 +306,7 @@ export async function finalizeVerifiedSignup({
           '/login?success=' +
           encodeURIComponent(
             role === 'mentor'
-              ? 'Email confirmed and account created. Faculty accounts still require admin verification before full access.'
+              ? 'Email confirmed and account created successfully.'
               : 'Email confirmed and account created. Student accounts still require admin approval before full access.'
           ),
       }

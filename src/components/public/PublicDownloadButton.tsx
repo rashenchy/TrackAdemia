@@ -1,9 +1,15 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { Download, Eye, Loader2 } from 'lucide-react'
 import { getPublicSignedUrl, recordResearchView } from '@/app/repository/[id]/actions'
 import { usePopup } from '@/components/ui/PopupProvider'
+
+const ANONYMOUS_VIEW_TTL_MS = 24 * 60 * 60 * 1000
+
+function getAnonymousViewStorageKey(researchId: string) {
+  return `public-research-view:${researchId}`
+}
 
 // Button component for public repository documents (view + download with analytics)
 export function PublicDownloadButton({
@@ -15,22 +21,10 @@ export function PublicDownloadButton({
   researchId: string
   downloadFileName?: string | null
 }) {
-
   // Loading states for viewing and downloading
   const [isDownloading, setIsDownloading] = useState(false)
   const [isViewing, setIsViewing] = useState(false)
   const { notify } = usePopup()
-  
-  // Ref used to prevent duplicate view tracking in React Strict Mode
-  const hasViewed = useRef(false)
-
-  // Record a research view when the page loads
-  useEffect(() => {
-    if (researchId && !hasViewed.current) {
-      hasViewed.current = true
-      recordResearchView(researchId)
-    }
-  }, [researchId])
 
   // Handle downloading the research file
   const handleDownload = async () => {
@@ -65,6 +59,23 @@ export function PublicDownloadButton({
   // Handle viewing the research document in a new browser tab
   const handleView = async () => {
     setIsViewing(true)
+
+    const storageKey = getAnonymousViewStorageKey(researchId)
+    const now = Date.now()
+    const lastViewedAtRaw =
+      typeof window !== 'undefined' ? window.localStorage.getItem(storageKey) : null
+    const lastViewedAt = lastViewedAtRaw ? Number(lastViewedAtRaw) : null
+    const shouldTrackAnonymousView =
+      !lastViewedAt || Number.isNaN(lastViewedAt) || now - lastViewedAt >= ANONYMOUS_VIEW_TTL_MS
+
+    try {
+      if (shouldTrackAnonymousView) {
+        await recordResearchView(researchId)
+        window.localStorage.setItem(storageKey, String(now))
+      }
+    } catch (error) {
+      console.error('Error recording research view:', error)
+    }
 
     // Request a signed URL configured for viewing
     const result = await getPublicSignedUrl(fileUrl, false)

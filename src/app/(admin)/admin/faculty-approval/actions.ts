@@ -1,166 +1,118 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createNotification } from '@/lib/notifications/service'
+import { createClient } from '@/lib/supabase/server'
+import { isAllowedCourseProgram } from '@/lib/core/course-programs'
 import { getProfileAccessState } from '@/lib/users/access'
 
-interface Faculty {
-  id: string
-  first_name: string
-  last_name: string
-  email?: string
-  course_program: string
-  is_verified: boolean
-  updated_at: string
+type CreateFacultyAccountResult = {
+  success: boolean
+  error?: string
 }
 
-/**
- * Fetch all pending faculty/mentor accounts awaiting verification
- */
-export async function getPendingFaculty(): Promise<Faculty[]> {
+function normalizeNamePart(value: FormDataEntryValue | null) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+export async function createFacultyAccount(
+  formData: FormData
+): Promise<CreateFacultyAccountResult> {
   const supabase = await createClient()
+  const {
+    data: { user: currentUser },
+  } = await supabase.auth.getUser()
+
+  if (!currentUser) {
+    return { success: false, error: 'Not authenticated.' }
+  }
+
+  const adminProfile = await getProfileAccessState(supabase, currentUser.id)
+
+  if (!adminProfile?.is_active || adminProfile.role !== 'admin') {
+    return { success: false, error: 'Only administrators can create faculty accounts.' }
+  }
+
   const adminSupabase = createAdminClient()
 
-  try {
-    // Get pending faculty (mentors with is_verified = false)
-    const { data: profiles, error } = await supabase
-      .from('profiles')
-      .select('id, first_name, last_name, course_program, is_verified, updated_at')
-      .eq('role', 'mentor')
-      .eq('is_verified', false)
-      .eq('is_active', true)
-      .order('updated_at', { ascending: false })
-
-    if (error) {
-      console.error('Error fetching pending faculty:', error)
-      return []
+  if (!adminSupabase) {
+    return {
+      success: false,
+      error: 'Admin Supabase client is not configured. Faculty account creation is unavailable.',
     }
-
-    // Fetch user emails from auth.users table
-    const facultyWithEmails: Faculty[] = []
-    
-    if (profiles && profiles.length > 0) {
-      for (const profile of profiles) {
-        const { data: authUser } = adminSupabase
-          ? await adminSupabase.auth.admin.getUserById(profile.id)
-          : { data: { user: null } }
-        
-        facultyWithEmails.push({
-          id: profile.id,
-          first_name: profile.first_name,
-          last_name: profile.last_name,
-          email: authUser.user?.email || 'N/A',
-          course_program: profile.course_program,
-          is_verified: profile.is_verified,
-          updated_at: profile.updated_at
-        })
-      }
-    }
-
-    return facultyWithEmails
-  } catch (error) {
-    console.error('Unexpected error fetching pending faculty:', error)
-    return []
   }
-}
 
-/**
- * Verify a faculty member by updating their is_verified status to true
- */
-export async function verifyFaculty(userId: string): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
+  const firstName = normalizeNamePart(formData.get('firstName'))
+  const middleName = normalizeNamePart(formData.get('middleName'))
+  const lastName = normalizeNamePart(formData.get('lastName'))
+  const email = normalizeNamePart(formData.get('email')).toLowerCase()
+  const course = normalizeNamePart(formData.get('course'))
+  const password = typeof formData.get('password') === 'string' ? String(formData.get('password')) : ''
 
-  try {
-    // Verify the current user is an admin
-    const { data: { user: currentUser } } = await supabase.auth.getUser()
-    if (!currentUser) {
-      return { success: false, error: 'Not authenticated' }
-    }
-
-    const adminProfile = await getProfileAccessState(supabase, currentUser.id)
-
-    if (!adminProfile?.is_active || adminProfile.role !== 'admin') {
-      return { success: false, error: 'Insufficient permissions' }
-    }
-
-    // Update the faculty member's verification status
-    const { error } = await supabase
-      .from('profiles')
-      .update({ is_verified: true, updated_at: new Date().toISOString() })
-      .eq('id', userId)
-
-    if (error) {
-      console.error('Error verifying faculty:', error)
-      return { success: false, error: error.message }
-    }
-
-    await createNotification(supabase, {
-      user_id: userId,
-      actor_id: currentUser.id,
-      title: 'Account verified',
-      message: 'Your faculty account has been approved. Teacher tools are now available.',
-      notification_type: 'account_verified',
-      reference_id: userId,
-      event_key: `account-verified:${userId}`,
-    })
-
-    return { success: true }
-  } catch (error) {
-    console.error('Unexpected error verifying faculty:', error)
-    return { success: false, error: 'An unexpected error occurred' }
+  if (!firstName || !lastName || !email || !course || !password) {
+    return { success: false, error: 'Please complete all required faculty account fields.' }
   }
-}
 
-/**
- * Reject/un-verify a faculty member
- */
-export async function rejectFaculty(userId: string): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-
-  try {
-    // Verify the current user is an admin
-    const { data: { user: currentUser } } = await supabase.auth.getUser()
-    if (!currentUser) {
-      return { success: false, error: 'Not authenticated' }
+  if (!isAllowedCourseProgram(course)) {
+    return {
+      success: false,
+      error: 'Course program must be one of the allowed options: BSIT, BSBA, or BSENTREP.',
     }
-
-    const adminProfile = await getProfileAccessState(supabase, currentUser.id)
-
-    if (!adminProfile?.is_active || adminProfile.role !== 'admin') {
-      return { success: false, error: 'Insufficient permissions' }
-    }
-
-    // Update the faculty member's verification status to false
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        is_verified: false,
-        is_active: false,
-        deleted_at: new Date().toISOString(),
-        deleted_by: currentUser.id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', userId)
-
-    if (error) {
-      console.error('Error rejecting faculty:', error)
-      return { success: false, error: error.message }
-    }
-
-    await createNotification(supabase, {
-      user_id: userId,
-      actor_id: currentUser.id,
-      title: 'Account registration rejected',
-      message: 'Your faculty registration was not approved and the account has been archived. Contact an administrator if you need help.',
-      notification_type: 'account_rejected',
-      reference_id: userId,
-      event_key: `account-rejected:${userId}:${new Date().toISOString()}`,
-    })
-
-    return { success: true }
-  } catch (error) {
-    console.error('Unexpected error rejecting faculty:', error)
-    return { success: false, error: 'An unexpected error occurred' }
   }
+
+  if (password.length < 8) {
+    return {
+      success: false,
+      error: 'Faculty passwords must contain at least 8 characters.',
+    }
+  }
+
+  const metadata = {
+    first_name: firstName,
+    middle_name: middleName || null,
+    last_name: lastName,
+    course_program: course,
+    role: 'mentor' as const,
+    is_verified: true,
+    student_number: null,
+  }
+
+  const { data, error } = await adminSupabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: metadata,
+  })
+
+  if (error) {
+    return { success: false, error: error.message }
+  }
+
+  if (!data.user?.id) {
+    return { success: false, error: 'Faculty account was created without a user ID.' }
+  }
+
+  const { error: profileError } = await adminSupabase.from('profiles').upsert(
+    {
+      id: data.user.id,
+      ...metadata,
+      is_active: true,
+      deleted_at: null,
+      deleted_by: null,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'id' }
+  )
+
+  if (profileError) {
+    return { success: false, error: profileError.message }
+  }
+
+  revalidatePath('/admin/faculty-approval')
+  revalidatePath('/admin/users')
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard/settings/faculty-approval')
+  revalidatePath('/dashboard/settings/users')
+
+  return { success: true }
 }

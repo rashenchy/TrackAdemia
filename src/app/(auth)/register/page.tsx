@@ -119,7 +119,7 @@ export default async function RegisterPage({
                 Create your account
               </h2>
               <p className="mt-3 text-base leading-7 text-slate-600">
-                Set up your role and profile to access the research workflow that fits you.
+                Create your student account to enter the research workflow. Faculty accounts are provisioned from the admin settings area.
               </p>
             </div>
 

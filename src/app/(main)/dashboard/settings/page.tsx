@@ -8,12 +8,10 @@ import {
   FolderKanban,
   IdCard,
   LifeBuoy,
-  LogIn,
   Mail,
   ShieldCheck,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { isElevatedFacultyRole } from '@/lib/users/access'
 import {
   ADMIN_VIEW_COOKIE,
   getAdminViewMeta,
@@ -48,12 +46,10 @@ export default async function SettingsPage() {
         ? 'Faculty / Adviser'
         : 'Student'
       : profile?.role === 'mentor'
-      ? 'Faculty / Adviser'
-      : profile?.role === 'admin'
-        ? 'Faculty Administrator'
-        : 'Student'
-
-  const canManageFacultySettings = isElevatedFacultyRole(profile?.role)
+        ? 'Faculty / Adviser'
+        : profile?.role === 'admin'
+          ? 'Faculty Administrator'
+          : 'Student'
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -67,8 +63,8 @@ export default async function SettingsPage() {
         </p>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
-        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <div>
           <h2 className="text-lg font-bold text-slate-950">Account Snapshot</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <InfoTile
@@ -99,103 +95,79 @@ export default async function SettingsPage() {
             />
           </div>
         </div>
-
-        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-950">Quick Links</h2>
-          <div className="mt-5 space-y-3">
-            <ShortcutLink
-              href="/dashboard/profile"
-              icon={<IdCard size={18} className="text-blue-600" />}
-              title="View profile"
-              description="See your full account details and academic identity."
-            />
-            <ShortcutLink
-              href="/dashboard/tasks"
-              icon={<FolderKanban size={18} className="text-emerald-600" />}
-              title="Open task manager"
-              description="Catch unresolved work and deadlines faster."
-            />
-            <ShortcutLink
-              href="/dashboard/submit"
-              icon={<LogIn size={18} className="text-amber-600" />}
-              title="Go to submissions"
-              description="Start or continue your research workflow."
-            />
-            {(profile?.role === 'mentor' || profile?.role === 'admin') && (
-              <ShortcutLink
-                href="/dashboard/student-verification"
-                icon={<ShieldCheck size={18} className="text-blue-600" />}
-                title="Student verification"
-                description="Review pending student accounts from the main faculty workflow."
-              />
-            )}
-          </div>
-        </div>
       </section>
 
-      {canManageFacultySettings && (
-        <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-sm font-bold uppercase tracking-[0.24em] text-blue-700">
-            Faculty Settings
-          </p>
-          <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-950">
-            Elevated administration tools
-          </h2>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-            These tools were moved into Settings so faculty shares one workspace while elevated accounts still manage system-wide tasks.
-          </p>
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <ShortcutLink
-              href="/dashboard/settings/faculty-approval"
-              icon={<ShieldCheck size={18} className="text-emerald-600" />}
-              title="Faculty approval"
-              description="Approve or reject pending faculty accounts."
-            />
-            <ShortcutLink
-              href="/dashboard/settings/users"
-              icon={<IdCard size={18} className="text-violet-600" />}
-              title="User management"
-              description="Review user accounts, roles, and statuses."
-            />
-            <ShortcutLink
-              href="/dashboard/settings/master-records"
-              icon={<BookOpen size={18} className="text-amber-600" />}
-              title="Master records"
-              description="Maintain shared institutional records and reference data."
-            />
-            <ShortcutLink
-              href="/dashboard/settings/reports"
-              icon={<FolderKanban size={18} className="text-blue-600" />}
-              title="Reports"
-              description="Open reporting and oversight views for the system."
-            />
-            <ShortcutLink
-              href="/dashboard/settings/announcements"
-              icon={<Mail size={18} className="text-emerald-600" />}
-              title="Announcements"
-              description="Publish announcements visible throughout the workspace."
-            />
-            <ShortcutLink
-              href="/dashboard/settings/api-monitoring"
-              icon={<LifeBuoy size={18} className="text-rose-600" />}
-              title="API monitoring"
-              description="Review usage and health data for connected services."
-            />
-            <ShortcutLink
-              href="/dashboard/settings/view-as-user"
-              icon={<CircleHelp size={18} className="text-sky-600" />}
-              title="View as user"
-              description="Preview the experience from student and faculty perspectives."
-            />
-            <ShortcutLink
-              href="/dashboard/settings/analytics"
-              icon={<BookOpen size={18} className="text-indigo-600" />}
-              title="Analytics"
-              description="Inspect the system-wide analytics dashboard."
-            />
-          </div>
-        </section>
-      )}
+      <div className="mt-4 space-y-4">
+
+        {/* 🔥 USER & ACCESS CONTROL */}
+        <ShortcutLink
+          href="/dashboard/settings/faculty-approval"
+          icon={<ShieldCheck size={18} className="text-emerald-600" />}
+          title="Faculty account creation"
+          description="Create faculty accounts directly from the admin workspace instead of relying on public registration."
+          featured
+          accent="emerald"
+        />
+
+        <ShortcutLink
+          href="/dashboard/settings/users"
+          icon={<IdCard size={18} className="text-violet-600" />}
+          title="User management"
+          description="Review user accounts, roles, and statuses."
+          featured
+          accent="violet"
+        />
+
+        {/* 🧱 CORE SYSTEM DATA */}
+        <ShortcutLink
+          href="/dashboard/settings/master-records"
+          icon={<BookOpen size={18} className="text-amber-600" />}
+          title="Master records"
+          description="Maintain shared institutional records and reference data."
+          featured
+          accent="amber"
+        />
+
+        {/* 📊 OVERSIGHT */}
+        <ShortcutLink
+          href="/dashboard/settings/analytics"
+          icon={<BookOpen size={18} className="text-indigo-600" />}
+          title="Analytics"
+          description="Inspect the system-wide analytics dashboard."
+          featured
+          accent="indigo"
+        />
+
+        <ShortcutLink
+          href="/dashboard/settings/reports"
+          icon={<FolderKanban size={18} className="text-blue-600" />}
+          title="Reports"
+          description="Open reporting and oversight views for the system."
+          featured
+          accent="blue"
+        />
+
+        {/* 📢 COMMUNICATION */}
+        <ShortcutLink
+          href="/dashboard/settings/announcements"
+          icon={<Mail size={18} className="text-emerald-600" />}
+          title="Announcements"
+          description="Publish announcements visible throughout the workspace."
+          featured
+          accent="emerald"
+        />
+
+        {/* 🛠 TECHNICAL / LOW PRIORITY */}
+        <ShortcutLink
+          href="/dashboard/settings/api-monitoring"
+          icon={<LifeBuoy size={18} className="text-rose-600" />}
+          title="API monitoring"
+          description="Review usage and health data for connected services."
+          featured
+          accent="rose"
+        />
+
+      </div>
 
       <section className="grid gap-6 md:grid-cols-2">
         <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
@@ -217,8 +189,8 @@ export default async function SettingsPage() {
                       ? 'This preview shows the approved student state with normal student access.'
                       : 'This preview shows the pending student state with the approval hold still active.'
                   : profile?.role === 'mentor' && !profile?.is_verified
-                  ? 'Your account is still pending verification. An administrator needs to approve it before full faculty tools unlock.'
-                  : 'Your current account status looks good and your access is active.'
+                    ? 'Your account is still pending verification. An administrator needs to approve it before full faculty tools unlock.'
+                    : 'Your current account status looks good and your access is active.'
               }
             />
             <HelpRow
@@ -279,23 +251,53 @@ function ShortcutLink({
   icon,
   title,
   description,
+  featured = false,
+  accent = 'blue',
 }: {
   href: string
   icon: ReactNode
   title: string
   description: string
+  featured?: boolean
+  accent?: 'blue' | 'emerald' | 'violet' | 'amber' | 'indigo' | 'rose'
 }) {
+  const featuredAccentStyles: Record<
+    NonNullable<Parameters<typeof ShortcutLink>[0]['accent']>,
+    string
+  > = {
+    blue:
+      'border-blue-200 bg-[radial-gradient(circle_at_right_center,rgba(59,130,246,0.12)_0%,rgba(59,130,246,0.07)_22%,transparent_48%),linear-gradient(120deg,#ffffff_0%,#ffffff_62%,#eff6ff_84%,#dbeafe_100%)] hover:border-blue-300',
+    emerald:
+      'border-emerald-200 bg-[radial-gradient(circle_at_right_center,rgba(16,185,129,0.12)_0%,rgba(16,185,129,0.07)_22%,transparent_48%),linear-gradient(120deg,#ffffff_0%,#ffffff_62%,#ecfdf5_84%,#d1fae5_100%)] hover:border-emerald-300',
+    violet:
+      'border-violet-200 bg-[radial-gradient(circle_at_right_center,rgba(139,92,246,0.12)_0%,rgba(139,92,246,0.07)_22%,transparent_48%),linear-gradient(120deg,#ffffff_0%,#ffffff_62%,#f5f3ff_84%,#ede9fe_100%)] hover:border-violet-300',
+    amber:
+      'border-amber-200 bg-[radial-gradient(circle_at_right_center,rgba(245,158,11,0.12)_0%,rgba(245,158,11,0.07)_22%,transparent_48%),linear-gradient(120deg,#ffffff_0%,#ffffff_62%,#fffbeb_84%,#fef3c7_100%)] hover:border-amber-300',
+    indigo:
+      'border-indigo-200 bg-[radial-gradient(circle_at_right_center,rgba(99,102,241,0.12)_0%,rgba(99,102,241,0.07)_22%,transparent_48%),linear-gradient(120deg,#ffffff_0%,#ffffff_62%,#eef2ff_84%,#e0e7ff_100%)] hover:border-indigo-300',
+    rose:
+      'border-rose-200 bg-[radial-gradient(circle_at_right_center,rgba(244,63,94,0.10)_0%,rgba(244,63,94,0.06)_22%,transparent_48%),linear-gradient(120deg,#ffffff_0%,#ffffff_62%,#fff1f2_84%,#ffe4e6_100%)] hover:border-rose-300',
+  }
+
   return (
     <Link
       href={href}
-      className="block rounded-2xl border border-slate-200 bg-slate-50/80 p-4 transition-all hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white"
+      className={`block rounded-2xl border p-4 transition-all hover:-translate-y-0.5 ${featured
+          ? `${featuredAccentStyles[accent]} p-5 shadow-[0_14px_30px_rgba(15,23,42,0.05)]`
+          : 'border-slate-200 bg-slate-50/80 hover:border-slate-300 hover:bg-white'
+        }`}
     >
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm">
+        <div
+          className={`flex items-center justify-center rounded-xl bg-white shadow-sm ${featured ? 'h-12 w-12' : 'h-10 w-10'
+            }`}
+        >
           {icon}
         </div>
         <div>
-          <p className="font-semibold text-slate-950">{title}</p>
+          <p className={`${featured ? 'text-lg font-bold' : 'font-semibold'} text-slate-950`}>
+            {title}
+          </p>
           <p className="text-sm leading-6 text-slate-600">{description}</p>
         </div>
       </div>

@@ -14,6 +14,7 @@ import '@react-pdf-viewer/core/lib/styles/index.css'
 import '@react-pdf-viewer/highlight/lib/styles/index.css'
 
 import {
+  Download,
   Edit3,
   Eye,
   GitCompareArrows,
@@ -59,6 +60,7 @@ export default function AnnotatePage({
 
   const [filter, setFilter] = useState<'all' | 'unresolved' | 'resolved'>('unresolved')
   const [annotationPanelOpen, setAnnotationPanelOpen] = useState(true)
+  const [isExportingPdf, setIsExportingPdf] = useState(false)
 
   const {
     research,
@@ -227,6 +229,13 @@ export default function AnnotatePage({
     annotations,
     filter,
   })
+  const unresolvedPdfAnnotations = useMemo(
+    () =>
+      annotations.filter(
+        (annotation) => !annotation.is_resolved && Array.isArray(annotation.position_data)
+      ),
+    [annotations]
+  )
 
   const jumpToNextUnresolved = () => {
     const currentIndex = unresolvedAnnotations.findIndex(
@@ -240,6 +249,79 @@ export default function AnnotatePage({
     if (nextAnnotation) {
       setAnnotationPanelOpen(true)
       void openThread(nextAnnotation)
+    }
+  }
+
+  const handleExportAnnotatedPdf = async () => {
+    if (activeFormat !== 'pdf' || !fileUrl || isExportingPdf) return
+
+    setIsExportingPdf(true)
+
+    try {
+      const params = new URLSearchParams({
+        mode: 'unresolved',
+      })
+
+      if (effectiveVersionNumber) {
+        params.set('version', String(effectiveVersionNumber))
+      }
+
+      const response = await fetch(
+        `/dashboard/research/${researchId}/annotate/export?${params.toString()}`,
+        {
+          method: 'GET',
+        }
+      )
+
+      if (!response.ok) {
+        let message = 'We could not export the annotated PDF right now.'
+        const contentType = response.headers.get('content-type')
+
+        if (contentType?.includes('application/json')) {
+          const payload = (await response.json()) as { error?: string }
+          if (payload.error) {
+            message = payload.error
+          }
+        }
+
+        throw new Error(message)
+      }
+
+      const blob = await response.blob()
+      const downloadUrl = URL.createObjectURL(blob)
+      const disposition =
+        response.headers.get('content-disposition') ??
+        response.headers.get('Content-Disposition') ??
+        ''
+      const fileNameMatch = disposition.match(/filename="([^"]+)"/i)
+      const downloadFileName =
+        fileNameMatch?.[1] ||
+        `${research.title.replace(/[^\w\s-]+/g, '').trim().replace(/\s+/g, '-') || 'research'}-annotated.pdf`
+
+      const link = document.createElement('a')
+      link.href = downloadUrl
+      link.download = downloadFileName
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(downloadUrl)
+
+      notify({
+        title: 'Annotated PDF exported',
+        message: 'Your unresolved PDF feedback has been baked into the downloaded file.',
+        variant: 'success',
+      })
+    } catch (error) {
+      notify({
+        title: 'Export failed',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'We could not export the annotated PDF right now.',
+        variant: 'error',
+      })
+    } finally {
+      setIsExportingPdf(false)
     }
   }
 
@@ -549,6 +631,21 @@ export default function AnnotatePage({
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  {activeFormat === 'pdf' && fileUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleExportAnnotatedPdf()}
+                      disabled={isExportingPdf || unresolvedPdfAnnotations.length === 0}
+                      className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isExportingPdf ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Download size={16} />
+                      )}
+                      {isExportingPdf ? 'Exporting...' : 'Export Annotated PDF'}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => setAnnotationPanelOpen(true)}
@@ -560,6 +657,12 @@ export default function AnnotatePage({
                   <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-600">
                     {annotations.length} note{annotations.length === 1 ? '' : 's'}
                   </span>
+                  {activeFormat === 'pdf' ? (
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-gray-600">
+                      {unresolvedPdfAnnotations.length} open PDF note
+                      {unresolvedPdfAnnotations.length === 1 ? '' : 's'}
+                    </span>
+                  ) : null}
                 </div>
               </div>
 
