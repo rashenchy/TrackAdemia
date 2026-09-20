@@ -112,3 +112,35 @@ export async function updateResearchStatus(researchId: string, formData: FormDat
 
   redirect(`/dashboard/research/${researchId}?updated=${Date.now()}`)
 }
+
+export async function reviewAccessRequestAction(input: {
+  researchId: string
+  requestId: string
+  status: 'approved' | 'rejected'
+  reviewerNotes?: string
+}) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: 'Unauthorized. Please log in.' }
+  }
+
+  const { reviewAccessRequest } = await import('@/lib/research/access-requests/service')
+  const result = await reviewAccessRequest(
+    {
+      requestId: input.requestId,
+      status: input.status,
+      reviewerNotes: input.reviewerNotes,
+    },
+    user.id
+  )
+
+  if (result.success) {
+    revalidateResearchOverviewPaths(input.researchId)
+  }
+
+  return result
+}

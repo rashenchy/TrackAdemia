@@ -2,6 +2,9 @@
 
 import { createClient } from '@/lib/supabase/server'
 
+import { createAccessRequest } from '@/lib/research/access-requests/service'
+import { revalidatePath } from 'next/cache'
+
 // Record a research page view
 export async function recordResearchView(researchId: string) {
   // Initialize Supabase and get the current user
@@ -29,32 +32,73 @@ export async function recordResearchView(researchId: string) {
   })
 }
 
+// Submit a request for full research access
+export async function submitAccessRequestAction(input: {
+  researchId: string
+  guestName?: string
+  guestEmail?: string
+  message: string
+}) {
+  const result = await createAccessRequest({
+    researchId: input.researchId,
+    guestName: input.guestName,
+    guestEmail: input.guestEmail,
+    message: input.message,
+  })
+
+  if (result.success) {
+    revalidatePath(`/repository/${input.researchId}`)
+  }
+
+  return result
+}
+
 // Generate a signed URL for reading or downloading a research file
 export async function getPublicSignedUrl(
   fileUrl: string,
   isDownload: boolean = false,
   researchId?: string,
-  downloadFileName?: string
+  downloadFileName?: string,
+  guestToken?: string
 ) {
-  // Initialize Supabase and fetch the current user
   const supabase = await createClient()
+
+  // Authorization Check:
+  // If researchId is provided, check user or guest token authorization
+  if (researchId) {
+    const { getUserResearchAccessState } = await import('@/lib/research/access-requests/service')
+    const accessState = await getUserResearchAccessState(researchId, guestToken)
+
+    if (!accessState.hasFullAccess) {
+      return {
+        error: 'You do not have authorization to access this research manuscript. Please submit an access request.',
+      }
+    }
+  } else {
+    // If no researchId, require authenticated session as fallback
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (!user) {
+      return { error: 'Please log in or provide a valid access link to view this research file.' }
+    }
+  }
+
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) {
-    return { error: 'Please log in or create an account to access the full research file.' }
-  }
-
   // Track download events if this request is for a download
   if (isDownload && researchId) {
-
-    // Insert a download record
-    // The database trigger handles incrementing the counter
-    await supabase.from('research_downloads').insert({
-      research_id: researchId,
-      user_id: user?.id || null,
-    })
+    try {
+      await supabase.from('research_downloads').insert({
+        research_id: researchId,
+        user_id: user?.id || null,
+      })
+    } catch (e) {
+      console.error('Error tracking research download:', e)
+    }
   }
 
   // Generate a temporary signed URL for the file
@@ -67,7 +111,7 @@ export async function getPublicSignedUrl(
   // Handle signed URL generation errors
   if (error) {
     console.error('Error generating signed URL:', error)
-    return { error: 'Failed to generate download link.' }
+    return { error: 'Failed to generate secure document link.' }
   }
 
   // Return the signed URL

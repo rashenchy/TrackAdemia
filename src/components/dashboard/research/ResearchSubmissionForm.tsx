@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useActionState, useRef, useCallback } from 'react'
-import { Plus, Trash2, FileText, GraduationCap, Users, Calendar, Paperclip, AlertCircle, Search, FileCode2 } from 'lucide-react'
+import { Plus, Trash2, FileText, GraduationCap, Users, Calendar, Paperclip, AlertCircle, Search, FileCode2, Crown } from 'lucide-react'
 import { SubmitButton } from '@/components/auth/SubmitButton'
 import { submitResearch } from '@/app/(main)/dashboard/submit/actions'
 import { updateResearch } from '@/app/(main)/dashboard/research/[id]/edit/actions'
@@ -685,12 +685,12 @@ export function ResearchSubmissionForm({
         </div>
       </div>
 
-      {/* Group members section */}
+      {/* Authorship & Group members section */}
       <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
         <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
           <div className="flex items-center gap-2">
             <Users className="text-blue-600" size={20} />
-            <h2 className="text-lg font-bold text-[var(--foreground)]">Group</h2>
+            <h2 className="text-lg font-bold text-[var(--foreground)]">Authorship & Team</h2>
           </div>
           <div className="flex items-center bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
             <button type="button" onClick={() => setIsGroup(false)} className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${!isGroup ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'}`}>Individual</button>
@@ -698,12 +698,34 @@ export function ResearchSubmissionForm({
           </div>
         </div>
 
+        {/* Research Leader Display */}
+        <div className="flex items-center justify-between p-4 bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/60 rounded-xl">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
+              <Crown size={18} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  {classmates.find((c) => c.id === currentUserId)?.name.replace(' (You)', '').trim() || 'You'}
+                </span>
+                <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 rounded-full border border-blue-200 dark:border-blue-800">
+                  Research Leader
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Primary author & responsible for reviewing research access requests
+              </p>
+            </div>
+          </div>
+        </div>
+
         {isGroup && (
           <div className="space-y-4 bg-gray-50/50 dark:bg-gray-900/30 p-5 rounded-xl border border-dashed border-gray-300 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Members & Roles</label>
-                <p className="text-[10px] text-gray-400">Search to assign members and define their responsibilities.</p>
+                <label className="text-xs font-bold uppercase tracking-wider text-gray-500">Research Members & Roles</label>
+                <p className="text-[10px] text-gray-400">Search to assign collaborators and define their project roles.</p>
               </div>
               <button type="button" onClick={addMember} className="text-xs flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold transition-colors">
                 <Plus size={14} /> Add Member
@@ -724,7 +746,7 @@ export function ResearchSubmissionForm({
                     name={`role-${index}`}
                     required={!isDraftMode}
                     defaultValue={roles[index] || ""}
-                    placeholder="Role (e.g. Lead Programmer)"
+                    placeholder="Role (e.g. Lead Programmer, Data Analyst)"
                     className="flex-1 rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 text-sm bg-white dark:bg-gray-800 text-[var(--foreground)] outline-none focus:border-blue-600 transition-all"
                   />
                   {members.length > 1 && (

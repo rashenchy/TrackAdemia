@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { RepositorySearch } from '@/components/dashboard/repository/RepositorySearch'
-import { BookOpen, Calendar, Users, Hash, ChevronRight, Search } from 'lucide-react'
+import { BookOpen, Calendar, Users, Hash, ChevronRight, Search, Crown } from 'lucide-react'
 import PaginationLinks from '@/components/ui/PaginationLinks'
 
 type RepositoryPaper = {
@@ -221,13 +221,15 @@ export default async function PublicRepositoryPage({
     const normalizedQuery = normalizeSearchValue(query)
 
     filteredPapers = filteredPapers.filter((paper) => {
-      const authorIds =
-        paper.members && paper.members.length > 0 ? paper.members : [paper.user_id]
-      const authorNames =
-        authorIds.map((id: string) => authorsMap[id] || 'Unknown').join(' ') || ''
+      const leaderName = authorsMap[paper.user_id] || ''
+      const memberNames = (paper.members || [])
+        .filter((id: string) => id !== paper.user_id)
+        .map((id: string) => authorsMap[id] || '')
+        .join(' ')
+      const allAuthorNames = [leaderName, memberNames].filter(Boolean).join(' ')
       const adviserName = paper.adviser_id ? adviserMap[paper.adviser_id] || '' : ''
 
-      return getPaperSearchText(paper, authorNames, adviserName).includes(normalizedQuery)
+      return getPaperSearchText(paper, allAuthorNames, adviserName).includes(normalizedQuery)
     })
   }
 
@@ -323,11 +325,10 @@ export default async function PublicRepositoryPage({
           </div>
         ) : (
           pagedPapers.map((paper) => {
-            const authorIds =
-              paper.members && paper.members.length > 0 ? paper.members : [paper.user_id]
-
-            const authorNames =
-              authorIds.map((id: string) => authorsMap[id] || 'Unknown').join(', ')
+            const leaderName = authorsMap[paper.user_id] || 'Unknown Author'
+            const memberNames = (paper.members || [])
+              .filter((id: string) => id !== paper.user_id)
+              .map((id: string) => authorsMap[id] || 'Unknown')
 
             return (
               <article
@@ -346,16 +347,30 @@ export default async function PublicRepositoryPage({
                   </span>
                 </div>
 
-                <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium text-green-700">
-                  <span className="flex items-center gap-1.5">
-                    <Users size={14} /> {authorNames || 'Unknown Authors'}
+                <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm font-medium">
+                  <span className="flex items-center gap-1.5 text-blue-700">
+                    <Crown size={14} className="text-amber-500" />
+                    <span className="font-bold">Leader:</span> {leaderName}
                   </span>
-                  <span>-</span>
-                  <span className="flex items-center gap-1.5">
-                    <Calendar size={14} /> {resolvePaperYear(paper).label}
+                  {memberNames.length > 0 && (
+                    <>
+                      <span className="text-gray-300">•</span>
+                      <span className="flex items-center gap-1.5 text-slate-600">
+                        <Users size={14} className="text-gray-400" />
+                        <span className="font-semibold text-slate-700">Members:</span> {memberNames.join(', ')}
+                      </span>
+                    </>
+                  )}
+                  <span className="text-gray-300">•</span>
+                  <span className="flex items-center gap-1.5 text-slate-600">
+                    <Calendar size={14} className="text-gray-400" /> {resolvePaperYear(paper).label}
                   </span>
-                  <span>-</span>
-                  <span className="text-gray-500">{paper.subject_code}</span>
+                  {paper.subject_code && (
+                    <>
+                      <span className="text-gray-300">•</span>
+                      <span className="text-gray-500">{paper.subject_code}</span>
+                    </>
+                  )}
                 </div>
 
                 <p className="mb-4 line-clamp-3 text-sm leading-relaxed text-gray-600">

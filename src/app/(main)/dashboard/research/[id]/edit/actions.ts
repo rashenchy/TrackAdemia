@@ -139,11 +139,21 @@ export async function updateResearch(editId: string, prevState: FormState | null
   }
 
   // Collect member assignments
+  const rawMembers: string[] = []
+  const rawMemberRoles: string[] = []
+  for (const [key, value] of formData.entries()) {
+    if (key.startsWith('member-')) rawMembers.push((value as string).trim())
+    if (key.startsWith('role-')) rawMemberRoles.push((value as string).trim())
+  }
+
   const members: string[] = []
   const memberRoles: string[] = []
-  for (const [key, value] of formData.entries()) {
-    if (key.startsWith('member-')) members.push((value as string).trim())
-    if (key.startsWith('role-')) memberRoles.push((value as string).trim())
+  for (let i = 0; i < rawMembers.length; i++) {
+    const memberId = rawMembers[i]
+    if (memberId && memberId !== current.user_id && !members.includes(memberId)) {
+      members.push(memberId)
+      memberRoles.push(rawMemberRoles[i] || 'Member')
+    }
   }
 
 

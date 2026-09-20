@@ -16,10 +16,12 @@ export function PublicDownloadButton({
   fileUrl,
   researchId,
   downloadFileName,
+  guestToken,
 }: {
   fileUrl: string
   researchId: string
   downloadFileName?: string | null
+  guestToken?: string | null
 }) {
   // Loading states for viewing and downloading
   const [isDownloading, setIsDownloading] = useState(false)
@@ -31,7 +33,13 @@ export function PublicDownloadButton({
     setIsDownloading(true)
 
     // Request a signed URL configured for download and track the download
-    const result = await getPublicSignedUrl(fileUrl, true, researchId, downloadFileName || undefined)
+    const result = await getPublicSignedUrl(
+      fileUrl,
+      true,
+      researchId,
+      downloadFileName || undefined,
+      guestToken || undefined
+    )
 
     setIsDownloading(false)
 
@@ -78,7 +86,13 @@ export function PublicDownloadButton({
     }
 
     // Request a signed URL configured for viewing
-    const result = await getPublicSignedUrl(fileUrl, false)
+    const result = await getPublicSignedUrl(
+      fileUrl,
+      false,
+      researchId,
+      undefined,
+      guestToken || undefined
+    )
 
     setIsViewing(false)
 

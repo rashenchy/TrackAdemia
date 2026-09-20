@@ -1,21 +1,47 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import { ArrowLeft, BookOpen, Calendar, GraduationCap, Users, FileText, Hash, Eye, Download } from 'lucide-react'
-import { PublicDownloadButton } from '@/components/public/PublicDownloadButton'
+import { ArrowLeft, BookOpen, Calendar, GraduationCap, Users, FileText, Hash, Eye, Download, Crown } from 'lucide-react'
+import { ResearchAccessControlSection } from '@/components/public/ResearchAccessControlSection'
 import { canTeacherEditPublishedResearch } from '@/lib/research/permissions'
 import { isFacultyRole } from '@/lib/users/access'
+import { getUserResearchAccessState } from '@/lib/research/access-requests/service'
 
-export default async function PublicResearchPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PublicResearchPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams?: Promise<{ token?: string }>
+}) {
+  // Resolve route parameters and search parameters
+  const { id: researchId } = await params
+  const resolvedSearchParams = searchParams ? await searchParams : {}
+  const guestToken = resolvedSearchParams.token || null
 
-  // Resolve the research ID from route parameters
-  const resolvedParams = await params
-  const researchId = resolvedParams.id
-
-  // Initialize Supabase
   const supabase = await createClient()
+
+  // Fetch the current authenticated user
   const {
     data: { user },
   } = await supabase.auth.getUser()
+
+  // Fetch user profile info if logged in
+  let currentUserInfo: { id: string; name: string; email: string } | null = null
+  if (user) {
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('first_name, last_name')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    currentUserInfo = {
+      id: user.id,
+      name: userProfile
+        ? `${userProfile.first_name} ${userProfile.last_name}`
+        : user.email?.split('@')[0] || 'User',
+      email: user.email || '',
+    }
+  }
 
   // Fetch the research entry and enforce public access (Published only)
   const { data: research, error } = await supabase
@@ -45,26 +71,37 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
     )
   }
 
-  // Fetch the research authors based on member IDs
-  let authorNames = 'Unknown Authors'
-  const authorIds =
-    research.members && research.members.length > 0 ? research.members : [research.user_id]
+  // Check access authorization state (author, faculty, approved request, or guest token)
+  const accessState = await getUserResearchAccessState(researchId, guestToken)
 
-  if (authorIds.length > 0) {
+  // Fetch the research authors (Leader + Members)
+  let leaderName = 'Unknown Author'
+  let memberNamesList: string[] = []
 
+  const allAuthorIds = Array.from(
+    new Set([research.user_id, ...(Array.isArray(research.members) ? research.members : [])])
+  ).filter(Boolean)
+
+  if (allAuthorIds.length > 0) {
     const { data: profiles } = await supabase
       .from('profiles')
       .select('id, first_name, last_name')
       .eq('is_active', true)
-      .in('id', authorIds)
+      .in('id', allAuthorIds)
 
     if (profiles) {
-      authorNames = authorIds
-        .map((authorId: string) => {
-          const profile = profiles.find((candidate) => candidate.id === authorId)
-          return profile ? `${profile.first_name} ${profile.last_name}` : 'Unknown Author'
+      const leaderProfile = profiles.find((p) => p.id === research.user_id)
+      if (leaderProfile) {
+        leaderName = `${leaderProfile.first_name} ${leaderProfile.last_name}`
+      }
+
+      const memberIds = (research.members || []).filter((id: string) => id !== research.user_id)
+      memberNamesList = memberIds
+        .map((memberId: string) => {
+          const profile = profiles.find((p) => p.id === memberId)
+          return profile ? `${profile.first_name} ${profile.last_name}` : null
         })
-        .join(', ')
+        .filter(Boolean) as string[]
     }
   }
 
@@ -150,13 +187,25 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
               {research.title}
             </h1>
 
-            {/* Metadata Row */}
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-gray-600 dark:text-gray-400 font-medium pt-2">
+            {/* Authorship Row */}
+            <div className="flex flex-wrap items-center gap-3 pt-2">
+              <div className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/80 px-3.5 py-2 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
+                <Crown size={16} className="shrink-0 text-amber-500" />
+                <span className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400">Research Leader:</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100">{leaderName}</span>
+              </div>
 
-              <span className="flex items-center gap-2">
-                <Users size={16} /> {authorNames}
-              </span>
+              {memberNamesList.length > 0 && (
+                <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
+                  <Users size={16} className="shrink-0 text-slate-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Members:</span>
+                  <span className="font-medium text-slate-900 dark:text-slate-100">{memberNamesList.join(', ')}</span>
+                </div>
+              )}
+            </div>
 
+            {/* Secondary Metadata Row */}
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm font-medium text-gray-600 dark:text-gray-400 pt-1">
               <span className="flex items-center gap-2">
                 <Calendar size={16} /> {academicYearLabel}
               </span>
@@ -169,7 +218,6 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
 
               {/* Views & Downloads Metrics */}
               <div className="flex items-center gap-4 sm:ml-auto bg-gray-50 dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-100 dark:border-gray-700">
-
                 <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
                   <Eye size={16} /> {research.views_count || 0} Views
                 </span>
@@ -179,9 +227,7 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
                 <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400">
                   <Download size={16} /> {research.downloads_count || 0} Downloads
                 </span>
-
               </div>
-
             </div>
 
           </div>
@@ -202,76 +248,35 @@ export default async function PublicResearchPage({ params }: { params: Promise<{
           {/* Keywords Section */}
           {research.keywords && research.keywords.length > 0 && (
             <div className="pt-4 flex flex-wrap items-center gap-2">
-
               <Hash size={16} className="text-gray-400" />
 
               {(Array.isArray(research.keywords)
                 ? research.keywords
                 : research.keywords.split(',')
               ).map((kw: string, i: number) => (
-
                 <span
                   key={i}
                   className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 px-3 py-1.5 rounded-lg font-medium"
                 >
                   {kw.trim()}
                 </span>
-
               ))}
-
             </div>
           )}
 
         </div>
 
-        {/* Access Section */}
-        <div className="bg-blue-50 dark:bg-blue-900/10 p-8 rounded-3xl border border-blue-100 dark:border-blue-900/30 flex flex-col sm:flex-row items-center justify-between gap-6 text-center sm:text-left">
-
-          <div>
-            <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100">
-              {user ? 'Read the full research' : 'Unlock the full manuscript'}
-            </h3>
-
-            <p className="text-sm text-blue-700/80 dark:text-blue-300/80 mt-1">
-              {user
-                ? 'Open or download the latest published manuscript.'
-                : 'Guests can browse metadata and abstracts. Log in or register to view or download the full research file.'}
-            </p>
-            {user && (
-              <p className="mt-2 text-xs font-medium text-blue-800/80 dark:text-blue-200/80">
-                {fileNameToDownload || 'No file name available'}
-              </p>
-            )}
-          </div>
-
-          {user && fileUrlToDownload ? (
-            <PublicDownloadButton
-              fileUrl={fileUrlToDownload}
-              researchId={research.id}
-              downloadFileName={fileNameToDownload}
-            />
-          ) : !user ? (
-            <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-              <Link
-                href={`/login?next=${encodeURIComponent(`/repository/${research.id}`)}`}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-700"
-              >
-                Log In to Continue
-              </Link>
-              <Link
-                href={`/register?next=${encodeURIComponent(`/repository/${research.id}`)}`}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white px-6 py-3 text-sm font-bold text-blue-700 transition-colors hover:bg-blue-50 dark:bg-gray-900"
-              >
-                Create Account
-              </Link>
-            </div>
-          ) : (
-            <span className="text-sm text-gray-500 italic">
-              No manuscript available
-            </span>
-          )}
-
-        </div>
+        {/* Research Access Control Section */}
+        <ResearchAccessControlSection
+          researchId={research.id}
+          researchTitle={research.title}
+          leaderName={leaderName}
+          fileUrl={fileUrlToDownload}
+          fileName={fileNameToDownload}
+          accessState={accessState}
+          currentUser={currentUserInfo}
+          guestToken={guestToken}
+        />
 
       </div>
 

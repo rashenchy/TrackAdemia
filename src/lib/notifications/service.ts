@@ -20,6 +20,9 @@ export type AppNotificationType =
   | 'account_verified'
   | 'account_rejected'
   | 'announcement_created'
+  | 'research_access_request'
+  | 'research_access_approved'
+  | 'research_access_rejected'
 
 type NotificationInsert = {
   user_id: string

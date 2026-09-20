@@ -17,6 +17,8 @@ import { BackButton } from '@/components/navigation/BackButton'
 import { appendFromParam, buildPathWithSearch } from '@/lib/navigation'
 import { canTeacherEditPublishedResearch } from '@/lib/research/permissions'
 import { isFacultyRole } from '@/lib/users/access'
+import { LeaderAccessRequestsCard } from '@/components/dashboard/research/LeaderAccessRequestsCard'
+import { getResearchAccessRequests } from '@/lib/research/access-requests/service'
 
 type TeamMember = {
   id: string
@@ -122,30 +124,43 @@ export default async function ViewResearchPage({
     }
   }
 
-  // Fetch team member profiles
+  // Fetch team member profiles (Leader + Members)
   let teamMembers: TeamMember[] = []
-  const authorIds =
-    research.members && research.members.length > 0 ? research.members : [research.user_id]
+  const allTeamIds = Array.from(
+    new Set([research.user_id, ...(Array.isArray(research.members) ? research.members : [])])
+  ).filter(Boolean)
 
-  if (authorIds.length > 0) {
+  if (allTeamIds.length > 0) {
     const { data: profiles } = await supabase
       .from('profiles')
       .select('id, first_name, last_name, course_program')
       .eq('is_active', true)
-      .in('id', authorIds)
+      .in('id', allTeamIds)
 
     if (profiles) {
-      teamMembers = authorIds.map((memberId: string, index: number) => {
-        const p = profiles.find(prof => prof.id === memberId)
-        return {
+      // 1. Add Leader
+      const leaderProfile = profiles.find((prof) => prof.id === research.user_id)
+      if (leaderProfile) {
+        teamMembers.push({
+          id: leaderProfile.id,
+          name: `${leaderProfile.first_name} ${leaderProfile.last_name}`,
+          course: leaderProfile.course_program || 'N/A',
+          role: 'Research Leader',
+        })
+      }
+
+      // 2. Add Other Members
+      const otherMemberIds = (research.members || []).filter((id: string) => id !== research.user_id)
+      otherMemberIds.forEach((memberId: string) => {
+        const p = profiles.find((prof) => prof.id === memberId)
+        const originalIndex = (research.members || []).indexOf(memberId)
+        teamMembers.push({
           id: memberId,
           name: p ? `${p.first_name} ${p.last_name}` : 'Unknown Student',
           course: p?.course_program || 'N/A',
           role:
-            research.members && research.members.length > 0
-              ? research.member_roles?.[index] || 'Member'
-              : 'Primary Author'
-        }
+            (originalIndex >= 0 && research.member_roles?.[originalIndex]) || 'Research Member',
+        })
       })
     }
   }
@@ -211,6 +226,15 @@ export default async function ViewResearchPage({
     ]),
     currentPageHref
   )
+
+  const isLeader = research.user_id === user.id
+  const canManageAccessRequests = isLeader || isTeacher
+
+  let accessRequests: any[] = []
+  if (canManageAccessRequests && (research.status === 'Published' || isLeader)) {
+    const accessRes = await getResearchAccessRequests(researchId, user.id)
+    accessRequests = accessRes.data || []
+  }
 
   const updateStatusAction = updateResearchStatus.bind(null, researchId)
 
@@ -361,6 +385,14 @@ export default async function ViewResearchPage({
           </div>
         </div>
       </div>
+
+      {/* Access Requests Management Card (Leader / Faculty View) */}
+      {canManageAccessRequests && (research.status === 'Published' || accessRequests.length > 0) && (
+        <LeaderAccessRequestsCard
+          researchId={researchId}
+          requests={accessRequests}
+        />
+      )}
 
       {/* Manuscript Versions Section */}
       <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">

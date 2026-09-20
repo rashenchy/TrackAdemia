@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { RepositorySearch } from '@/components/dashboard/repository/RepositorySearch'
-import { BookOpen, Calendar, Users, Hash, ChevronRight, Search, Eye, Download } from 'lucide-react'
+import { BookOpen, Calendar, Users, Hash, ChevronRight, Search, Eye, Download, Crown } from 'lucide-react'
 import PaginationLinks from '@/components/ui/PaginationLinks'
 
 type RepositoryPaper = {
@@ -234,17 +234,17 @@ export default async function RepositoryPage({
     const normalizedQuery = normalizeSearchValue(query)
 
     filteredPapers = filteredPapers.filter((paper) => {
-      const authorIds =
-        paper.members && paper.members.length > 0 ? paper.members : [paper.user_id]
-      const authorNames =
-        authorIds.map((id: string) =>
-          authorsMap[id] || 'Unknown'
-        ).join(' ') || ''
+      const leaderName = authorsMap[paper.user_id] || ''
+      const memberNames = (paper.members || [])
+        .filter((id: string) => id !== paper.user_id)
+        .map((id: string) => authorsMap[id] || '')
+        .join(' ')
+      const allAuthorNames = [leaderName, memberNames].filter(Boolean).join(' ')
       const adviserName = paper.adviser_id
         ? adviserMap[paper.adviser_id] || ''
         : ''
 
-      return getPaperSearchText(paper, authorNames, adviserName).includes(normalizedQuery)
+      return getPaperSearchText(paper, allAuthorNames, adviserName).includes(normalizedQuery)
     })
   }
 
@@ -338,20 +338,16 @@ export default async function RepositoryPage({
         ) : (
 
           pagedPapers.map((paper) => {
-            const authorIds =
-              paper.members && paper.members.length > 0 ? paper.members : [paper.user_id]
-
-            const authorNames =
-              authorIds.map((id: string) =>
-                authorsMap[id] || 'Unknown'
-              ).join(', ')
+            const leaderName = authorsMap[paper.user_id] || 'Unknown Author'
+            const memberNames = (paper.members || [])
+              .filter((id: string) => id !== paper.user_id)
+              .map((id: string) => authorsMap[id] || 'Unknown')
 
             return (
               <div
                 key={paper.id}
                 className="group bg-[var(--background)] p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md hover:border-blue-300 dark:hover:border-blue-700 transition-all"
               >
-
                 {/* Research title and document type */}
                 <div className="flex items-start justify-between gap-4 mb-2">
                   <Link href={`/dashboard/research/${paper.id}?public=true`}>
@@ -365,23 +361,37 @@ export default async function RepositoryPage({
                   </span>
                 </div>
 
-                {/* Citation-style metadata (authors, year, subject code) */}
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-green-700 dark:text-green-500 font-medium mb-4">
-                  <span className="flex items-center gap-1.5">
-                    <Users size={14} /> {authorNames || 'Unknown Authors'}
+                {/* Metadata row with Leader and Members */}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm font-medium mb-4">
+                  <span className="flex items-center gap-1.5 text-blue-700 dark:text-blue-400">
+                    <Crown size={14} className="text-amber-500" />
+                    <span className="font-bold">Leader:</span> {leaderName}
                   </span>
 
-                  <span>-</span>
+                  {memberNames.length > 0 && (
+                    <>
+                      <span className="text-gray-300 dark:text-gray-700">•</span>
+                      <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+                        <Users size={14} className="text-gray-400" />
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">Members:</span> {memberNames.join(', ')}
+                      </span>
+                    </>
+                  )}
 
-                  <span className="flex items-center gap-1.5">
+                  <span className="text-gray-300 dark:text-gray-700">•</span>
+
+                  <span className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
                     <Calendar size={14} /> {resolvePaperYear(paper).label}
                   </span>
 
-                  <span>-</span>
-
-                  <span className="text-gray-500 dark:text-gray-400">
-                    {paper.subject_code}
-                  </span>
+                  {paper.subject_code && (
+                    <>
+                      <span className="text-gray-300 dark:text-gray-700">•</span>
+                      <span className="text-gray-500 dark:text-gray-400">
+                        {paper.subject_code}
+                      </span>
+                    </>
+                  )}
                 </div>
 
                 {/* Short abstract preview */}
@@ -391,7 +401,6 @@ export default async function RepositoryPage({
 
                 {/* Keywords and usage metrics section */}
                 <div className="flex flex-wrap items-center justify-between gap-4 mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
-
                   {/* Research keywords */}
                   <div className="flex flex-wrap items-center gap-2">
                     <Hash size={14} className="text-gray-400" />
@@ -414,7 +423,6 @@ export default async function RepositoryPage({
 
                   {/* Paper metrics and navigation to full text */}
                   <div className="flex items-center gap-5">
-
                     <div className="flex items-center gap-3 text-xs text-gray-400 font-semibold">
                       <span className="flex items-center gap-1.5" title="Views">
                         <Eye size={14} /> {paper.views_count || 0}
@@ -433,17 +441,12 @@ export default async function RepositoryPage({
                     >
                       Read Full Text <ChevronRight size={16} />
                     </Link>
-
                   </div>
-
                 </div>
-
               </div>
             )
           })
-
         )}
-
       </div>
 
       <PaginationLinks
@@ -452,7 +455,6 @@ export default async function RepositoryPage({
         totalCount={totalCount}
         pageSize={pageSize}
       />
-
     </div>
   )
 }

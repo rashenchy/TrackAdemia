@@ -236,6 +236,9 @@ Allowed `notification_type` values in schema:
 - `account_verified`
 - `account_rejected`
 - `announcement_created`
+- `research_access_request`
+- `research_access_approved`
+- `research_access_rejected`
 
 ## Administrative and analytics tables
 
@@ -288,6 +291,24 @@ Key fields:
 - `research_id`
 - `user_id`
 - `viewed_at`
+
+### `research_access_requests`
+Purpose: access permission requests from guests or users for viewing/downloading restricted research manuscripts.
+
+Key fields:
+- `id` `uuid` primary key
+- `research_id` `uuid`
+- `user_id` `uuid | null`
+- `guest_name` `text | null`
+- `guest_email` `text | null`
+- `message` `text`
+- `status` `text`, allowed values: `pending`, `approved`, `rejected`
+- `reviewed_by` `uuid | null`
+- `reviewed_at` `timestamptz | null`
+- `rejection_reason` `text | null`
+- `access_token` `text | null`
+- `created_at` `timestamptz`
+- `updated_at` `timestamptz`
 
 ## Foreign-key relationships worth remembering
 - `profiles.id -> auth.users.id`

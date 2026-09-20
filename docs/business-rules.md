@@ -99,8 +99,19 @@ The app currently writes these notification types:
 - `account_verified`
 - `account_rejected`
 - `announcement_created`
+- `research_access_request`
+- `research_access_approved`
+- `research_access_rejected`
 
 Notifications are deduplicated with `user_id + event_key`.
+
+## Research access request rules
+- Public guests and authenticated users can view published research metadata and abstracts freely.
+- Access to the full research manuscript (PDF) requires explicit approval from the Research Leader (`research.user_id`) or faculty.
+- Requesters can submit a single pending access request per research with a reason/message.
+- Research Leaders receive in-app notifications of pending requests and can approve or reject them.
+- Approved requests grant document viewing/downloading access exclusively for the approved research paper.
+- Guests receive approved links with a secure access token; registered users receive in-app notifications and automatic profile-linked access.
 
 ## Admin rules
 - Only admins can create faculty accounts.

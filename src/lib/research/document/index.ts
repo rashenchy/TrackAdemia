@@ -198,7 +198,9 @@ export function createStructuredSectionContent(subsectionTitles: string[]) {
   )
 }
 
-export function createDefaultResearchDocumentContent(researchType: string | null | undefined) {
+export function createDefaultResearchDocumentContent(
+  researchType: string | null | undefined
+): ResearchDocumentContent {
   const template =
     researchType === 'capstone'
       ? CAPSTONE_TEMPLATE
