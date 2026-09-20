@@ -15,9 +15,6 @@ export function RegistrationIdentityFields() {
         <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3.5 text-sm font-semibold text-blue-800">
           Student account
         </div>
-        <p className="text-xs leading-5 text-slate-500">
-          Faculty accounts are created from the administrator settings workspace.
-        </p>
       </div>
 
       <div className="flex flex-col gap-2">

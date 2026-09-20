@@ -1,7 +1,12 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { uploadResearchDocument } from '@/lib/research/files'
+import {
+  uploadResearchDocument,
+  uploadResearchDiagram,
+  uploadSourceCodeArchive,
+} from '@/lib/research/files'
+import { type ResearchDiagramItem, type ResearchDiagramType } from '@/lib/research/diagrams/types'
 import { getPublishedAtForStatusChange } from '@/lib/research/publication'
 import {
   extractResearchDocumentContentFromFormData,
@@ -90,6 +95,7 @@ export async function submitResearch(prevState: FormState | null, formData: Form
   // Academic fields
   const subjectCode = (formData.get('subjectCode') as string)?.trim() || ''
   const adviser = (formData.get('adviser') as string)?.trim() || null
+  const proofreaderId = (formData.get('proofreaderId') as string)?.trim() || null
   const researchArea = (formData.get('researchArea') as string)?.trim()
 
   // Timeline fields
@@ -176,6 +182,60 @@ export async function submitResearch(prevState: FormState | null, formData: Form
     }
   }
 
+  // Technical Artifacts & Source Code
+  const repositoryUrl = (formData.get('repositoryUrl') as string)?.trim() || null
+  const demoUrl = (formData.get('demoUrl') as string)?.trim() || null
+
+  const sourceCodeZip = formData.get('sourceCodeZip') as File | null
+  let sourceCodeUrl: string | null = null
+  let sourceCodeFilename: string | null = null
+
+  if (sourceCodeZip && sourceCodeZip.size > 0) {
+    try {
+      const uploadedZip = await uploadSourceCodeArchive(supabase, user.id, sourceCodeZip)
+      sourceCodeUrl = uploadedZip.filePath
+      sourceCodeFilename = uploadedZip.originalFileName
+    } catch (err: unknown) {
+      console.error('Source Code Upload Error:', err)
+      return { error: getErrorMessage(err, 'Failed to upload source code archive.') }
+    }
+  }
+
+  // Technical Diagrams (DFD, ERD, Architecture, Mockups)
+  const rawExistingDiagrams = formData.get('existingDiagramsJson') as string | null
+  let diagrams: ResearchDiagramItem[] = []
+  if (rawExistingDiagrams) {
+    try {
+      diagrams = JSON.parse(rawExistingDiagrams)
+    } catch {
+      diagrams = []
+    }
+  }
+
+  const diagramCount = Number(formData.get('diagramCount') || 0)
+  for (let i = 0; i < diagramCount; i++) {
+    const diagramFile = formData.get(`diagram_file_${i}`) as File | null
+    const diagramType = (formData.get(`diagram_type_${i}`) as ResearchDiagramType) || 'other'
+    const diagramTitle = (formData.get(`diagram_title_${i}`) as string)?.trim() || 'Technical Diagram'
+
+    if (diagramFile && diagramFile.size > 0) {
+      try {
+        const uploadedDiagram = await uploadResearchDiagram(supabase, user.id, diagramFile)
+        diagrams.push({
+          id: crypto.randomUUID(),
+          file_url: uploadedDiagram.filePath,
+          title: diagramTitle,
+          diagram_type: diagramType,
+          original_file_name: uploadedDiagram.originalFileName,
+          created_at: new Date().toISOString(),
+        })
+      } catch (err: unknown) {
+        console.error('Diagram Upload Error:', err)
+        return { error: getErrorMessage(err, `Failed to upload diagram "${diagramTitle}".`) }
+      }
+    }
+  }
+
   // Insert research record
   const { data: newResearch, error } = await supabase
     .from('research')
@@ -188,6 +248,7 @@ export async function submitResearch(prevState: FormState | null, formData: Form
       keywords,
       subject_code: normalizedSubjectCode,
       adviser_id: normalizedAdviser,
+      proofreader_id: proofreaderId,
       research_area: researchArea,
       start_date: normalizedStartDate,
       target_defense_date: normalizedTargetDefenseDate,
@@ -200,6 +261,11 @@ export async function submitResearch(prevState: FormState | null, formData: Form
       original_file_name: originalFileName,
       submission_format: submissionFormat,
       content_json: !isTeacher && hasTextContent ? documentContent : null,
+      repository_url: repositoryUrl,
+      demo_url: demoUrl,
+      source_code_url: sourceCodeUrl,
+      source_code_filename: sourceCodeFilename,
+      diagrams,
     })
     .select()
     .single()
@@ -243,6 +309,7 @@ export async function submitResearch(prevState: FormState | null, formData: Form
         researchTitle: title,
         subjectCode: normalizedSubjectCode,
         adviserId: normalizedAdviser,
+        proofreaderId,
         status: 'Pending Review',
         eventKeySuffix: 'initial-submission',
       })

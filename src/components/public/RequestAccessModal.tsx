@@ -1,7 +1,19 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { X, Lock, Send, CheckCircle2, AlertCircle, Loader2, User, Mail, ShieldCheck } from 'lucide-react'
+import Link from 'next/link'
+import {
+  X,
+  Lock,
+  Send,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  UserPlus,
+  LogIn,
+  ShieldCheck,
+  Building2,
+} from 'lucide-react'
 import { submitAccessRequestAction } from '@/app/repository/[id]/actions'
 import { usePopup } from '@/components/ui/PopupProvider'
 
@@ -26,8 +38,6 @@ export function RequestAccessModal({
   isOpen,
   onClose,
 }: RequestAccessModalProps) {
-  const [guestName, setGuestName] = useState('')
-  const [guestEmail, setGuestEmail] = useState('')
   const [message, setMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isSuccess, setIsSuccess] = useState(false)
@@ -41,14 +51,8 @@ export function RequestAccessModal({
     setErrorMessage(null)
 
     if (!currentUser) {
-      if (!guestName.trim() || guestName.trim().length < 2) {
-        setErrorMessage('Please enter your full name.')
-        return
-      }
-      if (!guestEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail.trim())) {
-        setErrorMessage('Please enter a valid email address.')
-        return
-      }
+      setErrorMessage('Please sign in or create a guest account to submit a request.')
+      return
     }
 
     if (!message.trim() || message.trim().length < 10) {
@@ -59,8 +63,6 @@ export function RequestAccessModal({
     startTransition(async () => {
       const res = await submitAccessRequestAction({
         researchId,
-        guestName: currentUser ? undefined : guestName.trim(),
-        guestEmail: currentUser ? undefined : guestEmail.trim().toLowerCase(),
         message: message.trim(),
       })
 
@@ -87,10 +89,6 @@ export function RequestAccessModal({
       setErrorMessage(null)
       setIsSuccess(false)
       setMessage('')
-      if (!currentUser) {
-        setGuestName('')
-        setGuestEmail('')
-      }
       onClose()
     }
   }
@@ -115,7 +113,58 @@ export function RequestAccessModal({
           <X size={20} />
         </button>
 
-        {isSuccess ? (
+        {!currentUser ? (
+          /* Unauthenticated Visitor Prompt */
+          <div className="space-y-6 py-2 text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-100 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300">
+              <ShieldCheck size={36} />
+            </div>
+
+            <div className="space-y-2">
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-bold text-teal-800 dark:border-teal-800 dark:bg-teal-950/40 dark:text-teal-300">
+                <Building2 size={13} />
+                Guest Account Required
+              </div>
+              <h3 className="text-2xl font-black text-gray-900 dark:text-gray-100">
+                Sign In to Request Access
+              </h3>
+              <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+                Access to the full PDF manuscript for &ldquo;{researchTitle}&rdquo; requires authorization from Research Leader {leaderName}.
+              </p>
+              <p className="text-xs text-gray-500">
+                To protect student intellectual property, access requests must be submitted from a verified account.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <Link
+                href={`/register/guest?redirect=${encodeURIComponent(`/repository/${researchId}`)}`}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-600 px-5 py-3 text-sm font-bold text-white shadow-md transition-all hover:bg-teal-700 hover:shadow-lg"
+              >
+                <UserPlus size={17} />
+                <span>Create a Free Guest Account</span>
+              </Link>
+
+              <Link
+                href={`/login?redirect=${encodeURIComponent(`/repository/${researchId}`)}`}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-gray-200 px-5 py-3 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                <LogIn size={16} />
+                <span>Sign in with existing account</span>
+              </Link>
+            </div>
+
+            <p className="text-xs text-gray-500 pt-1">
+              Enrolled university student?{' '}
+              <Link
+                href={`/register?redirect=${encodeURIComponent(`/repository/${researchId}`)}`}
+                className="font-semibold text-blue-600 hover:underline"
+              >
+                Register as Student
+              </Link>
+            </p>
+          </div>
+        ) : isSuccess ? (
           /* Success View */
           <div className="space-y-6 py-4 text-center">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400">
@@ -127,20 +176,16 @@ export function RequestAccessModal({
                 Access Request Submitted!
               </h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                {currentUser
-                  ? `Your request to view the full manuscript of "${researchTitle}" has been sent to Research Leader ${leaderName}. You will receive an in-app notification once reviewed.`
-                  : `Your request to view the full manuscript of "${researchTitle}" has been sent to Research Leader ${leaderName}. Once approved, you will receive an access link at ${guestEmail}.`}
+                Your request to view the full manuscript of &ldquo;{researchTitle}&rdquo; has been sent to Research Leader {leaderName}.
               </p>
             </div>
 
             <div className="rounded-2xl border border-green-200 bg-green-50/50 p-4 text-left text-xs text-green-800 dark:border-green-900/40 dark:bg-green-950/20 dark:text-green-300">
-              <span className="font-bold">Next steps:</span>
+              <span className="font-bold">What happens next:</span>
               <ul className="mt-1.5 list-disc space-y-1 pl-4">
                 <li>The Research Leader will evaluate your stated purpose.</li>
-                <li>Access is granted on a per-research basis.</li>
-                {!currentUser && (
-                  <li>Keep an eye on your inbox for your approved direct access link.</li>
-                )}
+                <li>You can monitor the status of this request in your personal dashboard.</li>
+                <li>Once approved, you will have immediate full-text reading and download access.</li>
               </ul>
             </div>
 
@@ -152,7 +197,7 @@ export function RequestAccessModal({
             </button>
           </div>
         ) : (
-          /* Request Form View */
+          /* Request Form View for Authenticated User */
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Header */}
             <div className="space-y-1.5 pr-6">
@@ -178,64 +223,21 @@ export function RequestAccessModal({
             )}
 
             {/* Requester Identity */}
-            {currentUser ? (
-              <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3.5 dark:border-blue-900/40 dark:bg-blue-950/20">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white font-bold text-sm shadow-sm">
-                    {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-bold text-blue-900 dark:text-blue-200">
-                      Requesting as {currentUser.name}
-                    </p>
-                    <p className="truncate text-[11px] text-blue-700/80 dark:text-blue-300/80">
-                      {currentUser.email}
-                    </p>
-                  </div>
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-3.5 dark:border-blue-900/40 dark:bg-blue-950/20">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white font-bold text-sm shadow-sm">
+                  {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
-                    Your Full Name <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                      type="text"
-                      value={guestName}
-                      onChange={(e) => setGuestName(e.target.value)}
-                      placeholder="e.g. Dr. Jane Doe"
-                      disabled={isPending}
-                      required
-                      className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-800 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-blue-900/30"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-300">
-                    Email Address <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                    <input
-                      type="email"
-                      value={guestEmail}
-                      onChange={(e) => setGuestEmail(e.target.value)}
-                      placeholder="jane.doe@university.edu"
-                      disabled={isPending}
-                      required
-                      className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-10 pr-4 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-800 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-blue-900/30"
-                    />
-                  </div>
-                  <p className="mt-1 text-[11px] text-gray-500">
-                    Your secure access link will be delivered here if approved.
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-bold text-blue-900 dark:text-blue-200">
+                    Requesting as {currentUser.name}
+                  </p>
+                  <p className="truncate text-[11px] text-blue-700/80 dark:text-blue-300/80">
+                    {currentUser.email}
                   </p>
                 </div>
               </div>
-            )}
+            </div>
 
             {/* Reason / Purpose */}
             <div>
@@ -243,10 +245,10 @@ export function RequestAccessModal({
                 Reason / Purpose of Request <span className="text-red-500">*</span>
               </label>
               <textarea
-                rows={3}
+                rows={4}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                placeholder="Explain why you are requesting access (e.g., conducting academic research in a related field, thesis citation, peer review)..."
+                placeholder="Explain why you are requesting access (e.g., conducting academic research in a related field, thesis citation, comparative study)..."
                 disabled={isPending}
                 required
                 className="w-full rounded-xl border border-gray-200 bg-white p-3 text-sm text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-800 dark:bg-gray-800 dark:text-gray-100 dark:focus:ring-blue-900/30"

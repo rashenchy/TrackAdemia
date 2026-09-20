@@ -79,6 +79,7 @@ export type ResearchRecord = {
   user_id: string
   members?: string[] | null
   adviser_id?: string | null
+  proofreader_id?: string | null
   subject_code?: string | null
   current_stage?: string | null
   status?: string | null

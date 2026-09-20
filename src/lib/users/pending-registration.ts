@@ -12,7 +12,7 @@ const MAX_RESENDS = 5
 const RESEND_COOLDOWN_SECONDS = 30
 const VERIFICATION_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
 
-export type PendingRegistrationRole = 'student' | 'mentor'
+export type PendingRegistrationRole = 'student' | 'mentor' | 'guest' | 'proofreader'
 
 export type PendingRegistrationPayload = {
   email: string
@@ -23,6 +23,7 @@ export type PendingRegistrationPayload = {
   course: string
   role: PendingRegistrationRole
   studentNumber: string | null
+  institution?: string | null
 }
 
 type PendingRegistrationSession = {

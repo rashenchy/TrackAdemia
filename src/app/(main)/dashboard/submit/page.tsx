@@ -22,6 +22,12 @@ type DraftResearch = {
   original_file_name?: string | null
   submission_format?: string | null
   content_json?: unknown
+  proofreader_id?: string | null
+  repository_url?: string | null
+  demo_url?: string | null
+  source_code_url?: string | null
+  source_code_filename?: string | null
+  diagrams?: any[] | null
 }
 
 type SectionLookupRow = {
@@ -49,6 +55,10 @@ export default async function SubmitResearchPage() {
     .eq('is_active', true)
     .single()
 
+  if (currentProfile?.role === 'guest') {
+    redirect('/dashboard')
+  }
+
   const isTeacher = isFacultyRole(currentProfile?.role)
 
   const sectionIds = myMemberships?.map(m => m.section_id) || []
@@ -63,8 +73,8 @@ export default async function SubmitResearchPage() {
   const { data: draftData } = await supabase
     .from('research')
     .select(
-      'id, title, type, abstract, academic_year, keywords, members, member_roles, subject_code, adviser_id, research_area, start_date, target_defense_date, current_stage, file_url'
-      + ', original_file_name, submission_format, content_json'
+      'id, title, type, abstract, academic_year, keywords, members, member_roles, subject_code, adviser_id, proofreader_id, research_area, start_date, target_defense_date, current_stage, file_url'
+      + ', original_file_name, submission_format, content_json, repository_url, demo_url, source_code_url, source_code_filename, diagrams'
     )
     .eq('user_id', user.id)
     .eq('status', 'Draft')
@@ -208,6 +218,21 @@ export default async function SubmitResearchPage() {
     }
   }
 
+  // Fetch verified active proofreaders
+  const { data: proofreadersData } = await supabase
+    .from('profiles')
+    .select('id, first_name, last_name, course_program, institution')
+    .eq('role', 'proofreader')
+    .eq('is_verified', true)
+    .eq('is_active', true)
+
+  const proofreaderOptions = (proofreadersData || []).map((p: any) => ({
+    id: p.id,
+    name: `${p.first_name} ${p.last_name}`.trim(),
+    department: p.course_program || 'Languages & General Education',
+    institution: p.institution || null,
+  }))
+
   // Render the research submission page
   return (
     <div className="max-w-4xl mx-auto pb-12">
@@ -225,6 +250,7 @@ export default async function SubmitResearchPage() {
         sections={userSections}
         adviserOptions={adviserOptions}
         sectionAdvisers={sectionAdvisers}
+        proofreaderOptions={proofreaderOptions}
         initialData={draftResearch}
         editId={draftResearch?.id ?? null}
       />

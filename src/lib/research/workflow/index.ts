@@ -24,12 +24,17 @@ export async function getUnresolvedAnnotationCount(
 async function getTeacherRecipientIds(
   supabase: SupabaseClientLike,
   subjectCode: string | null | undefined,
-  adviserId: string | null | undefined
+  adviserId: string | null | undefined,
+  proofreaderId?: string | null | undefined
 ) {
   const recipientIds = new Set<string>()
 
   if (adviserId) {
     recipientIds.add(adviserId)
+  }
+
+  if (proofreaderId) {
+    recipientIds.add(proofreaderId)
   }
 
   if (subjectCode) {
@@ -56,6 +61,7 @@ export async function notifyTeachersForResearchSubmission(
     researchTitle,
     subjectCode,
     adviserId,
+    proofreaderId,
     status,
     eventKeySuffix,
   }: {
@@ -64,11 +70,12 @@ export async function notifyTeachersForResearchSubmission(
     researchTitle: string
     subjectCode?: string | null
     adviserId?: string | null
+    proofreaderId?: string | null
     status: 'Pending Review' | 'Resubmitted'
     eventKeySuffix?: string | null
   }
 ) {
-  const recipientIds = await getTeacherRecipientIds(supabase, subjectCode, adviserId)
+  const recipientIds = await getTeacherRecipientIds(supabase, subjectCode, adviserId, proofreaderId)
 
   const notificationType =
     status === 'Pending Review' ? 'research_submission' : 'research_resubmitted'
@@ -107,6 +114,7 @@ export async function notifyTeachersForResearchVersionUpload(
     researchTitle,
     subjectCode,
     adviserId,
+    proofreaderId,
     originalFileName,
     versionNumber,
   }: {
@@ -115,11 +123,12 @@ export async function notifyTeachersForResearchVersionUpload(
     researchTitle: string
     subjectCode?: string | null
     adviserId?: string | null
+    proofreaderId?: string | null
     originalFileName?: string | null
     versionNumber: number
   }
 ) {
-  const recipientIds = await getTeacherRecipientIds(supabase, subjectCode, adviserId)
+  const recipientIds = await getTeacherRecipientIds(supabase, subjectCode, adviserId, proofreaderId)
 
   await createNotifications(
     supabase,

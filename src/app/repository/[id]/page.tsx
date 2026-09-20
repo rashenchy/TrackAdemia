@@ -5,6 +5,8 @@ import { ResearchAccessControlSection } from '@/components/public/ResearchAccess
 import { canTeacherEditPublishedResearch } from '@/lib/research/permissions'
 import { isFacultyRole } from '@/lib/users/access'
 import { getUserResearchAccessState } from '@/lib/research/access-requests/service'
+import { TechnicalArtifactsCard } from '@/components/dashboard/research/TechnicalArtifactsCard'
+import { DiagramGalleryLightbox } from '@/components/dashboard/research/DiagramGalleryLightbox'
 
 export default async function PublicResearchPage({
   params,
@@ -265,6 +267,21 @@ export default async function PublicResearchPage({
           )}
 
         </div>
+
+        {/* Technical Artifacts: Repository & Live Demo */}
+        <TechnicalArtifactsCard
+          repositoryUrl={research.repository_url}
+          demoUrl={research.demo_url}
+          sourceCodeUrl={research.source_code_url}
+          sourceCodeFilename={research.source_code_filename}
+        />
+
+        {/* Technical Diagrams Lightbox Gallery */}
+        {Array.isArray(research.diagrams) && research.diagrams.length > 0 && (
+          <DiagramGalleryLightbox
+            diagrams={research.diagrams}
+          />
+        )}
 
         {/* Research Access Control Section */}
         <ResearchAccessControlSection

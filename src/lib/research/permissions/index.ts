@@ -4,10 +4,10 @@ type PublishedResearchAccessRecord = {
   subject_code?: string | null
 }
 
-export type ResearchUserRole = 'student' | 'mentor' | 'admin' | null | undefined
+export type ResearchUserRole = 'student' | 'mentor' | 'admin' | 'proofreader' | 'guest' | null | undefined
 
 export function isResearchReviewer(role: ResearchUserRole) {
-  return role === 'mentor' || role === 'admin'
+  return role === 'mentor' || role === 'admin' || role === 'proofreader'
 }
 
 export function isResearchMentor(role: ResearchUserRole) {

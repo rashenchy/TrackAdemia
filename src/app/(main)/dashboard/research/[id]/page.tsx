@@ -19,6 +19,8 @@ import { canTeacherEditPublishedResearch } from '@/lib/research/permissions'
 import { isFacultyRole } from '@/lib/users/access'
 import { LeaderAccessRequestsCard } from '@/components/dashboard/research/LeaderAccessRequestsCard'
 import { getResearchAccessRequests } from '@/lib/research/access-requests/service'
+import { TechnicalArtifactsCard } from '@/components/dashboard/research/TechnicalArtifactsCard'
+import { DiagramGalleryLightbox } from '@/components/dashboard/research/DiagramGalleryLightbox'
 
 type TeamMember = {
   id: string
@@ -124,6 +126,20 @@ export default async function ViewResearchPage({
     }
   }
 
+  let proofreaderName = 'None'
+  if (research.proofreader_id) {
+    const { data: proofreaderProfile } = await supabase
+      .from('profiles')
+      .select('first_name, last_name')
+      .eq('id', research.proofreader_id)
+      .eq('is_active', true)
+      .single()
+
+    if (proofreaderProfile) {
+      proofreaderName = `${proofreaderProfile.first_name} ${proofreaderProfile.last_name}`
+    }
+  }
+
   // Fetch team member profiles (Leader + Members)
   let teamMembers: TeamMember[] = []
   const allTeamIds = Array.from(
@@ -220,6 +236,11 @@ export default async function ViewResearchPage({
   const canTeacherEnterWorkspace = isTeacher && (
     research.status !== 'Published' || canTeacherEditPublished
   )
+  const isAssignedProofreader =
+    profile?.role === 'proofreader' &&
+    Boolean(research.proofreader_id && research.proofreader_id === user.id)
+  const canEnterWorkspace =
+    isAuthor || canTeacherEnterWorkspace || isAssignedProofreader
   const latestWorkspaceHref = appendFromParam(
     buildPathWithSearch(`/dashboard/research/${research.id}/annotate`, [
       ['version', latestVersion ? String(latestVersion.version_number) : null],
@@ -358,6 +379,12 @@ export default async function ViewResearchPage({
             <label className="text-xs font-bold uppercase text-gray-500">External Adviser</label>
             <p className="text-md">{externalAdviserName}</p>
           </div>
+          {proofreaderName !== 'None' && (
+            <div>
+              <label className="text-xs font-bold uppercase text-gray-500">Proofreader / Language Editor</label>
+              <p className="text-md font-medium text-indigo-900 dark:text-indigo-200">{proofreaderName}</p>
+            </div>
+          )}
           <div>
             <label className="text-xs font-bold uppercase text-gray-500">Research Area</label>
             <p className="text-md">{research.research_area || 'N/A'}</p>
@@ -391,6 +418,21 @@ export default async function ViewResearchPage({
         <LeaderAccessRequestsCard
           researchId={researchId}
           requests={accessRequests}
+        />
+      )}
+
+      {/* Technical Artifacts: Repository, Live Demo, Source Code ZIP */}
+      <TechnicalArtifactsCard
+        repositoryUrl={research.repository_url}
+        demoUrl={research.demo_url}
+        sourceCodeUrl={research.source_code_url}
+        sourceCodeFilename={research.source_code_filename}
+      />
+
+      {/* Technical Diagrams Lightbox Gallery (ERD, DFD, Architecture, Mockups) */}
+      {Array.isArray(research.diagrams) && research.diagrams.length > 0 && (
+        <DiagramGalleryLightbox
+          diagrams={research.diagrams}
         />
       )}
 
@@ -452,7 +494,7 @@ export default async function ViewResearchPage({
               <ResearchTextWorkspaceCard
                 content={latestDocumentContent}
                 workspaceHref={latestWorkspaceHref}
-                canEnterWorkspace={!isViewerOnly && (isAuthor || canTeacherEnterWorkspace)}
+                canEnterWorkspace={!isViewerOnly && canEnterWorkspace}
               />
             )}
           </div>
@@ -521,7 +563,7 @@ export default async function ViewResearchPage({
                     </div>
 
                     <div className="flex items-center gap-2 w-full md:w-auto">
-                        {(isAuthor || canTeacherEnterWorkspace) && (
+                        {canEnterWorkspace && (
                           <Link
                             href={appendFromParam(
                               buildPathWithSearch(`/dashboard/research/${research.id}/annotate`, [

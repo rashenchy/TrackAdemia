@@ -121,6 +121,20 @@ export default async function RegisterPage({
               <p className="mt-3 text-base leading-7 text-slate-600">
                 Create your student account to enter the research workflow. Faculty accounts are provisioned from the admin settings area.
               </p>
+              <div className="mt-3 space-y-2">
+                <div className="rounded-2xl border border-teal-200 bg-teal-50/70 p-3 text-xs text-teal-800">
+                  Not an enrolled student?{' '}
+                  <Link href="/register/guest" className="font-bold underline hover:text-teal-950">
+                    Register as an External / Guest Researcher &rarr;
+                  </Link>
+                </div>
+                <div className="rounded-2xl border border-purple-200 bg-purple-50/70 p-3 text-xs text-purple-800">
+                  Manuscript Language Critic?{' '}
+                  <Link href="/register/proofreader" className="font-bold underline hover:text-purple-950">
+                    Register as a Language Editor / Proofreader &rarr;
+                  </Link>
+                </div>
+              </div>
             </div>
 
             {resolvedSearchParams.error && (

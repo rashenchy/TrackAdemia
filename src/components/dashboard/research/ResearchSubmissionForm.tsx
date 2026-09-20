@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useEffect, useActionState, useRef, useCallback } from 'react'
-import { Plus, Trash2, FileText, GraduationCap, Users, Calendar, Paperclip, AlertCircle, Search, FileCode2, Crown } from 'lucide-react'
+import { Plus, Trash2, FileText, GraduationCap, Users, Calendar, Paperclip, AlertCircle, Search, FileCode2, Crown, SpellCheck, X } from 'lucide-react'
 import { SubmitButton } from '@/components/auth/SubmitButton'
 import { submitResearch } from '@/app/(main)/dashboard/submit/actions'
 import { updateResearch } from '@/app/(main)/dashboard/research/[id]/edit/actions'
 import { ResearchDocumentStructureEditor } from '@/components/dashboard/research/ResearchDocumentStructureEditor'
+import { TechnicalArtifactsSection } from '@/components/dashboard/research/TechnicalArtifactsSection'
+import { type ResearchDiagramItem } from '@/lib/research/diagrams/types'
 import { RESEARCH_TYPE_OPTIONS } from '@/lib/research/types'
 import {
   createDefaultResearchDocumentContent,
@@ -36,6 +38,13 @@ type AdviserOption = {
 type SectionAdviserOption = {
   id: string
   name: string
+}
+
+export type ProofreaderOption = {
+  id: string
+  name: string
+  department: string
+  institution: string | null
 }
 
 const MINIMUM_KEYWORDS = 5
@@ -148,6 +157,121 @@ function MemberComboBox({
   )
 }
 
+function ProofreaderComboBox({
+  proofreaders,
+  value,
+  onChange,
+}: {
+  proofreaders: ProofreaderOption[]
+  value: string
+  onChange: (val: string) => void
+}) {
+  const [search, setSearch] = useState('')
+  const [isOpen, setIsOpen] = useState(false)
+
+  const selectedProofreader = proofreaders.find((p) => p.id === value)
+
+  const trimmed = search.trim().toLowerCase()
+  const filtered =
+    trimmed.length > 0
+      ? proofreaders.filter(
+          (p) =>
+            p.name.toLowerCase().includes(trimmed) ||
+            p.department.toLowerCase().includes(trimmed) ||
+            (p.institution && p.institution.toLowerCase().includes(trimmed))
+        )
+      : []
+
+  return (
+    <div className="relative">
+      <input type="hidden" name="proofreaderId" value={value} />
+
+      {selectedProofreader ? (
+        <div className="flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/60 p-3.5 dark:border-blue-900/40 dark:bg-blue-950/20">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-sm">
+              {selectedProofreader.name.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                {selectedProofreader.name}
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {selectedProofreader.department}
+                {selectedProofreader.institution ? ` • ${selectedProofreader.institution}` : ''}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              onChange('')
+              setSearch('')
+              setIsOpen(false)
+            }}
+            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200 transition-colors"
+            title="Remove assigned proofreader"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      ) : (
+        <div className="relative">
+          <input
+            type="text"
+            value={search}
+            placeholder="Type to search registered proofreaders..."
+            onFocus={() => {
+              if (search.trim().length > 0) setIsOpen(true)
+            }}
+            onBlur={() => setTimeout(() => setIsOpen(false), 250)}
+            onChange={(e) => {
+              const val = e.target.value
+              setSearch(val)
+              setIsOpen(val.trim().length > 0)
+            }}
+            className="w-full rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 text-sm bg-white dark:bg-gray-800 text-[var(--foreground)] outline-none focus:border-blue-600 transition-all pr-10"
+          />
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+
+          {isOpen && search.trim().length > 0 && (
+            <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-56 overflow-y-auto">
+              {filtered.length > 0 ? (
+                filtered.map((p) => (
+                  <div
+                    key={p.id}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      onChange(p.id)
+                      setSearch('')
+                      setIsOpen(false)
+                    }}
+                    className="px-3.5 py-2.5 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20 text-sm border-b border-gray-50 dark:border-gray-700 last:border-0 transition-colors"
+                  >
+                    <p className="font-semibold text-gray-900 dark:text-gray-100">{p.name}</p>
+                    <p className="text-xs text-gray-500">
+                      {p.department}
+                      {p.institution ? ` • ${p.institution}` : ''}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <div className="px-3 py-4 text-sm text-center text-gray-500 flex flex-col items-center gap-1">
+                  <AlertCircle size={16} className="text-gray-400" />
+                  <p className="font-medium text-xs">No matching verified proofreaders found.</p>
+                  <p className="text-[11px] text-gray-400">
+                    Try searching another name or check if faculty has approved their account.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ResearchSubmissionForm({
   isTeacher = false,
   currentUserId,
@@ -155,6 +279,7 @@ export function ResearchSubmissionForm({
   sections = [],
   adviserOptions = [],
   sectionAdvisers = {},
+  proofreaderOptions = [],
   initialData = null,
   editId = null
 }: {
@@ -164,6 +289,7 @@ export function ResearchSubmissionForm({
   sections?: { id: string, name: string, course_code: string }[],
   adviserOptions?: AdviserOption[],
   sectionAdvisers?: Record<string, SectionAdviserOption>,
+  proofreaderOptions?: ProofreaderOption[],
   initialData?: {
     title?: string
     type?: string
@@ -174,6 +300,7 @@ export function ResearchSubmissionForm({
     member_roles?: string[]
     subject_code?: string
     adviser_id?: string | null
+    proofreader_id?: string | null
     research_area?: string | null
     start_date?: string | null
     target_defense_date?: string | null
@@ -182,6 +309,11 @@ export function ResearchSubmissionForm({
     original_file_name?: string | null
     submission_format?: string | null
     content_json?: unknown
+    repository_url?: string | null
+    demo_url?: string | null
+    source_code_url?: string | null
+    source_code_filename?: string | null
+    diagrams?: ResearchDiagramItem[] | null
   } | null,
   editId?: string | null
 }) {
@@ -231,6 +363,7 @@ export function ResearchSubmissionForm({
   )
   const [selectedSubjectCode, setSelectedSubjectCode] = useState(initialData?.subject_code || '')
   const [selectedAdviserId, setSelectedAdviserId] = useState(initialData?.adviser_id || '')
+  const [selectedProofreaderId, setSelectedProofreaderId] = useState(initialData?.proofreader_id || '')
   const [targetDefenseDate, setTargetDefenseDate] = useState(
     initialData?.target_defense_date || ''
   )
@@ -683,6 +816,26 @@ export function ResearchSubmissionForm({
             <input name="researchArea" defaultValue={initialData?.research_area || ""} placeholder="e.g. Web Development, AI" className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] outline-none focus:border-blue-600 transition-all" />
           </div>
         </div>
+
+        <div className="pt-2 border-t border-gray-100 dark:border-gray-800/80">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-semibold text-[var(--foreground)] flex items-center gap-2">
+              <SpellCheck size={16} className="text-blue-600" />
+              Proofreader / Language Editor
+              <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                Optional
+              </span>
+            </label>
+          </div>
+          <p className="text-xs text-gray-500 mb-3">
+            Search and assign an English critique or proofreader to review grammar, formatting, and language quality.
+          </p>
+          <ProofreaderComboBox
+            proofreaders={proofreaderOptions}
+            value={selectedProofreaderId}
+            onChange={setSelectedProofreaderId}
+          />
+        </div>
       </div>
 
       {/* Authorship & Group members section */}
@@ -823,6 +976,15 @@ export function ResearchSubmissionForm({
           </div>
         </div>
       )}
+
+      <TechnicalArtifactsSection
+        initialRepositoryUrl={initialData?.repository_url}
+        initialDemoUrl={initialData?.demo_url}
+        initialSourceCodeUrl={initialData?.source_code_url}
+        initialSourceCodeFilename={initialData?.source_code_filename}
+        initialDiagrams={initialData?.diagrams}
+        isCaseStudyOrCapstone={selectedResearchType === 'case-study' || selectedResearchType === 'capstone'}
+      />
 
       <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
         <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-4">

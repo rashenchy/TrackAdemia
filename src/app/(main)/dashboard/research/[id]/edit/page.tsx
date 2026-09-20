@@ -26,6 +26,12 @@ type DraftResearch = {
   submission_format?: string | null
   content_json?: unknown
   status?: string
+  proofreader_id?: string | null
+  repository_url?: string | null
+  demo_url?: string | null
+  source_code_url?: string | null
+  source_code_filename?: string | null
+  diagrams?: any[] | null
 }
 
 type SectionLookupRow = {
@@ -57,8 +63,8 @@ export default async function EditResearchPage({
   const { data: researchData } = await supabase
     .from('research')
     .select(
-      'id, user_id, title, type, abstract, academic_year, keywords, members, member_roles, subject_code, adviser_id, research_area, start_date, target_defense_date, current_stage, file_url'
-      + ', original_file_name, submission_format, content_json, status'
+      'id, user_id, title, type, abstract, academic_year, keywords, members, member_roles, subject_code, adviser_id, proofreader_id, research_area, start_date, target_defense_date, current_stage, file_url'
+      + ', original_file_name, submission_format, content_json, status, repository_url, demo_url, source_code_url, source_code_filename, diagrams'
     )
     .eq('id', id)
     .single()
@@ -213,6 +219,21 @@ export default async function EditResearchPage({
     }
   }
 
+  // Fetch verified active proofreaders
+  const { data: proofreadersData } = await supabase
+    .from('profiles')
+    .select('id, first_name, last_name, course_program, institution')
+    .eq('role', 'proofreader')
+    .eq('is_verified', true)
+    .eq('is_active', true)
+
+  const proofreaderOptions = (proofreadersData || []).map((p: any) => ({
+    id: p.id,
+    name: `${p.first_name} ${p.last_name}`.trim(),
+    department: p.course_program || 'Languages & General Education',
+    institution: p.institution || null,
+  }))
+
   return (
     <div className="max-w-4xl mx-auto pb-12">
       <div className="mb-8 flex items-start gap-4">
@@ -234,6 +255,7 @@ export default async function EditResearchPage({
         sections={userSections}
         adviserOptions={adviserOptions}
         sectionAdvisers={sectionAdvisers}
+        proofreaderOptions={proofreaderOptions}
         initialData={research as DraftResearch}
         editId={research.id}
       />

@@ -69,7 +69,7 @@ export function useAnnotateResearchData({
         supabase
           .from('research')
           .select(
-            'id, title, type, user_id, members, adviser_id, subject_code, current_stage, status, submission_format, content_json, file_url, original_file_name'
+            'id, title, type, user_id, members, adviser_id, proofreader_id, subject_code, current_stage, status, submission_format, content_json, file_url, original_file_name'
           )
           .eq('id', researchId)
           .single(),

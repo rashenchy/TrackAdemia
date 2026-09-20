@@ -91,6 +91,10 @@ const { data: profile } = await supabase
 
 
 
+    if (profile?.role === 'guest') {
+        redirect('/dashboard')
+    }
+
     const isTeacher = isFacultyRole(profile?.role)
     // ==========================================
     // TEACHER VIEW

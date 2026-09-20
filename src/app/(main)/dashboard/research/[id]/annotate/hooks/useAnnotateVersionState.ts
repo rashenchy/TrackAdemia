@@ -30,7 +30,11 @@ export function useAnnotateVersionState({
   setActiveFormat: React.Dispatch<React.SetStateAction<'pdf' | 'text'>>
   canTeacherEditPublished: boolean
 }) {
-  const canReview = currentUserRole === 'mentor' || currentUserRole === 'admin'
+  const isAssignedProofreader =
+    currentUserRole === 'proofreader' &&
+    Boolean(research && currentUserId && research.proofreader_id === currentUserId)
+  const canReview =
+    currentUserRole === 'mentor' || currentUserRole === 'admin' || isAssignedProofreader
   const isAuthor = Boolean(
     research &&
       currentUserId &&

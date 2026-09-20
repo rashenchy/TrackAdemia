@@ -30,6 +30,7 @@ import {
   ShieldAlert,
   Files,
   BadgeCheck,
+  SpellCheck,
 } from 'lucide-react'
 
 export default function DashboardLayoutClient({
@@ -62,6 +63,7 @@ export default function DashboardLayoutClient({
   const [unresolvedCount, setUnresolvedCount] = useState(0)
   const [submissionAlertCount, setSubmissionAlertCount] = useState(0)
   const [pendingStudentCount, setPendingStudentCount] = useState(0)
+  const [pendingProofreaderCount, setPendingProofreaderCount] = useState(0)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isNavigating, startNavigation] = useTransition()
   const { notify } = usePopup()
@@ -80,6 +82,7 @@ export default function DashboardLayoutClient({
   const effectiveUnresolvedCount = isAdminPreview ? 0 : unresolvedCount
   const effectiveSubmissionAlertCount = isAdminPreview ? 0 : submissionAlertCount
   const effectivePendingStudentCount = isAdminPreview ? 0 : pendingStudentCount
+  const effectivePendingProofreaderCount = isAdminPreview ? 0 : pendingProofreaderCount
   const pendingAccessAllowedPaths = [
     '/dashboard/repository',
     '/dashboard/profile',
@@ -88,8 +91,9 @@ export default function DashboardLayoutClient({
   const isFacultyPendingApproval =
     effectiveIsFaculty && effectiveUserRole !== 'admin' && !effectiveIsVerified
   const isStudentPendingApproval = effectiveIsStudent && !effectiveIsVerified
+  const isProofreaderPendingApproval = effectiveUserRole === 'proofreader' && !effectiveIsVerified
   const isPendingAccessLocked =
-    (isStudentPendingApproval || isFacultyPendingApproval) &&
+    (isStudentPendingApproval || isFacultyPendingApproval || isProofreaderPendingApproval) &&
     !pendingAccessAllowedPaths.some(
       (allowedPath) => pathname === allowedPath || pathname.startsWith(`${allowedPath}/`)
     )
@@ -185,6 +189,16 @@ export default function DashboardLayoutClient({
         setIsStudent(true)
         isFacultyRef.current = false
         setIsVerified(profile.is_verified || false)
+      } else if (profile?.role === 'guest') {
+        setIsFaculty(false)
+        setIsStudent(false)
+        isFacultyRef.current = false
+        setIsVerified(true)
+      } else if (profile?.role === 'proofreader') {
+        setIsFaculty(false)
+        setIsStudent(false)
+        isFacultyRef.current = false
+        setIsVerified(profile.is_verified || false)
       } else {
         setIsFaculty(false)
         setIsStudent(false)
@@ -245,9 +259,19 @@ export default function DashboardLayoutClient({
           .eq('is_active', true)
 
         setPendingStudentCount(count || 0)
+
+        const { count: proofCount } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+          .eq('role', 'proofreader')
+          .eq('is_verified', false)
+          .eq('is_active', true)
+
+        setPendingProofreaderCount(proofCount || 0)
       } else {
         setSubmissionAlertCount(0)
         setPendingStudentCount(0)
+        setPendingProofreaderCount(0)
       }
     }
 
@@ -325,46 +349,74 @@ export default function DashboardLayoutClient({
 
   const visualRoute = isNavigating && pendingRoute ? pendingRoute : pathname
 
-  const navItems = [
-    { name: 'Home', href: '/dashboard', icon: Home },
-    { name: 'Submit Research', href: '/dashboard/submit', icon: FilePlus },
-    { name: 'Task Manager', href: '/dashboard/tasks', icon: CheckSquare },
+  const effectiveIsGuest = effectiveUserRole === 'guest'
+  const effectiveIsProofreader = effectiveUserRole === 'proofreader'
 
-    ...(effectiveIsFaculty && effectiveIsVerified
-      ? [
-        {
-          name: 'Student Submissions',
-          href: '/dashboard/student-submissions',
-          icon: Files,
-        },
+  const navItems = effectiveIsGuest
+    ? [
+        { name: 'Home', href: '/dashboard', icon: Home },
+        { name: 'Repository', href: '/dashboard/repository', icon: BookOpen },
+        { name: 'Settings', href: '/dashboard/settings', icon: Settings },
       ]
-      : []),
-
-    ...(effectiveIsFaculty && effectiveIsVerified
+    : effectiveIsProofreader
       ? [
-        {
-          name: 'Student Verification',
-          href: '/dashboard/student-verification',
-          icon: BadgeCheck,
-        },
-      ]
-      : []),
+          { name: 'Home', href: '/dashboard', icon: Home },
+          { name: 'Task Manager', href: '/dashboard/tasks', icon: CheckSquare },
+          { name: 'Grammar Checker', href: '/dashboard/grammar', icon: Sparkles },
+          { name: 'Plagiarism Checker', href: '/dashboard/plagiarism', icon: ShieldAlert },
+          { name: 'Repository', href: '/dashboard/repository', icon: BookOpen },
+          { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+        ]
+      : [
+          { name: 'Home', href: '/dashboard', icon: Home },
+          { name: 'Submit Research', href: '/dashboard/submit', icon: FilePlus },
+          { name: 'Task Manager', href: '/dashboard/tasks', icon: CheckSquare },
 
-    ...((effectiveIsFaculty && effectiveIsVerified) || effectiveIsStudent
-      ? [
-        {
-          name: effectiveIsFaculty ? 'Manage Sections' : 'My Sections',
-          href: '/dashboard/sections',
-          icon: GraduationCap,
-        },
-      ]
-      : []),
+          ...(effectiveIsFaculty && effectiveIsVerified
+            ? [
+              {
+                name: 'Student Submissions',
+                href: '/dashboard/student-submissions',
+                icon: Files,
+              },
+            ]
+            : []),
 
-    { name: 'Grammar Checker', href: '/dashboard/grammar', icon: Sparkles },
-    { name: 'Plagiarism Checker', href: '/dashboard/plagiarism', icon: ShieldAlert },
-    { name: 'Repository', href: '/dashboard/repository', icon: BookOpen },
-    { name: 'Settings', href: '/dashboard/settings', icon: Settings },
-  ];
+          ...(effectiveIsFaculty && effectiveIsVerified
+            ? [
+              {
+                name: 'Student Verification',
+                href: '/dashboard/student-verification',
+                icon: BadgeCheck,
+              },
+            ]
+            : []),
+
+          ...(effectiveIsFaculty && effectiveIsVerified
+            ? [
+              {
+                name: 'Proofreader Verification',
+                href: '/dashboard/proofreader-verification',
+                icon: SpellCheck,
+              },
+            ]
+            : []),
+
+          ...((effectiveIsFaculty && effectiveIsVerified) || effectiveIsStudent
+            ? [
+              {
+                name: effectiveIsFaculty ? 'Manage Sections' : 'My Sections',
+                href: '/dashboard/sections',
+                icon: GraduationCap,
+              },
+            ]
+            : []),
+
+          { name: 'Grammar Checker', href: '/dashboard/grammar', icon: Sparkles },
+          { name: 'Plagiarism Checker', href: '/dashboard/plagiarism', icon: ShieldAlert },
+          { name: 'Repository', href: '/dashboard/repository', icon: BookOpen },
+          { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+        ];
 
   return (
     <div className="flex h-screen transition-colors duration-300">
@@ -408,13 +460,17 @@ export default function DashboardLayoutClient({
               item.name === 'Student Submissions' && effectiveSubmissionAlertCount > 0
             const isVerificationBadge =
               item.name === 'Student Verification' && effectivePendingStudentCount > 0
-            const hasBadge = isTaskBadge || isSubmissionBadge || isVerificationBadge
+            const isProofreaderBadge =
+              item.name === 'Proofreader Verification' && effectivePendingProofreaderCount > 0
+            const hasBadge = isTaskBadge || isSubmissionBadge || isVerificationBadge || isProofreaderBadge
             const badgeValue =
               item.name === 'Student Submissions'
                 ? effectiveSubmissionAlertCount
                 : item.name === 'Student Verification'
                   ? effectivePendingStudentCount
-                  : effectiveUnresolvedCount
+                  : item.name === 'Proofreader Verification'
+                    ? effectivePendingProofreaderCount
+                    : effectiveUnresolvedCount
 
             return (
               <button
@@ -542,7 +598,11 @@ export default function DashboardLayoutClient({
                       <p className="text-xs text-gray-500 capitalize mt-0.5">
                         {effectiveUserRole === 'mentor' || effectiveUserRole === 'admin'
                           ? 'Faculty / Adviser'
-                          : effectiveUserRole || 'User'}
+                          : effectiveUserRole === 'guest'
+                            ? 'Guest Researcher'
+                            : effectiveUserRole === 'proofreader'
+                              ? 'Language Editor / Proofreader'
+                              : effectiveUserRole || 'User'}
                       </p>
                     </div>
                     <div className="p-2">
@@ -614,12 +674,18 @@ export default function DashboardLayoutClient({
                   <AlertCircle size={28} />
                 </div>
                 <h2 className="mt-5 text-2xl font-black tracking-tight text-slate-950 dark:text-white">
-                  {isFacultyPendingApproval ? 'Verification Pending' : 'Approval Pending'}
+                  {isProofreaderPendingApproval
+                    ? 'Proofreader Verification Pending'
+                    : isFacultyPendingApproval
+                      ? 'Verification Pending'
+                      : 'Approval Pending'}
                 </h2>
                 <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">
-                  {isFacultyPendingApproval
-                    ? 'Your faculty account is still being reviewed by an administrator. You can check your profile, settings, notifications, and the repository while you wait. Full faculty tools will unlock automatically after approval.'
-                    : 'Your student account is still being reviewed by an administrator. You can explore the repository now, and the rest of the workspace will unlock automatically after approval.'}
+                  {isProofreaderPendingApproval
+                    ? 'Your Language Editor / Proofreader account is currently awaiting faculty verification. You can check your profile, settings, and the repository while you wait. Full manuscript annotation and review tools will unlock automatically once approved.'
+                    : isFacultyPendingApproval
+                      ? 'Your faculty account is still being reviewed by an administrator. You can check your profile, settings, notifications, and the repository while you wait. Full faculty tools will unlock automatically after approval.'
+                      : 'Your student account is still being reviewed by an administrator. You can explore the repository now, and the rest of the workspace will unlock automatically after approval.'}
                 </p>
                 <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
                   <Link

@@ -20,9 +20,10 @@ type RegistrationProfilePayload = {
   middle_name: string | null
   last_name: string
   course_program: string
-  role: 'student' | 'mentor'
+  role: 'student' | 'mentor' | 'guest' | 'proofreader'
   is_verified: boolean
   student_number: string | null
+  institution?: string | null
 }
 
 async function syncRegistrationProfile(
@@ -215,6 +216,7 @@ export async function finalizeVerifiedSignup({
   course,
   role,
   studentNumber,
+  institution,
 }: {
   email: string
   password: string
@@ -222,17 +224,36 @@ export async function finalizeVerifiedSignup({
   middleName: string
   lastName: string
   course: string
-  role: 'student' | 'mentor'
+  role: 'student' | 'mentor' | 'guest' | 'proofreader'
   studentNumber: string | null
+  institution?: string | null
 }) {
-  const metadata = {
+  const isGuest = role === 'guest'
+  const isMentor = role === 'mentor'
+  const isProofreader = role === 'proofreader'
+
+  const metadata: RegistrationProfilePayload = {
     first_name: firstName,
     middle_name: middleName || null,
     last_name: lastName,
-    course_program: course,
+    course_program: isGuest ? (course || 'Guest') : (course || 'General'),
     role,
-    is_verified: false,
+    is_verified: isGuest || isMentor,
     student_number: role === 'student' ? studentNumber : null,
+    institution: isGuest ? (institution || null) : null,
+  }
+
+  const getSuccessMessage = () => {
+    if (isGuest) {
+      return 'Email confirmed and guest account created successfully.'
+    }
+    if (isMentor) {
+      return 'Email confirmed and account created successfully.'
+    }
+    if (isProofreader) {
+      return 'Email confirmed! Your Proofreader / Language Editor account is awaiting faculty approval before full access is unlocked.'
+    }
+    return 'Email confirmed and account created. Student accounts still require admin approval before full access.'
   }
 
   const adminSupabase = createAdminClient()
@@ -261,13 +282,7 @@ export async function finalizeVerifiedSignup({
 
     if (signInError) {
       return {
-        redirectPath:
-          '/login?success=' +
-          encodeURIComponent(
-            role === 'mentor'
-              ? 'Email confirmed and account created successfully.'
-              : 'Email confirmed and account created. Student accounts still require admin approval before full access.'
-          ),
+        redirectPath: '/login?success=' + encodeURIComponent(getSuccessMessage()),
       }
     }
 
@@ -302,13 +317,7 @@ export async function finalizeVerifiedSignup({
 
     if (signInError) {
       return {
-        redirectPath:
-          '/login?success=' +
-          encodeURIComponent(
-            role === 'mentor'
-              ? 'Email confirmed and account created successfully.'
-              : 'Email confirmed and account created. Student accounts still require admin approval before full access.'
-          ),
+        redirectPath: '/login?success=' + encodeURIComponent(getSuccessMessage()),
       }
     }
   }

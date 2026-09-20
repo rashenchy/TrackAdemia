@@ -22,6 +22,10 @@ export default async function SectionsPage({
     .eq('is_active', true)
     .single()
 
+  if (profile?.role === 'guest') {
+    redirect('/dashboard')
+  }
+
   // ======================
   // TEACHER VIEW
   // ======================

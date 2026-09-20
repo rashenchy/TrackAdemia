@@ -169,12 +169,26 @@ export default async function LoginPage({
                 Sign In
               </SubmitButton>
 
-              <p className="text-center text-sm text-slate-600">
-                Don&apos;t have an account?{' '}
-                <Link href="/register" className="font-semibold text-blue-700 hover:text-blue-900 hover:underline">
-                  Create one here
-                </Link>
-              </p>
+              <div className="text-center text-sm text-slate-600 space-y-1">
+                <p>
+                  Don&apos;t have an account?{' '}
+                  <Link href="/register" className="font-semibold text-blue-700 hover:text-blue-900 hover:underline">
+                    Create student account
+                  </Link>
+                </p>
+                <p className="text-xs text-slate-500">
+                  External researcher or visitor?{' '}
+                  <Link href="/register/guest" className="font-semibold text-teal-700 hover:text-teal-900 hover:underline">
+                    Register as Guest
+                  </Link>
+                </p>
+                <p className="text-xs text-slate-500">
+                  Language Editor / Critic?{' '}
+                  <Link href="/register/proofreader" className="font-semibold text-purple-700 hover:text-purple-900 hover:underline">
+                    Register as Proofreader
+                  </Link>
+                </p>
+              </div>
             </div>
 
             <div className="flex items-center gap-3 rounded-2xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">

@@ -59,73 +59,59 @@ export async function createAccessRequest(input: CreateAccessRequestInput): Prom
   let requesterUserId: string | null = null
   let requesterDisplayName = 'A researcher'
 
-  if (user) {
-    requesterUserId = user.id
-
-    // Check if the requester is already the leader or a member
-    if (research.user_id === user.id || (Array.isArray(research.members) && research.members.includes(user.id))) {
-      return { error: 'You are an author of this research paper and already have full access.' }
+  if (!user) {
+    return {
+      error: 'Please sign in or create a free Guest Account before requesting manuscript access.',
     }
+  }
 
-    const { data: profile } = await db
-      .from('profiles')
-      .select('first_name, last_name, role')
-      .eq('id', user.id)
-      .single()
+  requesterUserId = user.id
 
-    if (profile) {
-      requesterDisplayName = `${profile.first_name} ${profile.last_name}`
-    }
+  // Check if the requester is already the leader or a member
+  if (research.user_id === user.id || (Array.isArray(research.members) && research.members.includes(user.id))) {
+    return { error: 'You are an author of this research paper and already have full access.' }
+  }
 
-    // Check for existing pending or approved requests from this user
-    const { data: existingRequest } = await db
-      .from('research_access_requests')
-      .select('id, status')
-      .eq('research_id', researchId)
-      .eq('user_id', user.id)
-      .in('status', ['pending', 'approved'])
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
+  let userProfile: any = null
+  const { data: profWithInst } = await db
+    .from('profiles')
+    .select('first_name, last_name, role, institution, course_program')
+    .eq('id', user.id)
+    .maybeSingle()
 
-    if (existingRequest) {
-      if (existingRequest.status === 'approved') {
-        return { error: 'You already have approved access to this research manuscript.' }
-      }
-      return { error: 'You already have a pending access request for this research paper.' }
-    }
+  if (profWithInst) {
+    userProfile = profWithInst
   } else {
-    // Guest submission
-    guestName = input.guestName?.trim() || ''
-    guestEmail = input.guestEmail?.trim().toLowerCase() || ''
-
-    if (!guestName || guestName.length < 2) {
-      return { error: 'Please enter your full name.' }
-    }
-
-    if (!guestEmail || !EMAIL_REGEX.test(guestEmail)) {
-      return { error: 'Please enter a valid email address.' }
-    }
-
-    requesterDisplayName = guestName
-
-    // Check for existing pending or approved requests from this email
-    const { data: existingRequest } = await db
-      .from('research_access_requests')
-      .select('id, status')
-      .eq('research_id', researchId)
-      .eq('guest_email', guestEmail)
-      .in('status', ['pending', 'approved'])
-      .order('created_at', { ascending: false })
-      .limit(1)
+    const { data: basicProf } = await db
+      .from('profiles')
+      .select('first_name, last_name, role, course_program')
+      .eq('id', user.id)
       .maybeSingle()
+    userProfile = basicProf
+  }
 
-    if (existingRequest) {
-      if (existingRequest.status === 'approved') {
-        return { error: 'An approved access request already exists for this email address.' }
-      }
-      return { error: 'A pending access request from this email is already awaiting review.' }
+  if (userProfile) {
+    requesterDisplayName = `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() || 'A researcher'
+    guestName = requesterDisplayName
+    guestEmail = user.email || null
+  }
+
+  // Check for existing pending or approved requests from this user
+  const { data: existingRequest } = await db
+    .from('research_access_requests')
+    .select('id, status')
+    .eq('research_id', researchId)
+    .eq('user_id', user.id)
+    .in('status', ['pending', 'approved'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (existingRequest) {
+    if (existingRequest.status === 'approved') {
+      return { error: 'You already have approved access to this research manuscript.' }
     }
+    return { error: 'You already have a pending access request for this research paper.' }
   }
 
   // Generate a cryptographically secure token for guest access verification
@@ -485,4 +471,54 @@ export async function reviewAccessRequest(
     success: true,
     guestAccessUrl,
   }
+}
+
+export async function getUserSubmittedAccessRequests(userId: string): Promise<{
+  id: string
+  researchId: string
+  researchTitle: string
+  status: 'pending' | 'approved' | 'rejected'
+  message: string
+  rejectionReason?: string | null
+  createdAt: string
+  reviewedAt?: string | null
+}[]> {
+  const supabase = await createClient()
+  const db = getDbClient(supabase)
+
+  const { data, error } = await db
+    .from('research_access_requests')
+    .select(`
+      id,
+      research_id,
+      status,
+      message,
+      rejection_reason,
+      created_at,
+      reviewed_at,
+      research:research_id (
+        id,
+        title
+      )
+    `)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+
+  if (error || !data) {
+    return []
+  }
+
+  return data.map((r: any) => {
+    const researchObj = Array.isArray(r.research) ? r.research[0] : r.research
+    return {
+      id: r.id,
+      researchId: r.research_id,
+      researchTitle: researchObj?.title || 'Unknown Paper',
+      status: r.status,
+      message: r.message,
+      rejectionReason: r.rejection_reason,
+      createdAt: r.created_at,
+      reviewedAt: r.reviewed_at,
+    }
+  })
 }

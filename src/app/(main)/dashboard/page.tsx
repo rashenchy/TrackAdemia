@@ -24,6 +24,9 @@ import {
   getHomeSectionRemovalCutoff,
   type UserNotification,
 } from '@/lib/notifications/types'
+import { GuestDashboardView } from '@/components/dashboard/home/GuestDashboardView'
+import { ProofreaderDashboardView } from '@/components/dashboard/home/ProofreaderDashboardView'
+import { getUserSubmittedAccessRequests } from '@/lib/research/access-requests/service'
 
 type DashboardSubmission = {
   id: string
@@ -53,11 +56,97 @@ export default async function DashboardPage({
     redirect('/login')
   }
 
-  const { data: profile } = await supabase
+  let profile: any = null
+  const { data: profileWithInst, error: profileErr } = await supabase
     .from('profiles')
-    .select('role, first_name')
+    .select('role, first_name, last_name, institution, course_program')
     .eq('id', user.id)
     .single()
+
+  if (!profileErr && profileWithInst) {
+    profile = profileWithInst
+  } else {
+    const { data: basicProfile } = await supabase
+      .from('profiles')
+      .select('role, first_name, last_name, course_program')
+      .eq('id', user.id)
+      .single()
+    profile = basicProfile
+  }
+
+  if (profile?.role === 'guest') {
+    const guestRequests = await getUserSubmittedAccessRequests(user.id)
+    return (
+      <GuestDashboardView
+        userFirstName={profile.first_name || 'Researcher'}
+        userLastName={profile.last_name || ''}
+        userEmail={user.email || ''}
+        institution={profile.institution}
+        requests={guestRequests}
+      />
+    )
+  }
+
+  if (profile?.role === 'proofreader') {
+    const { data: assignedResearch } = await supabase
+      .from('research')
+      .select(`
+        id,
+        title,
+        type,
+        status,
+        current_stage,
+        academic_year,
+        created_at,
+        updated_at,
+        submission_format,
+        file_url,
+        user_id
+      `)
+      .eq('proofreader_id', user.id)
+      .order('created_at', { ascending: false })
+
+    const authorIds = [...new Set((assignedResearch || []).map((r: any) => r.user_id))]
+    const authorMap = new Map<string, { name: string }>()
+
+    if (authorIds.length > 0) {
+      const { data: authors } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name')
+        .in('id', authorIds)
+
+      for (const author of authors || []) {
+        authorMap.set(author.id, {
+          name: `${author.first_name} ${author.last_name}`.trim(),
+        })
+      }
+    }
+
+    const proofreaderManuscripts = (assignedResearch || []).map((r: any) => ({
+      id: r.id,
+      title: r.title,
+      type: r.type,
+      status: r.status,
+      current_stage: r.current_stage,
+      academic_year: r.academic_year,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      submission_format: r.submission_format,
+      file_url: r.file_url,
+      author_name: authorMap.get(r.user_id)?.name || 'Student Author',
+    }))
+
+    return (
+      <ProofreaderDashboardView
+        userFirstName={profile.first_name || 'Editor'}
+        userLastName={profile.last_name || ''}
+        userEmail={user.email || ''}
+        department={profile.course_program}
+        institution={profile.institution}
+        manuscripts={proofreaderManuscripts}
+      />
+    )
+  }
 
   const cookieStore = await cookies()
   const previewCookie = cookieStore.get(ADMIN_VIEW_COOKIE)?.value
