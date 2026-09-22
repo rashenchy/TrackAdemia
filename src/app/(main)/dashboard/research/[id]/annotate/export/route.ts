@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { PDFDocument, PDFFont, StandardFonts, rgb } from 'pdf-lib'
+import { PDFDocument, PDFFont, PDFHexString, PDFName, StandardFonts, rgb } from 'pdf-lib'
 import { createClient } from '@/lib/supabase/server'
 import { isResearchReviewer } from '@/lib/research/permissions'
 
@@ -17,6 +17,7 @@ type PdfHighlightArea = {
 
 type AnnotationRow = {
   id: string
+  user_id: string | null
   quote: string
   comment_text: string
   position_data: unknown
@@ -58,12 +59,13 @@ function getSummaryLines(
   annotationNumber: number,
   pageNumber: number,
   annotation: AnnotationRow,
+  authorName: string,
   font: PDFFont,
   boldFont: PDFFont,
   pageWidth: number
 ) {
   const contentWidth = pageWidth - 96
-  const header = `#${annotationNumber} - Page ${pageNumber}`
+  const header = `#${annotationNumber} - Page ${pageNumber}${authorName ? ` • By ${authorName}` : ''}`
   return [
     { text: header, font: boldFont, size: 12, color: rgb(0.11, 0.17, 0.28) },
     ...wrapText(`Quote: "${normalizeForCompare(annotation.quote) || 'No quote captured.'}"`, contentWidth, font, 10).map(
@@ -83,7 +85,7 @@ function getSummaryLines(
       text: line,
       font,
       size: 10,
-      color: rgb(0.29, 0.33, 0.39),
+      color: rgb(0.12, 0.23, 0.45),
     })),
   ]
 }
@@ -176,7 +178,7 @@ export async function GET(request: Request, context: RouteContext) {
 
     let annotationQuery = supabase
       .from('annotations')
-      .select('id, quote, comment_text, position_data, is_resolved, created_at')
+      .select('id, user_id, quote, comment_text, position_data, is_resolved, created_at')
       .eq('research_id', researchId)
       .order('created_at', { ascending: true })
 
@@ -205,6 +207,32 @@ export async function GET(request: Request, context: RouteContext) {
         { error: 'No PDF annotations matched this export yet.' },
         { status: 400 }
       )
+    }
+
+    const userIds = [
+      ...new Set((annotations || []).map((a) => a.user_id).filter(Boolean)),
+    ] as string[]
+    const profileMap = new Map<string, { name: string; role: string }>()
+
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, first_name, last_name, role')
+        .in('id', userIds)
+
+      for (const p of profiles || []) {
+        const fullName = `${p.first_name || ''} ${p.last_name || ''}`.trim()
+        const roleLabel =
+          p.role === 'mentor'
+            ? 'Teacher / Adviser'
+            : p.role === 'proofreader'
+              ? 'English Critique'
+              : p.role || 'Reviewer'
+        profileMap.set(p.id, {
+          name: fullName ? `${fullName} (${roleLabel})` : roleLabel,
+          role: p.role || 'reviewer',
+        })
+      }
     }
 
     const { data: pdfBlob, error: downloadError } = await supabase.storage
@@ -267,6 +295,24 @@ export async function GET(request: Request, context: RouteContext) {
             font: boldFont,
             color: rgb(1, 1, 1),
           })
+
+          // Attach native PDF clickable Sticky Note / Comment popup annotation
+          const authorInfo = annotation.user_id ? profileMap.get(annotation.user_id) : null
+          const authorName = authorInfo?.name || 'Reviewer'
+
+          const stickyNote = pdfDoc.context.obj({
+            Type: 'Annot',
+            Subtype: 'Text',
+            Rect: [badgeX, badgeY, badgeX + badgeWidth + 8, badgeY + badgeHeight + 8],
+            Contents: PDFHexString.fromText(annotation.comment_text || 'No comment text.'),
+            Name: 'Comment',
+            T: PDFHexString.fromText(authorName),
+            Subj: PDFHexString.fromText('Research Feedback'),
+            C: [0.04, 0.36, 0.58],
+            Open: false,
+          })
+          const stickyNoteRef = pdfDoc.context.register(stickyNote)
+          page.node.addAnnot(stickyNoteRef)
         }
       })
     })
@@ -306,10 +352,13 @@ export async function GET(request: Request, context: RouteContext) {
     pdfAnnotations.forEach((annotation, annotationIndex) => {
       const firstArea = annotation.position_data[0]
       const pageNumber = (firstArea?.pageIndex ?? 0) + 1
+      const authorInfo = annotation.user_id ? profileMap.get(annotation.user_id) : null
+      const authorName = authorInfo?.name || 'Reviewer'
       const lines = getSummaryLines(
         annotationIndex + 1,
         pageNumber,
         annotation,
+        authorName,
         font,
         boldFont,
         summaryPageWidth

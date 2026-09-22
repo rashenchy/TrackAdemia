@@ -20,12 +20,18 @@ export type AnnotationRecord = {
   position_data: unknown
   is_resolved: boolean
   created_at: string
+  profiles?: {
+    first_name?: string | null
+    last_name?: string | null
+    role?: string | null
+  } | null
 }
 
 export type ReplyRecord = {
   id: string
   user_id: string
   message: string
+  created_at?: string
   profiles?: {
     first_name?: string
     last_name?: string

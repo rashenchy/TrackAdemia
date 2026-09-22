@@ -154,6 +154,7 @@ export default async function LoginPage({
                   name="password"
                   label="Password"
                   placeholder="Enter your password"
+                  autoComplete="current-password"
                 />
                 <Link
                   href="/forgot-password"

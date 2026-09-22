@@ -157,9 +157,20 @@ export function useAnnotateResearchData({
         return current
       })
 
+      console.log('[ANNOTATE DATA LOAD] Starting load for researchId:', researchId)
+
       const annotationRows = await getAnnotations(researchId, selectedVersion ?? null)
       setAnnotations(annotationRows as AnnotationRecord[])
+
+      console.log('[ANNOTATE DATA LOAD] Loaded successfully:', {
+        userId: user.id,
+        role: profile?.role,
+        title: researchData.title,
+        versionsCount: versionRows.length,
+        annotationsCount: (annotationRows || []).length,
+      })
     } catch (error) {
+      console.error('[ANNOTATE DATA LOAD FAILED]:', error)
       const message =
         error instanceof Error ? error.message : 'Unable to load the unified review workspace.'
       setLoadError(message)

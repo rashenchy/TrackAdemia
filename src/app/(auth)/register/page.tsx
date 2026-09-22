@@ -211,6 +211,8 @@ export default async function RegisterPage({
                 name="password"
                 label="Password"
                 placeholder="Create a strong password"
+                validateFormat
+                autoComplete="new-password"
               />
             </div>
 

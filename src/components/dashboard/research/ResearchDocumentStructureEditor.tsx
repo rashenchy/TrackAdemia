@@ -337,7 +337,7 @@ export function ResearchDocumentStructureEditor({
                   Chapter Title
                 </label>
                 <input
-                  value={section.title}
+                  value={section.title || ''}
                   onChange={(event) =>
                     updateSection(section.id, { title: event.target.value })
                   }
@@ -361,7 +361,7 @@ export function ResearchDocumentStructureEditor({
               <ResearchChapterSectionsEditor
                 value={section.content}
                 onChange={(nextValue) => updateSection(section.id, { content: nextValue })}
-                placeholder={`Write the ${section.title.toLowerCase()} content`}
+                placeholder={`Write the ${(section.title || '').toLowerCase()} content`}
                 editable={editable}
                 onMouseUp={() => onSectionMouseUp?.(section.id)}
               />
@@ -369,7 +369,7 @@ export function ResearchDocumentStructureEditor({
               <ResearchRichTextEditor
                 value={section.content}
                 onChange={(nextValue) => updateSection(section.id, { content: nextValue })}
-                placeholder={`Write the ${section.title.toLowerCase()} here...`}
+                placeholder={`Write the ${(section.title || '').toLowerCase()} here...`}
                 editable={editable}
                 onMouseUp={() => onSectionMouseUp?.(section.id)}
               />

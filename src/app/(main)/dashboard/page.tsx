@@ -27,6 +27,7 @@ import {
 import { GuestDashboardView } from '@/components/dashboard/home/GuestDashboardView'
 import { ProofreaderDashboardView } from '@/components/dashboard/home/ProofreaderDashboardView'
 import { getUserSubmittedAccessRequests } from '@/lib/research/access-requests/service'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 type DashboardSubmission = {
   id: string
@@ -88,7 +89,10 @@ export default async function DashboardPage({
   }
 
   if (profile?.role === 'proofreader') {
-    const { data: assignedResearch } = await supabase
+    const adminDb = createAdminClient()
+    const db = adminDb || supabase
+
+    const { data: assignedResearch } = await db
       .from('research')
       .select(`
         id,
@@ -98,10 +102,10 @@ export default async function DashboardPage({
         current_stage,
         academic_year,
         created_at,
-        updated_at,
         submission_format,
         file_url,
-        user_id
+        user_id,
+        proofreader_id
       `)
       .eq('proofreader_id', user.id)
       .order('created_at', { ascending: false })
@@ -110,7 +114,7 @@ export default async function DashboardPage({
     const authorMap = new Map<string, { name: string }>()
 
     if (authorIds.length > 0) {
-      const { data: authors } = await supabase
+      const { data: authors } = await db
         .from('profiles')
         .select('id, first_name, last_name')
         .in('id', authorIds)
@@ -130,7 +134,7 @@ export default async function DashboardPage({
       current_stage: r.current_stage,
       academic_year: r.academic_year,
       created_at: r.created_at,
-      updated_at: r.updated_at,
+      updated_at: r.created_at,
       submission_format: r.submission_format,
       file_url: r.file_url,
       author_name: authorMap.get(r.user_id)?.name || 'Student Author',

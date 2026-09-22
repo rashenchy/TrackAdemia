@@ -1,6 +1,18 @@
-import { ChevronLeft, Loader2, Send, Trash2 } from 'lucide-react'
+import {
+  ChevronLeft,
+  GraduationCap,
+  Loader2,
+  Send,
+  SpellCheck,
+  Trash2,
+  User,
+} from 'lucide-react'
 import { type FormEvent } from 'react'
 import { type AnnotationRecord, type ReplyRecord } from '../types'
+import {
+  getAuthorDisplayName,
+  getAuthorRoleBadge,
+} from '../utils/annotation-display'
 
 type AnnotationThreadProps = {
   selectedAnnotation: AnnotationRecord
@@ -33,6 +45,9 @@ export function AnnotationThread({
   onReplyTextChange,
   onSendReply,
 }: AnnotationThreadProps) {
+  const authorBadge = getAuthorRoleBadge(selectedAnnotation.profiles?.role)
+  const authorName = getAuthorDisplayName(selectedAnnotation.profiles)
+
   return (
     <>
       <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/70 p-4">
@@ -88,11 +103,40 @@ export function AnnotationThread({
           </p>
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-4">
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-gray-500">
-            Feedback
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-gray-500">
+                Feedback
+              </span>
+              <span
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${authorBadge.badgeClass}`}
+              >
+                {authorBadge.iconType === 'critique' ? (
+                  <SpellCheck size={12} />
+                ) : authorBadge.iconType === 'teacher' ? (
+                  <GraduationCap size={12} />
+                ) : (
+                  <User size={12} />
+                )}
+                {authorBadge.label}
+              </span>
+            </div>
+            <span className="text-[11px] text-gray-400 font-medium">
+              {new Date(selectedAnnotation.created_at).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </span>
+          </div>
+
+          <p className="text-xs text-slate-500 mb-2 font-medium">
+            Feedback by <strong className="text-slate-900 font-semibold">{authorName}</strong>
           </p>
-          <p className="mt-2 text-sm leading-relaxed text-gray-800">
+
+          <p className="text-sm leading-relaxed text-gray-800 whitespace-pre-wrap">
             {selectedAnnotation.comment_text}
           </p>
         </div>
@@ -111,21 +155,45 @@ export function AnnotationThread({
               No replies yet.
             </div>
           ) : (
-            threadReplies.map((reply) => (
-              <div key={reply.id} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold text-gray-900">
-                    {reply.profiles?.first_name || 'User'} {reply.profiles?.last_name || ''}
+            threadReplies.map((reply) => {
+              const replyBadge = getAuthorRoleBadge(reply.profiles?.role)
+              const replyAuthorName = getAuthorDisplayName(reply.profiles)
+
+              return (
+                <div key={reply.id} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-gray-900">
+                        {replyAuthorName}
+                      </p>
+                      <span
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${replyBadge.badgeClass}`}
+                      >
+                        {replyBadge.iconType === 'critique' ? (
+                          <SpellCheck size={10} />
+                        ) : replyBadge.iconType === 'teacher' ? (
+                          <GraduationCap size={10} />
+                        ) : (
+                          <User size={10} />
+                        )}
+                        {replyBadge.shortLabel}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-gray-400">
+                      {reply.created_at
+                        ? new Date(reply.created_at).toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                          })
+                        : ''}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed text-gray-700 whitespace-pre-wrap">
+                    {reply.message}
                   </p>
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">
-                    {reply.profiles?.role || 'participant'}
-                  </span>
                 </div>
-                <p className="mt-2 text-sm leading-relaxed text-gray-700">
-                  {reply.message}
-                </p>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
       </div>

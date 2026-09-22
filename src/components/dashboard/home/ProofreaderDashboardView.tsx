@@ -28,6 +28,20 @@ export type ProofreaderManuscript = {
   author_email?: string | null
 }
 
+export type ProofreaderDebugInfo = {
+  proofreaderUserId: string
+  usingAdminDb: boolean
+  matchedCount: number
+  queryError?: string | null
+  recentPapers: Array<{
+    id: string
+    title: string
+    proofreader_id: string | null
+    isMatch: boolean
+    status: string
+  }>
+}
+
 interface ProofreaderDashboardViewProps {
   userFirstName: string
   userLastName?: string
@@ -35,6 +49,7 @@ interface ProofreaderDashboardViewProps {
   department?: string | null
   institution?: string | null
   manuscripts: ProofreaderManuscript[]
+  debugInfo?: ProofreaderDebugInfo
 }
 
 export function ProofreaderDashboardView({
@@ -44,6 +59,7 @@ export function ProofreaderDashboardView({
   department,
   institution,
   manuscripts,
+  debugInfo,
 }: ProofreaderDashboardViewProps) {
   const inReviewCount = manuscripts.filter(
     (m) => m.status === 'Pending Review' || m.status === 'Resubmitted' || m.status === 'Needs Revision'

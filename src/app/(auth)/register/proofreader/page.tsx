@@ -204,12 +204,16 @@ export default async function ProofreaderRegisterPage({
                 name="password"
                 label="Password"
                 placeholder="Create a strong password"
+                validateFormat
+                autoComplete="new-password"
               />
 
               <PasswordField
                 name="confirmPassword"
                 label="Confirm Password"
                 placeholder="Re-enter your password"
+                validateFormat
+                autoComplete="new-password"
               />
             </div>
 

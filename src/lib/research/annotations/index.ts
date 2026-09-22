@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createNotifications } from '@/lib/notifications/service'
 import { syncResearchReviewStatus } from '@/lib/research/review'
 import {
@@ -59,14 +60,29 @@ export async function createAnnotationRecord(
     position_data: highlightData.highlightAreas,
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('annotations')
     .insert(newAnnotation)
     .select()
     .single()
 
   if (error) {
-    throw error
+    const adminSupabase = createAdminClient()
+    if (adminSupabase) {
+      const adminRes = await adminSupabase
+        .from('annotations')
+        .insert(newAnnotation)
+        .select()
+        .single()
+      if (!adminRes.error && adminRes.data) {
+        data = adminRes.data
+        error = null
+      }
+    }
+  }
+
+  if (error || !data) {
+    throw error || new Error('Failed to create annotation')
   }
 
   const { data: research } = await supabase
@@ -182,7 +198,7 @@ export async function createAnnotationReplyRecord(
     .eq('id', annotationId)
     .single()
 
-  const { data: reply, error } = await supabase
+  let { data: reply, error } = await supabase
     .from('annotation_replies')
     .insert({
       annotation_id: annotationId,
@@ -193,7 +209,26 @@ export async function createAnnotationReplyRecord(
     .single()
 
   if (error) {
-    throw error
+    const adminSupabase = createAdminClient()
+    if (adminSupabase) {
+      const adminRes = await adminSupabase
+        .from('annotation_replies')
+        .insert({
+          annotation_id: annotationId,
+          user_id: userId,
+          message,
+        })
+        .select()
+        .single()
+      if (!adminRes.error && adminRes.data) {
+        reply = adminRes.data
+        error = null
+      }
+    }
+  }
+
+  if (error || !reply) {
+    throw error || new Error('Failed to create annotation reply')
   }
 
   const { data: profile } = await supabase

@@ -6,11 +6,15 @@ import { Eye, EyeOff } from 'lucide-react' // Import visibility toggle icons
 export function PasswordField({
   name,
   label,
-  placeholder = "••••••••"
+  placeholder = "••••••••",
+  validateFormat = false,
+  autoComplete,
 }: {
-  name: string,
-  label: string,
+  name: string
+  label: string
   placeholder?: string
+  validateFormat?: boolean
+  autoComplete?: string
 }) {
 
   // Track whether the password should be visible
@@ -27,15 +31,18 @@ export function PasswordField({
       {/* Password input container */}
       <div className="relative">
 
-        {/* Password input with validation rules */}
+        {/* Password input */}
         <input
           name={name}
           type={show ? "text" : "password"}
           placeholder={placeholder}
           required
-          minLength={8}
-          pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$"
-          title="Must contain at least one uppercase letter, one lowercase letter, and one number."
+          autoComplete={autoComplete}
+          {...(validateFormat ? {
+            minLength: 8,
+            pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$",
+            title: "Must contain at least one uppercase letter, one lowercase letter, and one number.",
+          } : {})}
           className="w-full rounded-lg border border-gray-300 p-2.5 pr-10 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-all outline-none"
         />
 

@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import {
   getPlainTextFromRichText,
   getResearchDocumentSections,
@@ -61,12 +62,23 @@ async function getAuthenticatedUserContext() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, first_name, last_name')
     .eq('id', user.id)
     .eq('is_active', true)
     .single()
 
-  return { supabase, user, role: profile?.role ?? null }
+  return {
+    supabase,
+    user,
+    role: profile?.role ?? null,
+    profile: profile
+      ? {
+          first_name: profile.first_name,
+          last_name: profile.last_name,
+          role: profile.role,
+        }
+      : null,
+  }
 }
 
 async function requireReviewer() {
@@ -348,7 +360,7 @@ export async function addAnnotation(
   highlightData: AnnotationHighlightData,
   commentText: string
 ) {
-  const { supabase, user } = await requireReviewer()
+  const { supabase, user, profile } = await requireReviewer()
   const data = await createAnnotationRecord(supabase, {
     researchId,
     userId: user.id,
@@ -360,7 +372,10 @@ export async function addAnnotation(
   })
   revalidateResearchDetailPaths(researchId)
 
-  return data
+  return {
+    ...data,
+    profiles: profile,
+  }
 }
 
 export async function updateReviewDecision(
@@ -546,7 +561,39 @@ export async function getAnnotations(
     return []
   }
 
-  return data || []
+  if (!data || data.length === 0) {
+    return []
+  }
+
+  const userIds = Array.from(new Set(data.map((a: any) => a.user_id).filter(Boolean))) as string[]
+  const profileMap = new Map<
+    string,
+    { first_name?: string | null; last_name?: string | null; role?: string | null }
+  >()
+
+  if (userIds.length > 0) {
+    const adminSupabase = createAdminClient()
+    const db = adminSupabase || supabase
+    const { data: profiles } = await db
+      .from('profiles')
+      .select('id, first_name, last_name, role')
+      .in('id', userIds)
+
+    if (profiles) {
+      profiles.forEach((p: any) => {
+        profileMap.set(p.id, {
+          first_name: p.first_name,
+          last_name: p.last_name,
+          role: p.role,
+        })
+      })
+    }
+  }
+
+  return data.map((a: any) => ({
+    ...a,
+    profiles: a.user_id ? profileMap.get(a.user_id) || null : null,
+  }))
 }
 
 
@@ -625,10 +672,7 @@ export async function getReplies(annotationId: string) {
   // Fetch replies along with author profile information
   const { data, error } = await supabase
     .from('annotation_replies')
-    .select(`
-      *,
-      profiles(first_name, last_name, role)
-    `)
+    .select('*')
     .eq('annotation_id', annotationId)
     .order('created_at', { ascending: true })
 
@@ -637,7 +681,39 @@ export async function getReplies(annotationId: string) {
     return []
   }
 
-  return data || []
+  if (!data || data.length === 0) {
+    return []
+  }
+
+  const userIds = Array.from(new Set(data.map((r: any) => r.user_id).filter(Boolean))) as string[]
+  const profileMap = new Map<
+    string,
+    { first_name?: string | null; last_name?: string | null; role?: string | null }
+  >()
+
+  if (userIds.length > 0) {
+    const adminSupabase = createAdminClient()
+    const db = adminSupabase || supabase
+    const { data: profiles } = await db
+      .from('profiles')
+      .select('id, first_name, last_name, role')
+      .in('id', userIds)
+
+    if (profiles) {
+      profiles.forEach((p: any) => {
+        profileMap.set(p.id, {
+          first_name: p.first_name,
+          last_name: p.last_name,
+          role: p.role,
+        })
+      })
+    }
+  }
+
+  return data.map((r: any) => ({
+    ...r,
+    profiles: r.user_id ? profileMap.get(r.user_id) || null : null,
+  }))
 }
 
 

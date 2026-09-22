@@ -21,6 +21,7 @@ import { LeaderAccessRequestsCard } from '@/components/dashboard/research/Leader
 import { getResearchAccessRequests } from '@/lib/research/access-requests/service'
 import { TechnicalArtifactsCard } from '@/components/dashboard/research/TechnicalArtifactsCard'
 import { DiagramGalleryLightbox } from '@/components/dashboard/research/DiagramGalleryLightbox'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 type TeamMember = {
   id: string
@@ -71,17 +72,33 @@ export default async function ViewResearchPage({
   const isTeacher = isFacultyRole(profile?.role)
 
   // Fetch research details
-  const { data: research } = await supabase
+  let research: any = null
+  const { data: standardResearch } = await supabase
     .from('research')
     .select('*')
     .eq('id', researchId)
     .single()
 
+  if (standardResearch) {
+    research = standardResearch
+  } else {
+    // If standard query was blocked by RLS (e.g., proofreader), check with admin client
+    const adminDb = createAdminClient()
+    if (adminDb) {
+      const { data: adminResearch } = await adminDb
+        .from('research')
+        .select('*')
+        .eq('id', researchId)
+        .single()
+      if (adminResearch && (adminResearch.proofreader_id === user.id || isTeacher)) {
+        research = adminResearch
+      }
+    }
+  }
+
   if (!research) {
     return <div className="p-8">Research not found or you don&apos;t have access.</div>
   }
-
-  // Access control logic
   const isAuthor =
     research.user_id === user.id ||
     (Array.isArray(research.members) && research.members.includes(user.id))

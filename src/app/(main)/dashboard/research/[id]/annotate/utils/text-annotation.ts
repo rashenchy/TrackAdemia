@@ -81,16 +81,20 @@ function getOffsetWithinSection(
       continue
     }
 
-    const beforeRange = selectionRange.cloneRange()
-    beforeRange.selectNodeContents(root)
+    try {
+      const beforeRange = selectionRange.cloneRange()
+      beforeRange.selectNodeContents(root)
 
-    if (edge === 'start') {
-      beforeRange.setEnd(selectionRange.startContainer, selectionRange.startOffset)
-    } else {
-      beforeRange.setEnd(selectionRange.endContainer, selectionRange.endOffset)
+      if (edge === 'start') {
+        beforeRange.setEnd(selectionRange.startContainer, selectionRange.startOffset)
+      } else {
+        beforeRange.setEnd(selectionRange.endContainer, selectionRange.endOffset)
+      }
+
+      return totalOffset + beforeRange.toString().length
+    } catch {
+      continue
     }
-
-    return totalOffset + beforeRange.toString().length
   }
 
   return null
@@ -133,41 +137,63 @@ function buildTextRangeWithinRoot(
   startOffset: number,
   endOffset: number
 ) {
-  const doc = root.ownerDocument
-  const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-  let currentOffset = 0
-  let startNode: Node | null = null
-  let endNode: Node | null = null
-  let startNodeOffset = 0
-  let endNodeOffset = 0
+  try {
+    const doc = root.ownerDocument
+    const walker = doc.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        return node.nodeType === Node.TEXT_NODE
+          ? NodeFilter.FILTER_ACCEPT
+          : NodeFilter.FILTER_REJECT
+      },
+    })
+    let currentOffset = 0
+    let startNode: Node | null = null
+    let endNode: Node | null = null
+    let startNodeOffset = 0
+    let endNodeOffset = 0
 
-  while (walker.nextNode()) {
-    const node = walker.currentNode
-    const textLength = node.textContent?.length ?? 0
-    const nextOffset = currentOffset + textLength
+    while (walker.nextNode()) {
+      const node = walker.currentNode
+      if (node.nodeType !== Node.TEXT_NODE) continue
 
-    if (!startNode && startOffset <= nextOffset) {
-      startNode = node
-      startNodeOffset = Math.max(0, startOffset - currentOffset)
+      const textLength = node.textContent?.length ?? 0
+      const nextOffset = currentOffset + textLength
+
+      if (!startNode && startOffset <= nextOffset) {
+        startNode = node
+        startNodeOffset = Math.max(0, Math.min(startOffset - currentOffset, textLength))
+      }
+
+      if (!endNode && endOffset <= nextOffset) {
+        endNode = node
+        endNodeOffset = Math.max(0, Math.min(endOffset - currentOffset, textLength))
+        break
+      }
+
+      currentOffset = nextOffset
     }
 
-    if (!endNode && endOffset <= nextOffset) {
-      endNode = node
-      endNodeOffset = Math.max(0, endOffset - currentOffset)
-      break
+    if (!startNode || !endNode) {
+      return null
     }
 
-    currentOffset = nextOffset
-  }
+    if (startNode.nodeType !== Node.TEXT_NODE || endNode.nodeType !== Node.TEXT_NODE) {
+      return null
+    }
 
-  if (!startNode || !endNode) {
+    const startMax = startNode.textContent?.length ?? 0
+    const endMax = endNode.textContent?.length ?? 0
+    const safeStartOffset = Math.max(0, Math.min(startNodeOffset, startMax))
+    const safeEndOffset = Math.max(0, Math.min(endNodeOffset, endMax))
+
+    const range = doc.createRange()
+    range.setStart(startNode, safeStartOffset)
+    range.setEnd(endNode, safeEndOffset)
+    return range
+  } catch (error) {
+    console.warn('Failed to build text range within root:', error)
     return null
   }
-
-  const range = doc.createRange()
-  range.setStart(startNode, startNodeOffset)
-  range.setEnd(endNode, endNodeOffset)
-  return range
 }
 
 export function getEditorRoot(container: HTMLElement | null) {
@@ -260,67 +286,72 @@ export function resolveTextAnnotationRange(
   container: HTMLElement,
   position: TextAnnotationPosition
 ) {
-  const directRange = buildTextRangeFromOffsets(
-    container,
-    position.startOffset,
-    position.endOffset
-  )
-  const directRangeText = directRange?.toString() ?? ''
+  try {
+    const directRange = buildTextRangeFromOffsets(
+      container,
+      position.startOffset,
+      position.endOffset
+    )
+    const directRangeText = directRange?.toString() ?? ''
 
-  if (
-    directRange &&
-    normalizeComparableText(directRangeText) === normalizeComparableText(position.selectedText)
-  ) {
-    return directRange
+    if (
+      directRange &&
+      normalizeComparableText(directRangeText) === normalizeComparableText(position.selectedText)
+    ) {
+      return directRange
+    }
+
+    const fullText = getSectionTextContent(container)
+    const matches: number[] = []
+    let cursor = 0
+
+    while (cursor <= fullText.length) {
+      const foundIndex = fullText.indexOf(position.selectedText, cursor)
+      if (foundIndex === -1) break
+      matches.push(foundIndex)
+      cursor = foundIndex + Math.max(position.selectedText.length, 1)
+    }
+
+    if (matches.length === 0) {
+      return directRange
+    }
+
+    const scoredMatches = matches
+      .map((startOffset) => {
+        const endOffset = startOffset + position.selectedText.length
+        const prefix = fullText.slice(
+          Math.max(0, startOffset - position.prefixText.length),
+          startOffset
+        )
+        const suffix = fullText.slice(endOffset, endOffset + position.suffixText.length)
+        const score =
+          (normalizeComparableText(prefix) === normalizeComparableText(position.prefixText)
+            ? 3
+            : 0) +
+          (normalizeComparableText(suffix) === normalizeComparableText(position.suffixText)
+            ? 3
+            : 0) +
+          Math.max(0, 2 - Math.min(Math.abs(startOffset - position.startOffset), 2))
+
+        return { startOffset, endOffset, score }
+      })
+      .sort((first, second) => {
+        if (second.score !== first.score) {
+          return second.score - first.score
+        }
+
+        return (
+          Math.abs(first.startOffset - position.startOffset) -
+          Math.abs(second.startOffset - position.startOffset)
+        )
+      })
+
+    const bestMatch = scoredMatches[0]
+    return buildTextRangeFromOffsets(container, bestMatch.startOffset, bestMatch.endOffset)
+  } catch (error) {
+    console.warn('Failed to resolve text annotation range:', error)
+    return null
   }
-
-  const fullText = getSectionTextContent(container)
-  const matches: number[] = []
-  let cursor = 0
-
-  while (cursor <= fullText.length) {
-    const foundIndex = fullText.indexOf(position.selectedText, cursor)
-    if (foundIndex === -1) break
-    matches.push(foundIndex)
-    cursor = foundIndex + Math.max(position.selectedText.length, 1)
-  }
-
-  if (matches.length === 0) {
-    return directRange
-  }
-
-  const scoredMatches = matches
-    .map((startOffset) => {
-      const endOffset = startOffset + position.selectedText.length
-      const prefix = fullText.slice(
-        Math.max(0, startOffset - position.prefixText.length),
-        startOffset
-      )
-      const suffix = fullText.slice(endOffset, endOffset + position.suffixText.length)
-      const score =
-        (normalizeComparableText(prefix) === normalizeComparableText(position.prefixText)
-          ? 3
-          : 0) +
-        (normalizeComparableText(suffix) === normalizeComparableText(position.suffixText)
-          ? 3
-          : 0) +
-        Math.max(0, 2 - Math.min(Math.abs(startOffset - position.startOffset), 2))
-
-      return { startOffset, endOffset, score }
-    })
-    .sort((first, second) => {
-      if (second.score !== first.score) {
-        return second.score - first.score
-      }
-
-      return (
-        Math.abs(first.startOffset - position.startOffset) -
-        Math.abs(second.startOffset - position.startOffset)
-      )
-    })
-
-  const bestMatch = scoredMatches[0]
-  return buildTextRangeFromOffsets(container, bestMatch.startOffset, bestMatch.endOffset)
 }
 
 export function ensureHighlightStyles(doc: Document) {

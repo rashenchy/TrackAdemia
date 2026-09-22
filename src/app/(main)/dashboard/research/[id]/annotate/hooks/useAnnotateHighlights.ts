@@ -58,60 +58,68 @@ export function useAnnotateHighlights({
     for (const annotation of annotations) {
       if (!isTextAnnotationPosition(annotation.position_data)) continue
 
-      const editorRoot = getEditorRoot(sectionRefs.current[annotation.position_data.sectionKey])
-      if (!editorRoot) continue
+      try {
+        const editorRoot = getEditorRoot(sectionRefs.current[annotation.position_data.sectionKey])
+        if (!editorRoot) continue
 
-      const range = resolveTextAnnotationRange(editorRoot, annotation.position_data)
-      if (!range) continue
+        const range = resolveTextAnnotationRange(editorRoot, annotation.position_data)
+        if (!range) continue
 
-      const ownerDocument = range.startContainer.ownerDocument
-      if (!ownerDocument) continue
+        const ownerDocument = range.startContainer.ownerDocument
+        if (!ownerDocument) continue
 
-      touchedDocuments.add(ownerDocument)
-      nextRanges[annotation.id] = range
+        touchedDocuments.add(ownerDocument)
+        nextRanges[annotation.id] = range
 
-      if (annotation.id === activeTextAnnotationId) {
-        activeRange = range
-      } else if (annotation.is_resolved) {
-        resolvedRanges.push(range)
-      } else {
-        openRanges.push(range)
+        if (annotation.id === activeTextAnnotationId) {
+          activeRange = range
+        } else if (annotation.is_resolved) {
+          resolvedRanges.push(range)
+        } else {
+          openRanges.push(range)
+        }
+      } catch (err) {
+        console.warn('Skipping highlight resolution for annotation:', annotation.id, err)
       }
     }
 
     textAnnotationRangesRef.current = nextRanges
 
     for (const doc of touchedDocuments) {
-      const highlightRegistry = getHighlightRegistryForDocument(doc)
-      const Highlight = getHighlightConstructorForDocument(doc)
+      try {
+        const highlightRegistry = getHighlightRegistryForDocument(doc)
+        const Highlight = getHighlightConstructorForDocument(doc)
 
-      if (!highlightRegistry || !Highlight) {
-        continue
-      }
+        if (!highlightRegistry || !Highlight) {
+          continue
+        }
 
-      ensureHighlightStyles(doc)
-      clearHighlightRegistry(doc)
+        ensureHighlightStyles(doc)
+        clearHighlightRegistry(doc)
 
-      const docOpenRanges = openRanges.filter((range) => range.startContainer.ownerDocument === doc)
-      const docResolvedRanges = resolvedRanges.filter(
-        (range) => range.startContainer.ownerDocument === doc
-      )
-      const docActiveRange =
-        activeRange?.startContainer.ownerDocument === doc ? activeRange : null
-
-      if (docOpenRanges.length > 0) {
-        highlightRegistry.set('trackademia-text-feedback-open', new Highlight(...docOpenRanges))
-      }
-
-      if (docResolvedRanges.length > 0) {
-        highlightRegistry.set(
-          'trackademia-text-feedback-resolved',
-          new Highlight(...docResolvedRanges)
+        const docOpenRanges = openRanges.filter((range) => range.startContainer.ownerDocument === doc)
+        const docResolvedRanges = resolvedRanges.filter(
+          (range) => range.startContainer.ownerDocument === doc
         )
-      }
+        const docActiveRange =
+          activeRange?.startContainer.ownerDocument === doc ? activeRange : null
 
-      if (docActiveRange) {
-        highlightRegistry.set('trackademia-text-feedback-active', new Highlight(docActiveRange))
+        if (docOpenRanges.length > 0) {
+          highlightRegistry.set('trackademia-text-feedback-open', new Highlight(...docOpenRanges))
+        }
+
+        if (docResolvedRanges.length > 0) {
+          highlightRegistry.set(
+            'trackademia-text-feedback-resolved',
+            new Highlight(...docResolvedRanges)
+          )
+        }
+
+        if (docActiveRange) {
+          highlightRegistry.set('trackademia-text-feedback-active', new Highlight(docActiveRange))
+        }
+      } catch (err) {
+        console.warn('Failed to apply CSS highlights for document:', err)
       }
     }
 

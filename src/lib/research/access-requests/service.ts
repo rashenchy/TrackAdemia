@@ -317,14 +317,7 @@ export async function getResearchAccessRequests(
       rejection_reason,
       reviewed_at,
       reviewed_by,
-      created_at,
-      profiles:user_id (
-        id,
-        first_name,
-        last_name,
-        role,
-        course_program
-      )
+      created_at
     `)
     .eq('research_id', researchId)
     .order('created_at', { ascending: false })
@@ -332,6 +325,39 @@ export async function getResearchAccessRequests(
   if (error) {
     console.error('Error fetching access requests:', error)
     return { error: 'Failed to fetch access requests.' }
+  }
+
+  // Fetch profiles for any registered users who submitted access requests
+  const userIds = Array.from(
+    new Set((requests || []).map((r: any) => r.user_id).filter(Boolean))
+  ) as string[]
+
+  const profileMap = new Map<
+    string,
+    {
+      first_name: string
+      last_name: string
+      role?: string
+      course_program?: string
+    }
+  >()
+
+  if (userIds.length > 0) {
+    const { data: profiles } = await db
+      .from('profiles')
+      .select('id, first_name, last_name, role, course_program')
+      .in('id', userIds)
+
+    if (profiles) {
+      profiles.forEach((p: any) => {
+        profileMap.set(p.id, {
+          first_name: p.first_name,
+          last_name: p.last_name,
+          role: p.role,
+          course_program: p.course_program,
+        })
+      })
+    }
   }
 
   const formatted: ResearchAccessRequest[] = (requests || []).map((r: any) => ({
@@ -348,14 +374,7 @@ export async function getResearchAccessRequests(
     reviewed_at: r.reviewed_at,
     reviewed_by: r.reviewed_by,
     created_at: r.created_at,
-    user_profile: r.profiles
-      ? {
-          first_name: r.profiles.first_name,
-          last_name: r.profiles.last_name,
-          role: r.profiles.role,
-          course_program: r.profiles.course_program,
-        }
-      : undefined,
+    user_profile: r.user_id ? profileMap.get(r.user_id) : undefined,
   }))
 
   return { data: formatted }
@@ -381,20 +400,7 @@ export async function reviewAccessRequest(
   // Fetch the request and research
   const { data: request, error: requestError } = await db
     .from('research_access_requests')
-    .select(`
-      id,
-      research_id,
-      user_id,
-      guest_name,
-      guest_email,
-      access_token,
-      status,
-      research:research_id (
-        id,
-        user_id,
-        title
-      )
-    `)
+    .select('id, research_id, user_id, guest_name, guest_email, access_token, status')
     .eq('id', requestId)
     .single()
 
@@ -402,7 +408,12 @@ export async function reviewAccessRequest(
     return { error: 'Access request not found.' }
   }
 
-  const research = Array.isArray(request.research) ? request.research[0] : request.research
+  const { data: research } = await db
+    .from('research')
+    .select('id, user_id, title')
+    .eq('id', request.research_id)
+    .single()
+
   if (!research) {
     return { error: 'Associated research paper not found.' }
   }
@@ -488,37 +499,36 @@ export async function getUserSubmittedAccessRequests(userId: string): Promise<{
 
   const { data, error } = await db
     .from('research_access_requests')
-    .select(`
-      id,
-      research_id,
-      status,
-      message,
-      rejection_reason,
-      created_at,
-      reviewed_at,
-      research:research_id (
-        id,
-        title
-      )
-    `)
+    .select('id, research_id, status, message, rejection_reason, created_at, reviewed_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
 
-  if (error || !data) {
+  if (error || !data || data.length === 0) {
     return []
   }
 
-  return data.map((r: any) => {
-    const researchObj = Array.isArray(r.research) ? r.research[0] : r.research
-    return {
-      id: r.id,
-      researchId: r.research_id,
-      researchTitle: researchObj?.title || 'Unknown Paper',
-      status: r.status,
-      message: r.message,
-      rejectionReason: r.rejection_reason,
-      createdAt: r.created_at,
-      reviewedAt: r.reviewed_at,
+  const researchIds = Array.from(new Set(data.map((r: any) => r.research_id).filter(Boolean)))
+  const researchMap = new Map<string, string>()
+
+  if (researchIds.length > 0) {
+    const { data: researches } = await db
+      .from('research')
+      .select('id, title')
+      .in('id', researchIds)
+
+    if (researches) {
+      researches.forEach((r: any) => researchMap.set(r.id, r.title))
     }
-  })
+  }
+
+  return data.map((r: any) => ({
+    id: r.id,
+    researchId: r.research_id,
+    researchTitle: researchMap.get(r.research_id) || 'Unknown Paper',
+    status: r.status,
+    message: r.message,
+    rejectionReason: r.rejection_reason,
+    createdAt: r.created_at,
+    reviewedAt: r.reviewed_at,
+  }))
 }

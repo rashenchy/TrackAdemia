@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, useSearchParams } from 'next/navigation'
-import React, { use, useMemo, useState } from 'react'
+import React, { use, useEffect, useMemo, useState } from 'react'
 import { Viewer, Worker } from '@react-pdf-viewer/core'
 import {
   highlightPlugin,
@@ -44,8 +44,97 @@ import { useAnnotateHighlights } from './hooks/useAnnotateHighlights'
 import { useAnnotateVersionState } from './hooks/useAnnotateVersionState'
 import { useAnnotationViewModel } from './hooks/useAnnotationViewModel'
 
+interface ErrorBoundaryState {
+  hasError: boolean
+  error: Error | null
+  errorInfo: React.ErrorInfo | null
+}
 
-export default function AnnotatePage({
+class AnnotateErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  ErrorBoundaryState
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props)
+    this.state = { hasError: false, error: null, errorInfo: null }
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[ANNOTATE CRITICAL ERROR CAUGHT]', error, errorInfo)
+    this.setState({ errorInfo })
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="m-6 rounded-2xl border-2 border-red-500 bg-red-50 p-6 text-red-900 shadow-xl">
+          <div className="flex items-center gap-3">
+            <span className="flex h-3.5 w-3.5 rounded-full bg-red-600 animate-pulse" />
+            <h2 className="text-xl font-bold text-red-800">
+              Workspace Runtime Error (Annotate Debugger)
+            </h2>
+          </div>
+          <p className="mt-3 text-base font-semibold">
+            {this.state.error?.name}: {this.state.error?.message}
+          </p>
+          {this.state.error?.stack && (
+            <div className="mt-3">
+              <p className="text-xs font-bold uppercase tracking-wider text-red-700">
+                Stack Trace:
+              </p>
+              <pre className="mt-1 max-h-60 overflow-auto rounded-xl bg-slate-950 p-4 font-mono text-xs text-red-200">
+                {this.state.error.stack}
+              </pre>
+            </div>
+          )}
+          {this.state.errorInfo?.componentStack && (
+            <details className="mt-3" open>
+              <summary className="cursor-pointer text-xs font-bold uppercase tracking-wider text-red-700">
+                Component Stack Details:
+              </summary>
+              <pre className="mt-1 max-h-48 overflow-auto rounded-xl bg-slate-900 p-3 font-mono text-[11px] text-red-100">
+                {this.state.errorInfo.componentStack}
+              </pre>
+            </details>
+          )}
+          <div className="mt-4 flex gap-3">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow hover:bg-red-700"
+            >
+              Reload Page
+            </button>
+            <Link
+              href="/dashboard"
+              className="rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              Back to Dashboard
+            </Link>
+          </div>
+        </div>
+      )
+    }
+
+    return this.props.children
+  }
+}
+
+export default function AnnotatePage(props: {
+  params: Promise<{ id: string }>
+}) {
+  return (
+    <AnnotateErrorBoundary>
+      <AnnotatePageInner {...props} />
+    </AnnotateErrorBoundary>
+  )
+}
+
+function AnnotatePageInner({
   params,
 }: {
   params: Promise<{ id: string }>
@@ -57,6 +146,25 @@ export default function AnnotatePage({
   const { confirm, notify } = usePopup()
   const versionParam = searchParams.get('version')
   const selectedVersionNumber = versionParam ? Number(versionParam) : null
+
+  const [unhandledWindowError, setUnhandledWindowError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const handleErr = (e: ErrorEvent) => {
+      console.error('[GLOBAL WINDOW ERROR IN ANNOTATE]', e.error || e.message)
+      setUnhandledWindowError(e.error?.stack || e.message || 'Unknown window error')
+    }
+    const handleRejection = (e: PromiseRejectionEvent) => {
+      console.error('[UNHANDLED REJECTION IN ANNOTATE]', e.reason)
+      setUnhandledWindowError(String(e.reason?.stack || e.reason || 'Unhandled promise rejection'))
+    }
+    window.addEventListener('error', handleErr)
+    window.addEventListener('unhandledrejection', handleRejection)
+    return () => {
+      window.removeEventListener('error', handleErr)
+      window.removeEventListener('unhandledrejection', handleRejection)
+    }
+  }, [])
 
   const [filter, setFilter] = useState<'all' | 'unresolved' | 'resolved'>('unresolved')
   const [annotationPanelOpen, setAnnotationPanelOpen] = useState(true)
@@ -504,6 +612,22 @@ export default function AnnotatePage({
     )
   }
 
+  console.log('[ANNOTATE PAGE DEBUG]', {
+    researchId,
+    role: currentUserRole,
+    userId: currentUserId,
+    isLoading,
+    loadError,
+    activeFormat,
+    submissionFormat,
+    isAuthor,
+    canReview,
+    canEditTextWorkspace,
+    hasResearch: Boolean(research),
+    versionsCount: availableVersions.length,
+    annotationsCount: annotations.length,
+  })
+
   const safeResearch = research
 
   return (
@@ -521,6 +645,16 @@ export default function AnnotatePage({
           background: rgba(59, 130, 246, 0.4);
         }
       `}</style>
+
+      {unhandledWindowError ? (
+        <div className="m-4 rounded-xl border border-red-400 bg-red-50 p-4 text-xs font-mono text-red-800 shadow-md">
+          <strong className="block text-sm font-bold text-red-900 mb-1">
+            ⚠️ Live Window Error Detected (Debugger Banner):
+          </strong>
+          <pre className="max-h-40 overflow-auto whitespace-pre-wrap">{unhandledWindowError}</pre>
+        </div>
+      ) : null}
+
       <div className="border-b border-gray-200 bg-white px-6 py-4">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex items-center gap-4">
