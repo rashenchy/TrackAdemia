@@ -44,7 +44,6 @@ next-env.d.ts
 /supabase
 
 /.agents
-
+/.agents/
+/docs/
 AGENTS.md
-
-/docs
