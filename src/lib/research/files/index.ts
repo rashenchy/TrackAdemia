@@ -111,16 +111,24 @@ export async function uploadResearchDiagram(
   }
 
   const originalFileName = getSafeOriginalFileName(file)
-  const fileExt = originalFileName.split('.').pop() || 'png'
+  const fileExt = (originalFileName.split('.').pop() || 'png').toLowerCase()
   const uniqueFilename = `${Date.now()}-${crypto.randomUUID()}.${fileExt}`
   const filePath = `diagrams/${userId}/${uniqueFilename}`
+
+  let resolvedContentType = file.type
+  if (!resolvedContentType || resolvedContentType === 'image/jpg') {
+    if (fileExt === 'jpg' || fileExt === 'jpeg') resolvedContentType = 'image/jpeg'
+    else if (fileExt === 'svg') resolvedContentType = 'image/svg+xml'
+    else if (fileExt === 'webp') resolvedContentType = 'image/webp'
+    else resolvedContentType = 'image/png'
+  }
 
   const { data, error } = await supabase.storage
     .from('trackademiaPapers')
     .upload(filePath, file, {
       cacheControl: '3600',
       upsert: false,
-      contentType: file.type || 'image/png',
+      contentType: resolvedContentType,
     })
 
   if (error || !data?.path) {

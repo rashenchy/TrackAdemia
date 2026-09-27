@@ -37,6 +37,13 @@ interface TechnicalArtifactsSectionProps {
   isCaseStudyOrCapstone?: boolean
 }
 
+function generateClientTempId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `diagram_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
+}
+
 export function TechnicalArtifactsSection({
   initialRepositoryUrl = '',
   initialDemoUrl = '',
@@ -65,7 +72,7 @@ export function TechnicalArtifactsSection({
     setNewDiagrams((prev) => [
       ...prev,
       {
-        tempId: crypto.randomUUID(),
+        tempId: generateClientTempId(),
         file: null,
         previewUrl: null,
         diagramType: 'erd',

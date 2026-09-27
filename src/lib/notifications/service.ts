@@ -62,10 +62,7 @@ export async function createNotifications(
   const writeClient = getWriteClient(supabase)
   const { error } = await writeClient
     .from('user_notifications')
-    .upsert(normalizedNotifications, {
-      onConflict: 'user_id,event_key',
-      ignoreDuplicates: false,
-    })
+    .insert(normalizedNotifications)
 
   if (error) {
     console.error('Failed to create notifications:', error)
