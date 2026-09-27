@@ -68,9 +68,7 @@ export function getNotificationRoute(notification: UserNotification) {
     case 'announcement_created':
       return '/dashboard'
     case 'research_access_request':
-      return notification.reference_id
-        ? `/dashboard/research/${notification.reference_id}?tab=access-requests`
-        : '/dashboard'
+      return '/dashboard/access-requests'
     case 'research_access_approved':
     case 'research_access_rejected':
       return notification.reference_id

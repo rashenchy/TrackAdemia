@@ -8,6 +8,7 @@ import type {
   CreateAccessRequestInput,
   UserResearchAccessState,
   ResearchAccessRequest,
+  ResearchAccessRequestWithDetails,
 } from './types'
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -532,3 +533,237 @@ export async function getUserSubmittedAccessRequests(userId: string): Promise<{
     reviewedAt: r.reviewed_at,
   }))
 }
+
+async function getFacultyAssociatedResearchIds(db: any, facultyId: string): Promise<string[]> {
+  // 1. Get sections taught by this faculty
+  const { data: sections } = await db
+    .from('sections')
+    .select('id, course_code')
+    .eq('teacher_id', facultyId)
+
+  const sectionIds = (sections || []).map((s: any) => s.id)
+  const courseCodes = (sections || [])
+    .map((s: any) => s.course_code)
+    .filter(Boolean) as string[]
+
+  // 2. Get students in those sections
+  let sectionStudentIds: string[] = []
+  if (sectionIds.length > 0) {
+    const { data: memberships } = await db
+      .from('section_members')
+      .select('user_id')
+      .in('section_id', sectionIds)
+
+    if (memberships) {
+      sectionStudentIds = Array.from(new Set(memberships.map((m: any) => m.user_id).filter(Boolean)))
+    }
+  }
+
+  // 3. Get faculty profile for name matching in case adviser_id stores name
+  const { data: profile } = await db
+    .from('profiles')
+    .select('first_name, last_name')
+    .eq('id', facultyId)
+    .single()
+
+  const facultyFullName = profile
+    ? `${profile.first_name || ''} ${profile.last_name || ''}`.trim()
+    : ''
+
+  // 4. Fetch researches matching any of these criteria
+  const queryPromises: Promise<any>[] = [
+    // Faculty is author
+    db.from('research').select('id').eq('user_id', facultyId),
+    // Faculty is adviser by ID
+    db.from('research').select('id').eq('adviser_id', facultyId),
+  ]
+
+  if (facultyFullName) {
+    queryPromises.push(db.from('research').select('id').eq('adviser_id', facultyFullName))
+  }
+
+  if (sectionStudentIds.length > 0) {
+    queryPromises.push(db.from('research').select('id').in('user_id', sectionStudentIds))
+  }
+
+  if (courseCodes.length > 0) {
+    queryPromises.push(db.from('research').select('id').in('subject_code', courseCodes))
+  }
+
+  const results = await Promise.all(queryPromises)
+  const researchIds = new Set<string>()
+
+  for (const res of results) {
+    if (res.data) {
+      for (const item of res.data) {
+        if (item.id) researchIds.add(item.id)
+      }
+    }
+  }
+
+  return Array.from(researchIds)
+}
+
+export async function getAllLeaderAccessRequests(
+  currentUserId: string,
+  isFacultyUser = false
+): Promise<{ data?: ResearchAccessRequestWithDetails[]; error?: string }> {
+  const supabase = await createClient()
+  const db = getDbClient(supabase)
+
+  // 1. Find all research papers associated with the user
+  let researchIds: string[] = []
+
+  if (isFacultyUser) {
+    researchIds = await getFacultyAssociatedResearchIds(db, currentUserId)
+  } else {
+    const { data: studentResearches, error: researchError } = await db
+      .from('research')
+      .select('id')
+      .eq('user_id', currentUserId)
+
+    if (researchError) {
+      console.error('Error finding leader researches:', researchError)
+      return { error: 'Failed to fetch researches.' }
+    }
+    researchIds = (studentResearches || []).map((r: any) => r.id)
+  }
+
+  if (researchIds.length === 0) {
+    return { data: [] }
+  }
+
+  const { data: researches } = await db
+    .from('research')
+    .select('id, title')
+    .in('id', researchIds)
+
+  const researchMap = new Map<string, string>()
+  for (const r of researches || []) {
+    researchMap.set(r.id, r.title)
+  }
+
+  // 2. Fetch access requests for these researches
+  const { data: requests, error: requestsError } = await db
+    .from('research_access_requests')
+    .select(`
+      id,
+      research_id,
+      user_id,
+      guest_name,
+      guest_email,
+      message,
+      status,
+      access_token,
+      rejection_reason,
+      reviewed_at,
+      reviewed_by,
+      created_at
+    `)
+    .in('research_id', researchIds)
+    .order('created_at', { ascending: false })
+
+  if (requestsError) {
+    console.error('Error fetching access requests:', requestsError)
+    return { error: 'Failed to fetch access requests.' }
+  }
+
+  if (!requests || requests.length === 0) {
+    return { data: [] }
+  }
+
+  // 3. Fetch user profiles for registered users
+  const userIds = Array.from(
+    new Set((requests || []).map((r: any) => r.user_id).filter(Boolean))
+  ) as string[]
+
+  const profileMap = new Map<
+    string,
+    {
+      first_name: string
+      last_name: string
+      role?: string
+      course_program?: string
+    }
+  >()
+
+  if (userIds.length > 0) {
+    const { data: profiles } = await db
+      .from('profiles')
+      .select('id, first_name, last_name, role, course_program')
+      .in('id', userIds)
+
+    if (profiles) {
+      profiles.forEach((p: any) => {
+        profileMap.set(p.id, {
+          first_name: p.first_name,
+          last_name: p.last_name,
+          role: p.role,
+          course_program: p.course_program,
+        })
+      })
+    }
+  }
+
+  const formatted: ResearchAccessRequestWithDetails[] = requests.map((r: any) => {
+    const registeredProfile = r.user_id ? profileMap.get(r.user_id) : undefined
+    const requesterName = registeredProfile
+      ? `${registeredProfile.first_name} ${registeredProfile.last_name}`.trim()
+      : r.guest_name || 'Guest Requester'
+    const requesterEmail = registeredProfile ? undefined : r.guest_email || undefined
+
+    return {
+      id: r.id,
+      research_id: r.research_id,
+      user_id: r.user_id,
+      guest_name: r.guest_name,
+      guest_email: r.guest_email,
+      message: r.message,
+      status: r.status,
+      access_token: r.access_token,
+      rejection_reason: r.rejection_reason,
+      reviewer_notes: r.rejection_reason,
+      reviewed_at: r.reviewed_at,
+      reviewed_by: r.reviewed_by,
+      created_at: r.created_at,
+      user_profile: registeredProfile,
+      requester_name: requesterName,
+      requester_email: requesterEmail,
+      research_title: researchMap.get(r.research_id) || 'Research Manuscript',
+    }
+  })
+
+  return { data: formatted }
+}
+
+export async function getLeaderPendingAccessRequestsCount(
+  currentUserId: string,
+  isFacultyUser = false
+): Promise<number> {
+  const supabase = await createClient()
+  const db = getDbClient(supabase)
+
+  let researchIds: string[] = []
+  if (isFacultyUser) {
+    researchIds = await getFacultyAssociatedResearchIds(db, currentUserId)
+  } else {
+    const { data: studentResearches } = await db
+      .from('research')
+      .select('id')
+      .eq('user_id', currentUserId)
+    researchIds = (studentResearches || []).map((r: any) => r.id)
+  }
+
+  if (researchIds.length === 0) return 0
+
+  const { count, error } = await db
+    .from('research_access_requests')
+    .select('*', { count: 'exact', head: true })
+    .in('research_id', researchIds)
+    .eq('status', 'pending')
+
+  if (error || !count) return 0
+  return count
+}
+
+

@@ -31,6 +31,7 @@ import {
   Files,
   BadgeCheck,
   SpellCheck,
+  KeyRound,
 } from 'lucide-react'
 
 export default function DashboardLayoutClient({
@@ -64,6 +65,7 @@ export default function DashboardLayoutClient({
   const [submissionAlertCount, setSubmissionAlertCount] = useState(0)
   const [pendingStudentCount, setPendingStudentCount] = useState(0)
   const [pendingProofreaderCount, setPendingProofreaderCount] = useState(0)
+  const [pendingAccessRequestsCount, setPendingAccessRequestsCount] = useState(0)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isNavigating, startNavigation] = useTransition()
   const { notify } = usePopup()
@@ -83,6 +85,7 @@ export default function DashboardLayoutClient({
   const effectiveSubmissionAlertCount = isAdminPreview ? 0 : submissionAlertCount
   const effectivePendingStudentCount = isAdminPreview ? 0 : pendingStudentCount
   const effectivePendingProofreaderCount = isAdminPreview ? 0 : pendingProofreaderCount
+  const effectivePendingAccessRequestsCount = isAdminPreview ? 0 : pendingAccessRequestsCount
   const pendingAccessAllowedPaths = [
     '/dashboard/repository',
     '/dashboard/profile',
@@ -234,7 +237,7 @@ export default function DashboardLayoutClient({
 
       const { data: research } = await supabase
         .from('research')
-        .select('id')
+        .select('id, user_id')
         .or(`user_id.eq.${user.id},members.cs.{${user.id}}`)
 
       const researchIds = research?.map((item) => item.id) || []
@@ -246,6 +249,61 @@ export default function DashboardLayoutClient({
         .eq('is_resolved', false)
 
       setUnresolvedCount((personalCount || 0) + (teacherCount || 0) + (annotationCount || 0))
+
+      // Access requests count for research owned by the user (or taught/advised if faculty)
+      const leaderResearchIds = research?.filter((r) => r.user_id === user.id).map((r) => r.id) || []
+
+      if (isFacultyRef.current) {
+        const { data: sections } = await supabase
+          .from('sections')
+          .select('id, course_code')
+          .eq('teacher_id', user.id)
+
+        const sectionIds = (sections || []).map((s: any) => s.id)
+        const courseCodes = (sections || []).map((s: any) => s.course_code).filter(Boolean) as string[]
+
+        let sectionStudentIds: string[] = []
+        if (sectionIds.length > 0) {
+          const { data: memberships } = await supabase
+            .from('section_members')
+            .select('user_id')
+            .in('section_id', sectionIds)
+
+          if (memberships) {
+            sectionStudentIds = Array.from(new Set(memberships.map((m: any) => m.user_id).filter(Boolean)))
+          }
+        }
+
+        const facultyFilters = [`user_id.eq.${user.id}`, `adviser_id.eq.${user.id}`]
+        if (sectionStudentIds.length > 0) {
+          facultyFilters.push(`user_id.in.(${sectionStudentIds.join(',')})`)
+        }
+        if (courseCodes.length > 0) {
+          facultyFilters.push(`subject_code.in.(${courseCodes.join(',')})`)
+        }
+
+        const { data: facultyResearches } = await supabase
+          .from('research')
+          .select('id')
+          .or(facultyFilters.join(','))
+
+        if (facultyResearches) {
+          facultyResearches.forEach((fr: any) => {
+            if (!leaderResearchIds.includes(fr.id)) leaderResearchIds.push(fr.id)
+          })
+        }
+      }
+
+      if (leaderResearchIds.length > 0) {
+        const { count: pendingReqs } = await supabase
+          .from('research_access_requests')
+          .select('*', { count: 'exact', head: true })
+          .in('research_id', leaderResearchIds)
+          .eq('status', 'pending')
+        setPendingAccessRequestsCount(pendingReqs || 0)
+      } else {
+        setPendingAccessRequestsCount(0)
+      }
 
       if (isFacultyRef.current) {
         const { attentionCount } = await getTeacherSubmissionData(supabase, user.id)
@@ -284,8 +342,12 @@ export default function DashboardLayoutClient({
     const refreshFacultyCounts = () => {
       fetchCounts()
     }
+    const refreshAccessRequests = () => {
+      fetchCounts()
+    }
 
     window.addEventListener('faculty-pending-approvals-changed', refreshFacultyCounts)
+    window.addEventListener('access-requests-changed', refreshAccessRequests)
 
     const channel = supabase
       .channel('task-updates')
@@ -330,10 +392,28 @@ export default function DashboardLayoutClient({
         { event: '*', schema: 'public', table: 'task_completions' },
         fetchCounts
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'research_access_requests' },
+        (payload: any) => {
+          if (payload.eventType === 'INSERT') {
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification('New Research Access Request', {
+                body: payload.new?.message
+                  ? `Access requested: "${payload.new.message.slice(0, 60)}"`
+                  : 'You have a new access request awaiting review.',
+                icon: '/logo.png',
+              })
+            }
+          }
+          fetchCounts()
+        }
+      )
       .subscribe()
 
     return () => {
       window.removeEventListener('faculty-pending-approvals-changed', refreshFacultyCounts)
+      window.removeEventListener('access-requests-changed', refreshAccessRequests)
       supabase.removeChannel(channel)
     }
   }, [isAdminPreview, supabase, router, userRole])
@@ -370,7 +450,6 @@ export default function DashboardLayoutClient({
       : [
           { name: 'Home', href: '/dashboard', icon: Home },
           { name: 'Submit Research', href: '/dashboard/submit', icon: FilePlus },
-          { name: 'Task Manager', href: '/dashboard/tasks', icon: CheckSquare },
 
           ...(effectiveIsFaculty && effectiveIsVerified
             ? [
@@ -379,8 +458,23 @@ export default function DashboardLayoutClient({
                 href: '/dashboard/student-submissions',
                 icon: Files,
               },
+              {
+                name: 'Access Requests',
+                href: '/dashboard/access-requests',
+                icon: KeyRound,
+              },
             ]
-            : []),
+            : effectiveIsStudent
+              ? [
+                {
+                  name: 'Access Requests',
+                  href: '/dashboard/access-requests',
+                  icon: KeyRound,
+                },
+              ]
+              : []),
+
+          { name: 'Task Manager', href: '/dashboard/tasks', icon: CheckSquare },
 
           ...(effectiveIsFaculty && effectiveIsVerified
             ? [
@@ -462,7 +556,14 @@ export default function DashboardLayoutClient({
               item.name === 'Student Verification' && effectivePendingStudentCount > 0
             const isProofreaderBadge =
               item.name === 'Proofreader Verification' && effectivePendingProofreaderCount > 0
-            const hasBadge = isTaskBadge || isSubmissionBadge || isVerificationBadge || isProofreaderBadge
+            const isAccessRequestsBadge =
+              item.name === 'Access Requests' && effectivePendingAccessRequestsCount > 0
+            const hasBadge =
+              isTaskBadge ||
+              isSubmissionBadge ||
+              isVerificationBadge ||
+              isProofreaderBadge ||
+              isAccessRequestsBadge
             const badgeValue =
               item.name === 'Student Submissions'
                 ? effectiveSubmissionAlertCount
@@ -470,7 +571,9 @@ export default function DashboardLayoutClient({
                   ? effectivePendingStudentCount
                   : item.name === 'Proofreader Verification'
                     ? effectivePendingProofreaderCount
-                    : effectiveUnresolvedCount
+                    : item.name === 'Access Requests'
+                      ? effectivePendingAccessRequestsCount
+                      : effectiveUnresolvedCount
 
             return (
               <button
