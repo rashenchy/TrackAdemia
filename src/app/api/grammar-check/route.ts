@@ -181,33 +181,65 @@ export async function POST(req: Request) {
     """${trimmedText}"""
     `
 
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a grammar checker. Return only valid JSON.',
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
-        ],
-        temperature: 0.2,
-        response_format: { type: 'json_object' },
-      }),
-    })
+    const candidateModels = Array.from(
+      new Set(
+        [
+          process.env.GROQ_GRAMMAR_MODEL,
+          'qwen/qwen3.8-27b',
+          'openai/gpt-oss-120b',
+          'openai/gpt-oss-20b',
+          'llama-3.3-70b-versatile',
+        ].filter(Boolean) as string[]
+      )
+    )
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => null)
-      const message =
-        errorData?.error?.message || 'Failed to communicate with Groq API'
+    let response: Response | null = null
+    let lastErrorMessage = ''
+    let usedModel = ''
+
+    for (const model of candidateModels) {
+      try {
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a grammar checker. Return only valid JSON.',
+              },
+              {
+                role: 'user',
+                content: prompt,
+              },
+            ],
+            temperature: 0.2,
+            response_format: { type: 'json_object' },
+          }),
+        })
+
+        if (res.ok) {
+          response = res
+          usedModel = model
+          break
+        }
+
+        const errorData = await res.json().catch(() => null)
+        lastErrorMessage =
+          errorData?.error?.message || `Groq model ${model} failed with status ${res.status}`
+        console.warn(`[GrammarCheck] Model ${model} returned error: ${lastErrorMessage}`)
+      } catch (err: unknown) {
+        lastErrorMessage =
+          err instanceof Error ? err.message : `Failed connecting to Groq with model ${model}`
+      }
+    }
+
+    if (!response) {
+      const message = lastErrorMessage || 'Failed to communicate with Groq API'
       await logRequest('failed', trimmedText.length, 0, message)
       throw new Error(message)
     }
