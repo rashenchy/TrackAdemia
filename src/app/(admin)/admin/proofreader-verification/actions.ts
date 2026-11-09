@@ -101,7 +101,9 @@ export async function verifyProofreader(userId: string): Promise<{ success: bool
       return { success: false, error: 'Insufficient permissions' }
     }
 
-    const { error } = await supabase
+    const db = createAdminClient() || supabase
+
+    const { error } = await db
       .from('profiles')
       .update({ is_verified: true, updated_at: new Date().toISOString() })
       .eq('id', userId)
@@ -146,7 +148,9 @@ export async function rejectProofreader(userId: string): Promise<{ success: bool
       return { success: false, error: 'Insufficient permissions' }
     }
 
-    const { error } = await supabase
+    const db = createAdminClient() || supabase
+
+    const { error } = await db
       .from('profiles')
       .update({
         is_verified: false,

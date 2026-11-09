@@ -51,6 +51,7 @@ export default function StudentVerificationClient({
       setSuccessMessage(`${firstName} ${lastName} has been verified successfully!`)
       setStudents((currentStudents) => currentStudents.filter((student) => student.id !== userId))
       window.dispatchEvent(new CustomEvent('faculty-pending-approvals-changed'))
+      window.dispatchEvent(new CustomEvent('admin-pending-approvals-changed'))
       router.refresh()
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {
@@ -68,6 +69,7 @@ export default function StudentVerificationClient({
       setSuccessMessage(`${firstName} ${lastName} registration has been rejected and archived.`)
       setStudents((currentStudents) => currentStudents.filter((student) => student.id !== userId))
       window.dispatchEvent(new CustomEvent('faculty-pending-approvals-changed'))
+      window.dispatchEvent(new CustomEvent('admin-pending-approvals-changed'))
       router.refresh()
       setTimeout(() => setSuccessMessage(null), 3000)
     } else {

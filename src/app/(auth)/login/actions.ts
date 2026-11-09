@@ -108,7 +108,9 @@ export async function login(formData: FormData) {
       redirect('/login?error=' + encodeURIComponent('This account has been deactivated. Please contact an administrator.'))
     }
 
-    if (profile.role === 'admin' || profile.role === 'mentor') {
+    if (profile.role === 'admin') {
+      redirectPath = '/admin'
+    } else {
       redirectPath = '/dashboard'
     }
   }

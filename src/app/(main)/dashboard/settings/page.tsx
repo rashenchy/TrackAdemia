@@ -4,15 +4,13 @@ import { cookies } from 'next/headers'
 import type { ReactNode } from 'react'
 import {
   BookOpen,
-  ChevronRight,
-  FolderKanban,
   IdCard,
-  LifeBuoy,
   Mail,
   ShieldCheck,
+  Shield,
+  ArrowRight,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
-import { GeneralNavigation } from './general-navigation'
 import {
   ADMIN_VIEW_COOKIE,
   getAdminViewMeta,
@@ -40,8 +38,6 @@ export default async function SettingsPage() {
   const adminPreviewMode = isAdminViewMode(previewCookie) ? previewCookie : null
   const previewMeta = adminPreviewMode ? getAdminViewMeta(adminPreviewMode) : null
   const isAdminPreview = profile?.role === 'admin' && Boolean(previewMeta)
-  const effectiveRole = isAdminPreview ? previewMeta?.role : profile?.role
-  const canViewAdminShortcuts = effectiveRole === 'mentor' || effectiveRole === 'admin'
 
   const roleLabel =
     isAdminPreview
@@ -51,8 +47,12 @@ export default async function SettingsPage() {
       : profile?.role === 'mentor'
         ? 'Faculty / Adviser'
         : profile?.role === 'admin'
-          ? 'Faculty Administrator'
-          : 'Student'
+          ? 'Administrator'
+          : profile?.role === 'proofreader'
+            ? 'Proofreader'
+            : profile?.role === 'guest'
+              ? 'Guest Researcher'
+              : 'Student'
 
   return (
     <div className="mx-auto max-w-3xl py-2">
@@ -61,20 +61,20 @@ export default async function SettingsPage() {
         <p className="text-xs font-bold uppercase tracking-[0.24em] text-blue-600">
           Settings
         </p>
-        <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950">
+        <h1 className="mt-2 text-2xl font-black tracking-tight text-slate-950 dark:text-white">
           Manage your account and workspace
         </h1>
-        <p className="mt-1.5 text-sm leading-relaxed text-slate-500">
-          Account information, preferences, and administration tools.
+        <p className="mt-1.5 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+          Account information, profile details, and preferences.
         </p>
       </div>
 
       {/* ── ACCOUNT section ── */}
-      <div className="mb-10">
+      <div className="mb-8">
         <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">
-          Account
+          Account Information
         </p>
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-gray-800 dark:bg-gray-900 shadow-sm">
           <SettingsInfoRow
             icon={<Mail size={16} className="text-blue-600" />}
             label="Email"
@@ -113,57 +113,31 @@ export default async function SettingsPage() {
         </div>
       </div>
 
-      {/* ── ADMINISTRATION section (mentor + admin only) ── */}
-      {canViewAdminShortcuts && (
-        <div>
-          <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">
-            Administration
-          </p>
-          <GeneralNavigation>
-            <SettingsLinkRow
-              href="/dashboard/settings/faculty-approval"
-              icon={<ShieldCheck size={16} className="text-emerald-600" />}
-              title="Faculty account creation"
-              description="Create faculty accounts directly from the admin workspace."
-            />
-            <SettingsLinkRow
-              href="/dashboard/settings/users"
-              icon={<IdCard size={16} className="text-violet-600" />}
-              title="User management"
-              description="Review user accounts, roles, and statuses."
-            />
-            <SettingsLinkRow
-              href="/dashboard/settings/master-records"
-              icon={<BookOpen size={16} className="text-amber-600" />}
-              title="Master records"
-              description="Maintain shared institutional records and reference data."
-            />
-            <SettingsLinkRow
-              href="/dashboard/settings/analytics"
-              icon={<BookOpen size={16} className="text-indigo-600" />}
-              title="Analytics"
-              description="Inspect the system-wide analytics dashboard."
-            />
-            <SettingsLinkRow
-              href="/dashboard/settings/reports"
-              icon={<FolderKanban size={16} className="text-blue-600" />}
-              title="Reports"
-              description="Open reporting and oversight views."
-            />
-            <SettingsLinkRow
-              href="/dashboard/settings/announcements"
-              icon={<Mail size={16} className="text-emerald-600" />}
-              title="Announcements"
-              description="Publish announcements visible throughout the workspace."
-            />
-            <SettingsLinkRow
-              href="/dashboard/settings/api-monitoring"
-              icon={<LifeBuoy size={16} className="text-rose-600" />}
-              title="API monitoring"
-              description="Review usage and health data for connected services."
-              last
-            />
-          </GeneralNavigation>
+      {/* ── Administrator Workspace Shortcut (Admin only) ── */}
+      {profile?.role === 'admin' && (
+        <div className="rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50/80 to-indigo-50/50 p-6 dark:border-purple-900/40 dark:bg-purple-950/20">
+          <div className="flex items-start gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-600 text-white shadow-sm">
+              <Shield size={20} />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                Admin Dashboard
+              </h2>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                You are signed in as an administrator. Manage users, master records, system announcements, analytics, and platform operations in the Admin Dashboard.
+              </p>
+              <div className="mt-4">
+                <Link
+                  href="/admin"
+                  className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-purple-700"
+                >
+                  Open Admin Dashboard
+                  <ArrowRight size={16} />
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -186,51 +160,16 @@ function SettingsInfoRow({
   return (
     <div
       className={`flex items-center gap-3 px-4 py-3.5 ${
-        !last ? 'border-b border-slate-100' : ''
+        !last ? 'border-b border-slate-100 dark:border-gray-800' : ''
       }`}
     >
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 dark:bg-gray-800">
         {icon}
       </div>
-      <span className="text-sm font-medium text-slate-500">{label}</span>
-      <span className="ml-auto max-w-[55%] truncate text-right text-sm font-semibold text-slate-900">
+      <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{label}</span>
+      <span className="ml-auto max-w-[55%] truncate text-right text-sm font-semibold text-slate-900 dark:text-white">
         {value}
       </span>
     </div>
-  )
-}
-
-function SettingsLinkRow({
-  href,
-  icon,
-  title,
-  description,
-  last = false,
-}: {
-  href: string
-  icon: ReactNode
-  title: string
-  description: string
-  last?: boolean
-}) {
-  return (
-    <Link
-      href={href}
-      className={`group flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-slate-50/80 ${
-        !last ? 'border-b border-slate-100' : ''
-      }`}
-    >
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 transition-colors group-hover:bg-white">
-        {icon}
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-slate-900">{title}</p>
-        <p className="truncate text-xs text-slate-500">{description}</p>
-      </div>
-      <ChevronRight
-        size={16}
-        className="shrink-0 text-slate-300 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-slate-400"
-      />
-    </Link>
   )
 }

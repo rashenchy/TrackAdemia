@@ -110,9 +110,6 @@ export async function createFacultyAccount(
 
   revalidatePath('/admin/faculty-approval')
   revalidatePath('/admin/users')
-  revalidatePath('/dashboard/settings')
-  revalidatePath('/dashboard/settings/faculty-approval')
-  revalidatePath('/dashboard/settings/users')
 
   return { success: true }
 }

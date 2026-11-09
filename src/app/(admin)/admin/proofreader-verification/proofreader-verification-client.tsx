@@ -40,6 +40,7 @@ export default function ProofreaderVerificationClient({
       setSuccessMessage(`${firstName} ${lastName} has been approved as a Language Editor / Proofreader!`)
       setProofreaders((current) => current.filter((p) => p.id !== userId))
       window.dispatchEvent(new CustomEvent('faculty-pending-approvals-changed'))
+      window.dispatchEvent(new CustomEvent('admin-pending-approvals-changed'))
       router.refresh()
       setTimeout(() => setSuccessMessage(null), 4000)
     } else {
@@ -61,6 +62,7 @@ export default function ProofreaderVerificationClient({
       setSuccessMessage(`${firstName} ${lastName}'s registration has been declined.`)
       setProofreaders((current) => current.filter((p) => p.id !== userId))
       window.dispatchEvent(new CustomEvent('faculty-pending-approvals-changed'))
+      window.dispatchEvent(new CustomEvent('admin-pending-approvals-changed'))
       router.refresh()
       setTimeout(() => setSuccessMessage(null), 4000)
     } else {

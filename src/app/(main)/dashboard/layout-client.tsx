@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { stopViewAsUser } from '@/app/(main)/dashboard/settings/view-as-user/actions'
+import { stopViewAsUser } from '@/app/(admin)/admin/view-as-user/actions'
 import { getTeacherSubmissionData } from '@/lib/users/teacher-submissions'
 import { usePopup } from '@/components/ui/PopupProvider'
 import {

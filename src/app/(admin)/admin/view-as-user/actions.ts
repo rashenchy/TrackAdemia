@@ -48,7 +48,7 @@ export async function stopViewAsUser() {
   const cookieStore = await cookies()
   cookieStore.delete(ADMIN_VIEW_COOKIE)
 
-  redirect('/dashboard/settings/view-as-user')
+  redirect('/admin/view-as-user')
 }
 
 export interface DashboardStats {
