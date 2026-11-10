@@ -144,7 +144,7 @@ export default async function PublicResearchPage({
 
   // Render the public research page
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-[var(--foreground)] py-12 px-4 sm:px-6">
+    <div className="min-h-dvh bg-gray-50 dark:bg-gray-950 text-[var(--foreground)] px-4 py-6 sm:px-6 sm:py-12">
 
       <div className="max-w-4xl mx-auto space-y-8">
 
@@ -169,7 +169,7 @@ export default async function PublicResearchPage({
         ) : null}
 
         {/* Research Header */}
-        <div className="bg-white dark:bg-gray-900 p-8 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
+        <div className="bg-white dark:bg-gray-900 p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-5 sm:space-y-6">
 
           <div className="space-y-4">
 
@@ -185,20 +185,20 @@ export default async function PublicResearchPage({
             </div>
 
             {/* Research Title */}
-            <h1 className="text-3xl md:text-4xl font-black leading-tight text-gray-900 dark:text-gray-100">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black leading-tight text-gray-900 dark:text-gray-100">
               {research.title}
             </h1>
 
             {/* Authorship Row */}
             <div className="flex flex-wrap items-center gap-3 pt-2">
-              <div className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/80 px-3.5 py-2 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
+              <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/80 px-3.5 py-2 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
                 <Crown size={16} className="shrink-0 text-amber-500" />
                 <span className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400">Research Leader:</span>
                 <span className="font-bold text-slate-900 dark:text-slate-100">{leaderName}</span>
               </div>
 
               {memberNamesList.length > 0 && (
-                <div className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
+                <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
                   <Users size={16} className="shrink-0 text-slate-400" />
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Members:</span>
                   <span className="font-medium text-slate-900 dark:text-slate-100">{memberNamesList.join(', ')}</span>

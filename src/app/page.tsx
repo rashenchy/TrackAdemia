@@ -172,42 +172,42 @@ export default async function LandingPage() {
         <div className="absolute right-[-4rem] top-12 -z-10 h-80 w-80 rounded-full bg-yellow-200/55 blur-3xl animate-[orb_18s_ease-in-out_infinite_reverse]" />
         <div className="absolute bottom-24 left-1/2 -z-10 h-72 w-72 -translate-x-1/2 rounded-full bg-sky-200/35 blur-3xl animate-[float_11s_ease-in-out_infinite]" />
 
-        <section className="mx-auto max-w-7xl px-6 pb-20 pt-8 md:px-10 lg:px-12">
+        <section className="mx-auto max-w-7xl px-4 pb-12 pt-5 sm:px-6 sm:pb-20 sm:pt-8 md:px-10 lg:px-12">
           <Reveal variant="up">
-            <header className="flex flex-col gap-4 rounded-full border border-white/80 bg-white/78 px-4 py-3 shadow-[0_18px_50px_rgba(148,163,184,0.18)] backdrop-blur md:flex-row md:items-center md:justify-between">
+            <header className="flex flex-col gap-3 rounded-3xl border border-white/80 bg-white/78 px-4 py-3 shadow-[0_18px_50px_rgba(148,163,184,0.18)] backdrop-blur md:flex-row md:items-center md:justify-between md:rounded-full">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-blue-100 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-blue-100 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:h-11 sm:w-11">
                   <Image src="/logo.png" alt="TrackAdemia logo" width={24} height={24} className="rounded-md" />
                 </div>
-                <div>
-                  <p className={`${headingFont.className} text-lg font-semibold tracking-tight text-slate-900`}>
+                <div className="min-w-0">
+                  <p className={`${headingFont.className} text-base font-semibold tracking-tight text-slate-900 sm:text-lg`}>
                     TrackAdemia
                   </p>
-                  <p className="text-xs uppercase tracking-[0.24em] text-slate-500">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500 sm:text-xs sm:tracking-[0.24em]">
                     Research workflow system
                   </p>
                 </div>
               </div>
 
-              <nav className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
-                <Link href="#system" className="rounded-full px-4 py-2 transition-colors hover:bg-blue-50 hover:text-blue-700">
+              <nav className="flex flex-wrap items-center gap-1.5 text-xs text-slate-600 sm:gap-2 sm:text-sm">
+                <Link href="#system" className="rounded-full px-3 py-2 transition-colors hover:bg-blue-50 hover:text-blue-700 sm:px-4">
                   Platform
                 </Link>
-                <Link href="#workflow" className="rounded-full px-4 py-2 transition-colors hover:bg-blue-50 hover:text-blue-700">
+                <Link href="#workflow" className="rounded-full px-3 py-2 transition-colors hover:bg-blue-50 hover:text-blue-700 sm:px-4">
                   Workflow
                 </Link>
-                <Link href="#roles" className="rounded-full px-4 py-2 transition-colors hover:bg-blue-50 hover:text-blue-700">
+                <Link href="#roles" className="rounded-full px-3 py-2 transition-colors hover:bg-blue-50 hover:text-blue-700 sm:px-4">
                   Roles
                 </Link>
                 <Link
                   href="/repository"
-                  className="rounded-full border border-blue-200 bg-blue-600 px-4 py-2 font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-blue-700"
+                  className="rounded-full border border-blue-200 bg-blue-600 px-3.5 py-2 font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-blue-700 sm:px-4"
                 >
                   View Repository
                 </Link>
                 <Link
                   href="/login"
-                  className="rounded-full border border-blue-100 bg-white px-4 py-2 font-semibold text-blue-700 transition-all hover:-translate-y-0.5 hover:bg-blue-50"
+                  className="rounded-full border border-blue-100 bg-white px-3.5 py-2 font-semibold text-blue-700 transition-all hover:-translate-y-0.5 hover:bg-blue-50 sm:px-4"
                 >
                   Login
                 </Link>
@@ -215,18 +215,18 @@ export default async function LandingPage() {
             </header>
           </Reveal>
 
-          <div className="grid min-h-[calc(100vh-7rem)] items-center gap-14 py-14 lg:grid-cols-[1.05fr_0.95fr] lg:py-20">
-            <div className="max-w-3xl">
+          <div className="grid items-center gap-10 py-8 sm:gap-14 sm:py-14 lg:min-h-[calc(100dvh-7rem)] lg:grid-cols-[1.05fr_0.95fr] lg:py-20">
+            <div className="min-w-0 max-w-3xl">
               <Reveal delay={80}>
-                <div className="inline-flex items-center gap-3 rounded-full border border-blue-100 bg-white/85 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-blue-700 shadow-[0_16px_40px_rgba(148,163,184,0.12)] backdrop-blur">
-                  <span className="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_18px_rgba(59,130,246,0.75)]" />
+                <div className="inline-flex items-center gap-2.5 rounded-full border border-blue-100 bg-white/85 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-blue-700 shadow-[0_16px_40px_rgba(148,163,184,0.12)] backdrop-blur sm:gap-3 sm:px-4 sm:text-xs sm:tracking-[0.28em]">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500 shadow-[0_0_18px_rgba(59,130,246,0.75)]" />
                   Less paperwork. Better momentum.
                 </div>
               </Reveal>
 
               <Reveal delay={170}>
                 <h1
-                  className={`${headingFont.className} mt-8 text-5xl font-bold leading-[0.92] tracking-[-0.04em] text-slate-950 sm:text-6xl lg:text-7xl`}
+                  className={`${headingFont.className} mt-6 text-3xl font-bold leading-[1.06] tracking-[-0.03em] text-slate-950 sm:mt-8 sm:text-5xl sm:leading-[0.95] md:text-6xl lg:text-7xl lg:leading-[0.92] lg:tracking-[-0.04em]`}
                 >
                   A premium operating layer for
                   <span className="block bg-[linear-gradient(90deg,#1d4ed8_0%,#38bdf8_38%,#2563eb_62%,#facc15_100%)] bg-clip-text text-transparent">
@@ -237,7 +237,7 @@ export default async function LandingPage() {
               </Reveal>
 
               <Reveal delay={260}>
-                <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-600 sm:text-xl">
+                <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600 sm:mt-7 sm:text-lg sm:leading-8 lg:text-xl">
                   Replace scattered files and unclear status updates with one polished system for
                   students, advisers, and administrators.
                 </p>
@@ -277,26 +277,26 @@ export default async function LandingPage() {
             </div>
 
             <Reveal delay={180} variant="scale">
-              <div className="relative">
-                <div className="absolute inset-0 rounded-[2.4rem] bg-[linear-gradient(135deg,rgba(59,130,246,0.18),rgba(250,204,21,0.12),rgba(255,255,255,0.2))] blur-2xl" />
-                <div className="relative overflow-hidden rounded-[2.2rem] border border-white/90 bg-white/70 p-4 shadow-[0_35px_90px_rgba(148,163,184,0.18)] backdrop-blur-2xl">
+              <div className="relative min-w-0">
+                <div className="absolute inset-0 rounded-3xl bg-[linear-gradient(135deg,rgba(59,130,246,0.18),rgba(250,204,21,0.12),rgba(255,255,255,0.2))] blur-2xl sm:rounded-[2.4rem]" />
+                <div className="relative overflow-hidden rounded-3xl border border-white/90 bg-white/70 p-3 shadow-[0_35px_90px_rgba(148,163,184,0.18)] backdrop-blur-2xl sm:rounded-[2.2rem] sm:p-4">
                   <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(59,130,246,0.8),transparent)]" />
-                  <div className="rounded-[1.9rem] border border-blue-100/70 bg-[linear-gradient(160deg,#0f3f8c_0%,#2563eb_54%,#7dd3fc_100%)] p-5 text-white">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/14 ring-1 ring-white/20">
+                  <div className="rounded-2xl border border-blue-100/70 bg-[linear-gradient(160deg,#0f3f8c_0%,#2563eb_54%,#7dd3fc_100%)] p-4 text-white sm:rounded-[1.9rem] sm:p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/14 ring-1 ring-white/20 sm:h-12 sm:w-12">
                           <Image src="/logo.png" alt="TrackAdemia" width={28} height={28} className="rounded-lg" />
                         </div>
-                        <div>
-                          <p className="text-xs uppercase tracking-[0.28em] text-blue-100/80">
+                        <div className="min-w-0">
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-blue-100/80 sm:text-xs sm:tracking-[0.28em]">
                             Workspace
                           </p>
-                          <h2 className={`${headingFont.className} text-xl font-semibold text-white`}>
+                          <h2 className={`${headingFont.className} text-lg font-semibold text-white sm:text-xl`}>
                             Capstone Progress Board
                           </h2>
                         </div>
                       </div>
-                      <span className="rounded-full border border-white/20 bg-white/12 px-3 py-1 text-xs font-semibold text-white">
+                      <span className="shrink-0 rounded-full border border-white/20 bg-white/12 px-3 py-1 text-xs font-semibold text-white">
                         84% complete
                       </span>
                     </div>
@@ -360,19 +360,19 @@ export default async function LandingPage() {
           </div>
         </section>
 
-        <section id="repository-preview" className="mx-auto max-w-7xl px-6 py-16 md:px-10 lg:px-12">
-          <div className="relative overflow-hidden rounded-[2.4rem] border border-blue-100 bg-[linear-gradient(180deg,#ffffff_0%,#eff6ff_68%,#fefce8_100%)] p-6 shadow-[0_30px_80px_rgba(148,163,184,0.16)] md:p-8">
+        <section id="repository-preview" className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 md:px-10 lg:px-12">
+          <div className="relative overflow-hidden rounded-3xl border border-blue-100 bg-[linear-gradient(180deg,#ffffff_0%,#eff6ff_68%,#fefce8_100%)] p-5 shadow-[0_30px_80px_rgba(148,163,184,0.16)] sm:rounded-[2.4rem] sm:p-6 md:p-8">
             <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(59,130,246,0.75),transparent)]" />
 
-            <div className="grid gap-10 lg:grid-cols-[0.86fr_1.14fr] lg:items-start">
+            <div className="grid gap-8 sm:gap-10 lg:grid-cols-[0.86fr_1.14fr] lg:items-start">
               <Reveal>
-                <div className="lg:sticky lg:top-10">
-                  <div className="inline-flex items-center gap-3 rounded-full border border-blue-100 bg-white/90 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-blue-700 shadow-sm">
-                    <BookOpen size={14} />
+                <div className="min-w-0 lg:sticky lg:top-10">
+                  <div className="inline-flex items-center gap-2.5 rounded-full border border-blue-100 bg-white/90 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-700 shadow-sm sm:gap-3 sm:px-4 sm:text-xs sm:tracking-[0.28em]">
+                    <BookOpen size={14} className="shrink-0" />
                     Public repository preview
                   </div>
 
-                  <h2 className={`${headingFont.className} mt-6 text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl`}>
+                  <h2 className={`${headingFont.className} mt-5 text-3xl font-bold tracking-tight text-slate-950 sm:mt-6 sm:text-4xl lg:text-5xl`}>
                     Open the repository to browse published work before you sign in.
                   </h2>
                   <p className="mt-4 max-w-xl text-lg leading-8 text-slate-600">
@@ -408,28 +408,28 @@ export default async function LandingPage() {
 
                     return (
                       <Reveal key={paper.id} delay={index * 120} variant="right">
-                        <article className="rounded-[1.8rem] border border-blue-100/80 bg-white/90 p-6 shadow-[0_18px_50px_rgba(148,163,184,0.12)] transition-all duration-300 hover:-translate-y-1 hover:border-blue-200">
-                          <div className="flex items-start justify-between gap-4">
-                            <div>
-                              <p className="text-xs font-bold uppercase tracking-[0.24em] text-blue-700">
+                        <article className="rounded-2xl border border-blue-100/80 bg-white/90 p-5 shadow-[0_18px_50px_rgba(148,163,184,0.12)] transition-all duration-300 hover:-translate-y-1 hover:border-blue-200 sm:rounded-[1.8rem] sm:p-6">
+                          <div className="flex flex-wrap items-start justify-between gap-2 sm:gap-4">
+                            <div className="min-w-0 flex-1">
+                              <p className="text-xs font-bold uppercase tracking-[0.2em] text-blue-700 sm:tracking-[0.24em]">
                                 Published research
                               </p>
-                              <h3 className={`${headingFont.className} mt-2 text-2xl font-semibold tracking-tight text-slate-950`}>
+                              <h3 className={`${headingFont.className} mt-2 text-xl font-semibold tracking-tight text-slate-950 sm:text-2xl`}>
                                 {paper.title}
                               </h3>
                             </div>
-                            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
+                            <span className="shrink-0 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
                               {getLandingPaperYear(paper)}
                             </span>
                           </div>
 
                           <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm font-medium text-slate-600">
                             <span className="flex items-center gap-2">
-                              <Users size={14} className="text-blue-600" /> {authorNames}
+                              <Users size={14} className="shrink-0 text-blue-600" /> {authorNames}
                             </span>
                             <span className="hidden sm:inline text-slate-300">•</span>
                             <span className="flex items-center gap-2">
-                              <Calendar size={14} className="text-amber-500" /> Metadata + abstract only for guests
+                              <Calendar size={14} className="shrink-0 text-amber-500" /> Metadata + abstract only for guests
                             </span>
                           </div>
 
@@ -437,7 +437,7 @@ export default async function LandingPage() {
                             {paper.abstract}
                           </p>
 
-                          <div className="mt-5 flex items-center justify-between border-t border-blue-50 pt-4">
+                          <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-blue-50 pt-4">
                             <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-400">
                               Full manuscript requires login
                             </p>
@@ -464,16 +464,16 @@ export default async function LandingPage() {
           </div>
         </section>
 
-        <section id="system" className="mx-auto max-w-7xl px-6 pb-8 md:px-10 lg:px-12">
+        <section id="system" className="mx-auto max-w-7xl px-4 pb-8 sm:px-6 md:px-10 lg:px-12">
           <Reveal>
-            <div className="mb-10 max-w-2xl">
-              <p className="text-sm font-bold uppercase tracking-[0.28em] text-blue-700">
+            <div className="mb-8 max-w-2xl sm:mb-10">
+              <p className="text-sm font-bold uppercase tracking-[0.22em] text-blue-700 sm:tracking-[0.28em]">
                 System clarity
               </p>
-              <h2 className={`${headingFont.className} mt-4 text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl`}>
+              <h2 className={`${headingFont.className} mt-3 text-3xl font-bold tracking-tight text-slate-950 sm:mt-4 sm:text-4xl lg:text-5xl`}>
                 The platform feels intelligent because every layer serves a clear purpose.
               </h2>
-              <p className="mt-4 text-lg leading-8 text-slate-600">
+              <p className="mt-4 text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">
                 The structure stays familiar, but the experience becomes sharper, calmer, and more reliable from first glance to final approval.
               </p>
             </div>
@@ -514,8 +514,8 @@ export default async function LandingPage() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-6 py-20 md:px-10 lg:px-12">
-          <div className="relative overflow-hidden rounded-[2.2rem] border border-blue-100/80 bg-[linear-gradient(180deg,rgba(219,234,254,0.72),rgba(255,255,255,0.96))] p-6 shadow-[0_26px_70px_rgba(148,163,184,0.14)] md:p-8">
+        <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-20 md:px-10 lg:px-12">
+          <div className="relative overflow-hidden rounded-3xl border border-blue-100/80 bg-[linear-gradient(180deg,rgba(219,234,254,0.72),rgba(255,255,255,0.96))] p-5 shadow-[0_26px_70px_rgba(148,163,184,0.14)] sm:rounded-[2.2rem] sm:p-6 md:p-8">
             <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(59,130,246,0.7),transparent)]" />
             <div className="absolute -right-16 top-0 h-40 w-40 rounded-full bg-yellow-200/60 blur-3xl" />
             <div className="absolute -left-12 bottom-0 h-32 w-32 rounded-full bg-blue-200/60 blur-3xl" />
@@ -546,17 +546,17 @@ export default async function LandingPage() {
           </div>
         </section>
 
-        <section id="workflow" className="mx-auto max-w-7xl px-6 py-12 md:px-10 lg:px-12">
-          <div className="relative overflow-hidden rounded-[2.4rem] border border-blue-100 bg-[linear-gradient(135deg,#f8fbff_0%,#eef6ff_32%,#fffdf1_100%)] p-6 shadow-[0_30px_80px_rgba(148,163,184,0.16)] md:p-8">
+        <section id="workflow" className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-12 md:px-10 lg:px-12">
+          <div className="relative overflow-hidden rounded-3xl border border-blue-100 bg-[linear-gradient(135deg,#f8fbff_0%,#eef6ff_32%,#fffdf1_100%)] p-5 shadow-[0_30px_80px_rgba(148,163,184,0.16)] sm:rounded-[2.4rem] sm:p-6 md:p-8">
             <div className="absolute inset-y-0 right-0 w-1/3 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.1),transparent_58%)]" />
             <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(37,99,235,0.8),transparent)]" />
-            <div className="grid gap-12 lg:grid-cols-[0.88fr_1.12fr] lg:items-start">
+            <div className="grid gap-8 sm:gap-12 lg:grid-cols-[0.88fr_1.12fr] lg:items-start">
             <Reveal>
-              <div className="lg:sticky lg:top-10">
-                <p className="text-sm font-bold uppercase tracking-[0.28em] text-yellow-600">
+              <div className="min-w-0 lg:sticky lg:top-10">
+                <p className="text-sm font-bold uppercase tracking-[0.22em] text-yellow-600 sm:tracking-[0.28em]">
                   How it moves
                 </p>
-                <h2 className={`${headingFont.className} mt-4 text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl`}>
+                <h2 className={`${headingFont.className} mt-3 text-3xl font-bold tracking-tight text-slate-950 sm:mt-4 sm:text-4xl lg:text-5xl`}>
                   Designed to keep research work moving instead of stalling in email threads.
                 </h2>
                 <p className="mt-4 text-lg leading-8 text-slate-600">
@@ -596,8 +596,8 @@ export default async function LandingPage() {
           </div>
         </section>
 
-        <section id="roles" className="mx-auto max-w-7xl px-6 py-20 md:px-10 lg:px-12">
-          <div className="overflow-hidden rounded-[2.4rem] border border-blue-100 bg-[linear-gradient(145deg,#eaf4ff_0%,#dbeafe_38%,#fff9db_100%)] p-6 shadow-[0_30px_80px_rgba(148,163,184,0.16)] md:p-10">
+        <section id="roles" className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-20 md:px-10 lg:px-12">
+          <div className="overflow-hidden rounded-3xl border border-blue-100 bg-[linear-gradient(145deg,#eaf4ff_0%,#dbeafe_38%,#fff9db_100%)] p-5 shadow-[0_30px_80px_rgba(148,163,184,0.16)] sm:rounded-[2.4rem] sm:p-6 md:p-10">
             <div className="mb-8 flex flex-wrap gap-3">
               {['Student flow', 'Review flow', 'Admin visibility'].map((item, index) => (
                 <Reveal key={item} delay={index * 80}>
@@ -607,13 +607,13 @@ export default async function LandingPage() {
                 </Reveal>
               ))}
             </div>
-            <div className="grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+            <div className="grid gap-8 sm:gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
               <Reveal>
-                <div>
-                  <p className="text-sm font-bold uppercase tracking-[0.3em] text-blue-700">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold uppercase tracking-[0.22em] text-blue-700 sm:tracking-[0.3em]">
                     Built for every role
                   </p>
-                  <h2 className={`${headingFont.className} mt-4 text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl`}>
+                  <h2 className={`${headingFont.className} mt-3 text-3xl font-bold tracking-tight text-slate-950 sm:mt-4 sm:text-4xl lg:text-5xl`}>
                     One platform, three perspectives, fewer bottlenecks.
                   </h2>
                   <p className="mt-4 max-w-2xl text-lg leading-8 text-slate-600">
@@ -643,16 +643,16 @@ export default async function LandingPage() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-5xl px-6 pb-24 pt-6 text-center md:px-10">
+        <section className="mx-auto max-w-5xl px-4 pb-16 pt-4 text-center sm:px-6 sm:pb-24 sm:pt-6 md:px-10">
           <Reveal variant="scale">
-            <div className="relative overflow-hidden rounded-[2.4rem] border border-blue-100 bg-[linear-gradient(180deg,#ffffff_0%,#eff6ff_60%,#fefce8_100%)] px-6 py-12 shadow-[0_26px_70px_rgba(148,163,184,0.14)] backdrop-blur-xl md:px-10 md:py-14">
+            <div className="relative overflow-hidden rounded-3xl border border-blue-100 bg-[linear-gradient(180deg,#ffffff_0%,#eff6ff_60%,#fefce8_100%)] px-5 py-10 shadow-[0_26px_70px_rgba(148,163,184,0.14)] backdrop-blur-xl sm:rounded-[2.4rem] sm:px-6 sm:py-12 md:px-10 md:py-14">
               <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(59,130,246,0.9),transparent)]" />
               <div className="absolute -left-8 top-8 h-28 w-28 rounded-full bg-blue-100/70 blur-3xl" />
               <div className="absolute -right-6 bottom-6 h-32 w-32 rounded-full bg-yellow-100/80 blur-3xl" />
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-100 bg-blue-600 text-white shadow-[0_18px_40px_rgba(37,99,235,0.2)]">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-100 bg-blue-600 text-white shadow-[0_18px_40px_rgba(37,99,235,0.2)] sm:h-16 sm:w-16">
                 <ShieldCheck size={28} />
               </div>
-              <h2 className={`${headingFont.className} mx-auto mt-6 max-w-3xl text-4xl font-bold tracking-tight text-slate-950 sm:text-5xl`}>
+              <h2 className={`${headingFont.className} mx-auto mt-5 max-w-3xl text-3xl font-bold tracking-tight text-slate-950 sm:mt-6 sm:text-4xl lg:text-5xl`}>
                 Make the first impression feel like a real platform.
               </h2>
               <p className="mx-auto mt-4 max-w-2xl text-lg leading-8 text-slate-600">

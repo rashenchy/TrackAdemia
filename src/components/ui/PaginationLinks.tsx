@@ -71,14 +71,14 @@ export default function PaginationLinks({
 
   return (
     <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="text-xs font-semibold text-slate-500">
+      <div className="text-center text-xs font-semibold text-slate-500 sm:text-left">
         Showing {start}-{end} of {totalCount}
       </div>
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
         <Link
           aria-disabled={page <= 1}
-          className={`inline-flex items-center gap-1 rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${
+          className={`inline-flex min-h-10 items-center gap-1 rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${
             page <= 1
               ? 'pointer-events-none border-slate-200 bg-white text-slate-300'
               : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -88,7 +88,11 @@ export default function PaginationLinks({
           Prev
         </Link>
 
-        <div className="flex items-center gap-1">
+        <span className="text-xs font-bold text-slate-600 sm:hidden">
+          Page {page} of {totalPages}
+        </span>
+
+        <div className="hidden items-center gap-1 sm:flex">
           {pages.map((p) => (
             <Link
               key={p}
@@ -106,7 +110,7 @@ export default function PaginationLinks({
 
         <Link
           aria-disabled={page >= totalPages}
-          className={`inline-flex items-center gap-1 rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${
+          className={`inline-flex min-h-10 items-center gap-1 rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${
             page >= totalPages
               ? 'pointer-events-none border-slate-200 bg-white text-slate-300'
               : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'

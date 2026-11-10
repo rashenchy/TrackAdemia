@@ -97,11 +97,11 @@ export function RepositorySearch({
 
           {/* Research Type Filter */}
           <div className="flex items-center gap-2 w-full sm:w-auto text-sm text-gray-500">
-            <Filter size={16} />
+            <Filter size={16} className="shrink-0" />
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
-              className="bg-transparent font-semibold text-gray-700 dark:text-gray-300 outline-none cursor-pointer"
+              className="w-full sm:w-auto min-h-10 bg-transparent font-semibold text-gray-700 dark:text-gray-300 outline-none cursor-pointer"
             >
                 <option value="all">All</option>
                 {RESEARCH_TYPE_OPTIONS.map((option) => (
@@ -117,11 +117,11 @@ export function RepositorySearch({
 
           {/* Sorting Options */}
           <div className="flex items-center gap-2 w-full sm:w-auto text-sm text-gray-500">
-            <SlidersHorizontal size={16} />
+            <SlidersHorizontal size={16} className="shrink-0" />
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value)}
-              className="bg-transparent font-semibold text-gray-700 dark:text-gray-300 outline-none cursor-pointer"
+              className="w-full sm:w-auto min-h-10 bg-transparent font-semibold text-gray-700 dark:text-gray-300 outline-none cursor-pointer"
             >
               <option value="newest">Newest First</option>
               <option value="oldest">Oldest First</option>

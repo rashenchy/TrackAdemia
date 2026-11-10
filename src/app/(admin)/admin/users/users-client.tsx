@@ -235,7 +235,74 @@ export default function UserManagementClient({
         </div>
       ) : (
         <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Mobile stacked cards */}
+          <div className="divide-y divide-gray-200 dark:divide-gray-800 md:hidden">
+            {pagedUsers.map((user) => {
+              const roleColor = roleColors[user.role] || roleColors.student
+
+              return (
+                <div key={user.id} className="space-y-3 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-base font-bold text-gray-900 dark:text-gray-100">
+                        {user.first_name} {user.last_name}
+                      </p>
+                      <p className="mt-0.5 break-all font-mono text-xs text-gray-500 dark:text-gray-400">
+                        {user.email}
+                      </p>
+                    </div>
+                    <span
+                      className={`inline-block shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${roleColor.bg} ${roleColor.text} ${roleColor.border}`}
+                    >
+                      {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                    <span className="font-medium text-gray-800 dark:text-gray-200">
+                      {user.course_program}
+                    </span>
+                    <span>•</span>
+                    {user.is_verified ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 font-medium text-green-700 dark:bg-green-900/20 dark:text-green-400">
+                        Verified
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-yellow-50 px-2 py-0.5 font-medium text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400">
+                        Pending
+                      </span>
+                    )}
+                    {user.role === 'mentor' && (
+                      <>
+                        <span>•</span>
+                        <span>
+                          {user.sectionsCount} section{user.sectionsCount !== 1 ? 's' : ''},{' '}
+                          {user.researchCount} research
+                        </span>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="pt-1">
+                    <button
+                      onClick={() => handleDeleteUser(user.id, `${user.first_name} ${user.last_name}`)}
+                      disabled={actionInProgress === user.id || !user.is_active}
+                      className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
+                    >
+                      {actionInProgress === user.id ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
+                      {user.is_active ? 'Archive User' : 'Archived'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">

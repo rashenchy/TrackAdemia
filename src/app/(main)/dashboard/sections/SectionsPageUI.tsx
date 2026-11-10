@@ -233,7 +233,7 @@ export default function SectionsPageUI({
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-10 relative">
+    <div className="relative mx-auto max-w-6xl space-y-6 sm:space-y-10">
       {(success || state?.error) && (
         <div
           className={`flex items-center gap-2 rounded-xl border p-4 text-sm animate-in fade-in ${
@@ -248,15 +248,15 @@ export default function SectionsPageUI({
       )}
 
       <div className="flex flex-col gap-2 text-[var(--foreground)]">
-        <h1 className="text-3xl font-bold tracking-tight">Manage Sections</h1>
-        <p className="text-gray-500">Create new classes and manage your students&apos; research groups.</p>
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Manage Sections</h1>
+        <p className="text-sm text-gray-500 sm:text-base">Create new classes and manage your students&apos; research groups.</p>
       </div>
 
-      <div className="grid gap-8 md:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-3 md:gap-8">
         <div className="md:col-span-1">
           <form
             action={formAction}
-            className="sticky top-6 space-y-4 rounded-2xl border border-gray-200 bg-[var(--background)] p-6 shadow-sm dark:border-gray-800"
+            className="space-y-4 rounded-2xl border border-gray-200 bg-[var(--background)] p-4 shadow-sm sm:p-6 md:sticky md:top-6 dark:border-gray-800"
           >
             <div className="mb-2 flex items-center gap-2 text-blue-600">
               <Plus size={20} />
@@ -301,7 +301,7 @@ export default function SectionsPageUI({
               pagedSections.map((section) => (
                 <div
                   key={section.id}
-                  className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-[var(--background)] p-6 shadow-sm dark:border-gray-800"
+                  className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-[var(--background)] p-4 shadow-sm sm:p-6 dark:border-gray-800"
                 >
                   {section.is_frozen && (
                     <div className="absolute right-0 top-0 flex items-center gap-1 rounded-bl-lg bg-amber-500 px-3 py-1 text-[10px] font-bold text-white">
@@ -309,9 +309,9 @@ export default function SectionsPageUI({
                     </div>
                   )}
 
-                  <div className="mb-6 flex items-start justify-between">
-                    <div>
-                      <h4 className="text-2xl font-bold text-[var(--foreground)]">{section.name}</h4>
+                  <div className="mb-5 flex flex-wrap items-start justify-between gap-3 sm:mb-6">
+                    <div className="min-w-0">
+                      <h4 className="text-xl font-bold text-[var(--foreground)] sm:text-2xl">{section.name}</h4>
                       <p className="font-mono text-sm text-gray-500">{section.course_code}</p>
                     </div>
 
@@ -381,25 +381,28 @@ export default function SectionsPageUI({
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-gray-800">
-                    <div className="flex items-center gap-3">
+                  <div className="flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                       <span className="text-[10px] font-bold uppercase text-gray-400">Join Code:</span>
-                      <span className="rounded-md bg-gray-100 px-3 py-1 font-mono text-lg font-black tracking-widest text-[var(--foreground)] dark:bg-gray-800">
+                      <span className="rounded-md bg-gray-100 px-3 py-1 font-mono text-base font-black tracking-widest text-[var(--foreground)] sm:text-lg dark:bg-gray-800">
                         {section.join_code}
                       </span>
                       <button
+                        type="button"
+                        aria-label={`Copy join code for ${section.name}`}
                         onClick={() => handleCopy(section.id, section.join_code)}
-                        className="text-gray-400 transition-colors hover:text-blue-600"
+                        className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-blue-600 dark:hover:bg-gray-800"
                       >
                         <Copy size={16} />
                       </button>
                     </div>
                     <button
+                      type="button"
                       onClick={() => {
                         setRosterPage(1)
                         setRosterModal(section)
                       }}
-                      className="text-sm font-semibold text-blue-600 transition-all hover:text-blue-700 hover:underline"
+                      className="inline-flex min-h-10 items-center self-start text-sm font-semibold text-blue-600 transition-all hover:text-blue-700 hover:underline sm:self-auto"
                     >
                       Manage Roster &rarr;
                     </button>
@@ -427,8 +430,8 @@ export default function SectionsPageUI({
 
       {rosterModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-[var(--background)] shadow-2xl dark:border-gray-800">
-            <div className="flex items-center justify-between border-b border-gray-100 bg-gray-50/50 p-6 dark:border-gray-800 dark:bg-gray-900/50">
+          <div className="flex max-h-[88dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-[var(--background)] shadow-2xl dark:border-gray-800">
+            <div className="flex items-center justify-between gap-3 border-b border-gray-100 bg-gray-50/50 p-4 sm:p-6 dark:border-gray-800 dark:bg-gray-900/50">
               <div>
                 <h3 className="flex items-center gap-2 text-xl font-bold text-[var(--foreground)]">
                   <Users size={20} className="text-blue-600" />
@@ -449,7 +452,7 @@ export default function SectionsPageUI({
               </button>
             </div>
 
-            <div className="flex-1 space-y-3 overflow-y-auto p-6">
+            <div className="flex-1 space-y-3 overflow-y-auto p-4 sm:p-6">
               {rosterModal.roster?.length === 0 ? (
                 <div className="py-10 text-center text-gray-400">
                   <Users size={40} className="mx-auto mb-3 opacity-20" />
@@ -459,15 +462,15 @@ export default function SectionsPageUI({
                 pagedRoster.map((student) => (
                   <div
                     key={student.user_id}
-                    className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all dark:border-gray-700 dark:bg-gray-800"
+                    className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all sm:flex-row sm:items-center sm:justify-between dark:border-gray-700 dark:bg-gray-800"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full border border-blue-200 bg-blue-100 text-sm font-bold text-blue-600">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-blue-100 text-sm font-bold text-blue-600">
                         {student.name.charAt(0)}
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-[var(--foreground)]">{student.name}</p>
-                        <div className="flex items-center gap-2 text-[10px] text-gray-500">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-[var(--foreground)]">{student.name}</p>
+                        <div className="flex flex-wrap items-center gap-2 text-[10px] text-gray-500">
                           <span className="font-mono uppercase">{student.course}</span>
                           <span>&bull;</span>
                           <span>Joined {new Date(student.joined_at).toLocaleDateString()}</span>
@@ -477,9 +480,10 @@ export default function SectionsPageUI({
 
                     <div className="flex items-center gap-2">
                       <button
+                        type="button"
                         onClick={() => handleRemove(rosterModal.id, student.user_id, student.name)}
                         disabled={loadingAction === `remove-${student.user_id}`}
-                        className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600 transition-colors hover:bg-red-100"
+                        className="inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600 transition-colors hover:bg-red-100 sm:w-auto"
                         title="Remove student from roster and send a reason"
                       >
                         <UserMinus size={14} />
@@ -491,7 +495,7 @@ export default function SectionsPageUI({
               )}
             </div>
 
-            <div className="border-t border-gray-100 bg-gray-50/50 p-6 dark:border-gray-800 dark:bg-gray-900/50">
+            <div className="border-t border-gray-100 bg-gray-50/50 p-4 sm:p-6 dark:border-gray-800 dark:bg-gray-900/50">
               <PaginationControl
                 page={rosterPage}
                 pageSize={pageSize}

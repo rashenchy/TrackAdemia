@@ -1028,8 +1028,8 @@ export function ResearchSubmissionForm({
       </div>
 
       {/* Manuscript section */}
-      <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-6">
-        <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-4">
+      <div className="bg-[var(--background)] p-4 sm:p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-5 sm:space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 dark:border-gray-800 pb-4">
           <div className="flex items-center gap-2">
             <Paperclip className="text-blue-600" size={20} />
             <h2 className="text-lg font-bold text-[var(--foreground)]">Manuscript Submission</h2>

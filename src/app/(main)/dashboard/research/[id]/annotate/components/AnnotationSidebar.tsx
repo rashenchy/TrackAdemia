@@ -83,7 +83,7 @@ export function AnnotationSidebar({
 
   return (
     <aside
-      className="relative flex min-h-0 w-full flex-col overflow-hidden border-l border-gray-200 bg-white xl:w-[380px] xl:min-w-[380px] xl:shrink-0"
+      className="fixed inset-0 z-50 flex min-h-0 w-full flex-col overflow-hidden bg-white xl:static xl:z-auto xl:w-[380px] xl:min-w-[380px] xl:shrink-0 xl:border-l xl:border-gray-200"
     >
       <div className="relative h-full w-full overflow-hidden">
         <div

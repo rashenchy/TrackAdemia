@@ -64,7 +64,7 @@ export default function AdminDashboardClient({
           <BarChart3 size={28} />
         </div>
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1 sm:mb-2">
             Analytics & Reporting
           </h1>
           <p className="text-gray-600 dark:text-gray-400">

@@ -127,6 +127,79 @@ export default function ProofreaderVerificationClient({
       ) : (
         <div className="space-y-4">
           <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+            {/* Mobile stacked cards */}
+            <div className="divide-y divide-slate-100 dark:divide-slate-800 md:hidden">
+              {pagedProofreaders.map((p) => {
+                const isBusy = processing === p.id
+                const formattedDate = new Date(p.updated_at).toLocaleDateString(undefined, {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })
+
+                return (
+                  <div key={p.id} className="space-y-3 p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-100 text-xs font-bold text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                        {p.first_name.charAt(0)}{p.last_name.charAt(0)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-bold text-slate-900 dark:text-white">
+                            {p.first_name} {p.last_name}
+                          </p>
+                          <span className="inline-block rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-700 dark:border-purple-800 dark:bg-purple-950/60 dark:text-purple-300">
+                            Language Critic
+                          </span>
+                        </div>
+                        <p className="mt-0.5 break-all font-mono text-xs text-slate-500 dark:text-slate-400">
+                          {p.email}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                      <span className="font-medium text-slate-800 dark:text-slate-200">
+                        {p.course_program || 'General Education'}
+                      </span>
+                      {p.institution && (
+                        <span className="inline-flex items-center gap-1 text-slate-400">
+                          <Building2 size={12} />
+                          {p.institution}
+                        </span>
+                      )}
+                      <span>Registered {formattedDate}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        onClick={() => handleVerify(p.id, p.first_name, p.last_name)}
+                        disabled={isBusy}
+                        className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-purple-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-purple-700 disabled:opacity-50"
+                      >
+                        {isBusy ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <CheckCircle size={14} />
+                        )}
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleReject(p.id, p.first_name, p.last_name)}
+                        disabled={isBusy}
+                        className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900/40 dark:text-red-400 dark:hover:bg-red-950/20"
+                      >
+                        <XCircle size={14} />
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden overflow-x-auto md:block">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-slate-100 bg-slate-50/80 text-xs font-bold uppercase tracking-wider text-slate-500 dark:border-slate-800 dark:bg-slate-900/40">
                 <tr>
@@ -209,6 +282,7 @@ export default function ProofreaderVerificationClient({
                 })}
               </tbody>
             </table>
+            </div>
           </div>
 
           <PaginationControl

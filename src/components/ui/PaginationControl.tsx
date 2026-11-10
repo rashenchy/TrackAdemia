@@ -40,22 +40,26 @@ export default function PaginationControl({
 
   return (
     <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${className}`}>
-      <div className="text-xs font-semibold text-slate-500">
+      <div className="text-center text-xs font-semibold text-slate-500 sm:text-left">
         Showing {start}-{end} of {totalCount}
       </div>
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
         <button
           type="button"
           onClick={() => onPageChange(safePage - 1)}
           disabled={safePage <= 1}
-          className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-10 items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <ChevronLeft size={14} />
+          <ChevronLeft size={14} aria-hidden="true" />
           Prev
         </button>
 
-        <div className="flex items-center gap-1">
+        <span className="text-xs font-bold text-slate-600 sm:hidden">
+          Page {safePage} of {totalPages}
+        </span>
+
+        <div className="hidden items-center gap-1 sm:flex">
           {pages.map((p) => (
             <button
               key={p}
@@ -76,10 +80,10 @@ export default function PaginationControl({
           type="button"
           onClick={() => onPageChange(safePage + 1)}
           disabled={safePage >= totalPages}
-          className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-10 items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Next
-          <ChevronRight size={14} />
+          <ChevronRight size={14} aria-hidden="true" />
         </button>
       </div>
     </div>

@@ -29,11 +29,22 @@
 body {
   background: var(--background);
   color: var(--foreground);
+  overflow-wrap: anywhere;
+  overflow-x: clip;
   transition: background 0.3s ease;
 }
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
+}
+
+@layer base {
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
 }
 
 @keyframes float {

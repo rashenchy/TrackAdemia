@@ -102,7 +102,7 @@ export default function StudentSectionsUI({
               <p className="font-medium text-gray-500">
                 You haven&apos;t joined any sections yet.
               </p>
-              <p className="text-xs">Use the form on the right to join your first class.</p>
+              <p className="text-xs">Use the Join a Section form to join your first class.</p>
             </div>
           ) : (
             sections.map((section) => {
@@ -118,9 +118,9 @@ export default function StudentSectionsUI({
                   key={section.id}
                   className="overflow-hidden rounded-2xl border border-gray-200 bg-[var(--background)] shadow-sm transition-all hover:border-blue-500/50 dark:border-gray-800"
                 >
-                  <div className="flex items-start justify-between p-6">
-                    <div>
-                      <h3 className="text-xl font-bold text-[var(--foreground)]">
+                  <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-6">
+                    <div className="min-w-0">
+                      <h3 className="text-lg font-bold text-[var(--foreground)] sm:text-xl">
                         {section.name}
                       </h3>
 
@@ -128,8 +128,8 @@ export default function StudentSectionsUI({
                         {section.course_code}
                       </p>
 
-                      <div className="mt-4 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                        <User size={16} className="text-blue-500" />
+                      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-600 sm:mt-4 dark:text-gray-400">
+                        <User size={16} className="shrink-0 text-blue-500" />
                         <span className="font-medium">Adviser:</span>
                         <span>
                           {teacher
@@ -140,7 +140,7 @@ export default function StudentSectionsUI({
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-end gap-3">
+                    <div className="flex flex-row items-center justify-between gap-3 sm:flex-col sm:items-end">
                       <button
                         onClick={() =>
                           setExpandedSection(

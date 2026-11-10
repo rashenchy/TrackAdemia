@@ -259,31 +259,31 @@ export default async function PublicRepositoryPage({
   const pagedPapers = filteredPapers.slice((page - 1) * pageSize, page * pageSize)
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 px-4 pb-12 pt-10 sm:px-6">
-      <div className="flex flex-col gap-4 rounded-[2rem] border border-blue-100 bg-[linear-gradient(180deg,#ffffff_0%,#eef6ff_100%)] px-6 py-8 text-center shadow-[0_24px_70px_rgba(148,163,184,0.14)]">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 shadow-sm">
-          <BookOpen size={32} />
+    <div className="mx-auto max-w-5xl space-y-6 px-4 pb-12 pt-6 sm:space-y-8 sm:px-6 sm:pt-10">
+      <div className="flex flex-col gap-4 rounded-2xl border border-blue-100 bg-[linear-gradient(180deg,#ffffff_0%,#eef6ff_100%)] px-4 py-6 text-center shadow-[0_24px_70px_rgba(148,163,184,0.14)] sm:rounded-[2rem] sm:px-6 sm:py-8">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-100 text-blue-600 shadow-sm sm:h-16 sm:w-16">
+          <BookOpen size={30} />
         </div>
 
         <div className="space-y-2">
-          <h1 className="text-4xl font-black tracking-tight text-slate-950">
+          <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-4xl">
             Public Research Repository
           </h1>
-          <p className="mx-auto max-w-2xl text-gray-600">
+          <p className="mx-auto max-w-2xl text-sm text-gray-600 sm:text-base">
             Browse published research metadata, abstracts, and academic years. Full manuscript access is available after login.
           </p>
         </div>
 
-        <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+        <div className="flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
           <Link
             href="/login"
-            className="rounded-full bg-blue-600 px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-700"
+            className="inline-flex min-h-11 items-center justify-center rounded-full bg-blue-600 px-6 py-3 text-sm font-bold text-white transition-colors hover:bg-blue-700"
           >
             Log In for Full Access
           </Link>
           <Link
             href="/register"
-            className="rounded-full border border-blue-100 bg-white px-6 py-3 text-sm font-bold text-blue-700 transition-colors hover:bg-blue-50"
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-blue-100 bg-white px-6 py-3 text-sm font-bold text-blue-700 transition-colors hover:bg-blue-50"
           >
             Create an Account
           </Link>
@@ -333,11 +333,11 @@ export default async function PublicRepositoryPage({
             return (
               <article
                 key={paper.id}
-                className="group rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all hover:border-blue-300 hover:shadow-md"
+                className="group rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:border-blue-300 hover:shadow-md sm:p-6"
               >
-                <div className="mb-2 flex items-start justify-between gap-4">
-                  <Link href={`/repository/${paper.id}`}>
-                    <h2 className="text-xl font-bold leading-tight text-blue-700 decoration-blue-300 underline-offset-4 hover:underline">
+                <div className="mb-2 flex flex-wrap items-start justify-between gap-2 sm:gap-4">
+                  <Link href={`/repository/${paper.id}`} className="min-w-0 flex-1">
+                    <h2 className="text-lg font-bold leading-snug text-blue-700 decoration-blue-300 underline-offset-4 hover:underline sm:text-xl sm:leading-tight">
                       {paper.title}
                     </h2>
                   </Link>

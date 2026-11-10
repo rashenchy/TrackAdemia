@@ -85,7 +85,7 @@ export default async function RegisterPage({
           </div>
         </section>
 
-        <section className="flex items-center justify-center px-6 py-10 sm:px-10 lg:px-14">
+        <section className="flex items-center justify-center px-4 py-6 sm:px-10 sm:py-10 lg:px-14">
           <form
             action={signup}
             className="w-full max-w-xl space-y-6 animate-[fade_up_700ms_ease-out]"
@@ -115,7 +115,7 @@ export default async function RegisterPage({
               <Link href="/" className="text-sm font-semibold text-blue-700 transition-colors hover:text-blue-900">
                 Back to home
               </Link>
-              <h2 className="mt-4 text-4xl font-black tracking-tight text-slate-950">
+              <h2 className="mt-4 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
                 Create your account
               </h2>
               <p className="mt-3 text-base leading-7 text-slate-600">

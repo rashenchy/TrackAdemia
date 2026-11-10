@@ -23,8 +23,8 @@ export default async function LoginPage({
       : null
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#eef6ff_0%,#fff7d6_46%,#ffffff_100%)] px-4 py-4 selection:bg-blue-100 md:px-6 md:py-3 lg:px-8">
-      <div className="mx-auto grid min-h-[calc(100vh-1.5rem)] w-full max-w-7xl overflow-hidden rounded-[2rem] border border-white/70 bg-white/75 shadow-[0_30px_90px_rgba(37,99,235,0.16)] backdrop-blur md:grid-cols-2">
+    <div className="min-h-dvh bg-[linear-gradient(180deg,#eef6ff_0%,#fff7d6_46%,#ffffff_100%)] px-3 py-3 selection:bg-blue-100 sm:px-4 sm:py-4 md:px-6 md:py-3 lg:px-8">
+      <div className="mx-auto grid min-h-[calc(100dvh-1.5rem)] w-full max-w-7xl overflow-hidden rounded-2xl border border-white/70 bg-white/75 shadow-[0_30px_90px_rgba(37,99,235,0.16)] backdrop-blur sm:rounded-[2rem] md:grid-cols-2">
         <section className="relative hidden min-h-full overflow-hidden md:block">
           <Image
             src="/students.jpg"
@@ -87,7 +87,7 @@ export default async function LoginPage({
           </div>
         </section>
 
-        <section className="flex items-center justify-center px-6 py-10 sm:px-10 lg:px-14">
+        <section className="flex items-center justify-center px-4 py-6 sm:px-10 sm:py-10 lg:px-14">
           <form
             action={login}
             className="w-full max-w-md space-y-6 animate-[fade_up_700ms_ease-out]"

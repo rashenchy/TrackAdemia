@@ -159,7 +159,7 @@ export function PopupProvider({ children }: { children: React.ReactNode }) {
     <PopupContext.Provider value={value}>
       {children}
 
-      <div className="pointer-events-none fixed right-4 top-4 z-[120] flex w-full max-w-sm flex-col gap-3">
+      <div className="pointer-events-none fixed inset-x-3 top-3 z-[120] flex flex-col gap-3 sm:inset-x-auto sm:right-4 sm:top-4 sm:w-full sm:max-w-sm">
         {toasts.map((toast) => (
           <div
             key={toast.id}
@@ -187,7 +187,7 @@ export function PopupProvider({ children }: { children: React.ReactNode }) {
 
       {dialogState ? (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-gray-200 bg-white p-6 shadow-2xl">
+          <div className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl sm:rounded-3xl sm:p-6">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-xl font-bold text-slate-900">

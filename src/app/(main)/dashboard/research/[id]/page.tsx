@@ -408,7 +408,7 @@ export default async function ViewResearchPage({
           </div>
         </div>
 
-        <div className="bg-[var(--background)] p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
+        <div className="bg-[var(--background)] p-4 sm:p-6 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
           <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-4">
             <Calendar className="text-blue-600" size={20} />
             <h2 className="text-lg font-bold">Timeline</h2>
@@ -417,7 +417,7 @@ export default async function ViewResearchPage({
             <label className="text-xs font-bold uppercase text-gray-500">Stage</label>
             <p className="text-md">{research.current_stage || 'N/A'}</p>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="text-xs font-bold uppercase text-gray-500">Start Date</label>
               <p className="text-sm">{research.start_date || 'N/A'}</p>

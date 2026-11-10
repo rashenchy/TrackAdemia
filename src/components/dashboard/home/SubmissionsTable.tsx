@@ -240,7 +240,65 @@ export function SubmissionsTable({
 
     return (
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-[var(--background)] shadow-sm dark:border-gray-800">
-        <div className="overflow-x-auto">
+        {/* Mobile stacked cards */}
+        <div className="divide-y divide-gray-100 dark:divide-gray-800 md:hidden">
+          {pagedSubmissions.map((item) => (
+            <div key={item.id} className="space-y-3 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold leading-snug text-gray-900 dark:text-gray-100">
+                    {item.title}
+                  </p>
+                  <p className="mt-1 inline-flex items-center gap-1 text-xs text-gray-400">
+                    <Clock3 size={12} />
+                    Submitted {new Date(item.created_at).toLocaleDateString()}
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-md bg-blue-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
+                  {item.type || 'Research'}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+                    statusStyles[item.status] ||
+                    'border-slate-200 bg-slate-100 text-slate-700 dark:border-gray-700 dark:bg-gray-800 dark:text-slate-300'
+                  }`}
+                >
+                  {item.status}
+                </span>
+                {(item.unresolved_feedback_count || 0) > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-100 px-2.5 py-0.5 text-[11px] font-bold text-purple-700 dark:border-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                    <MessageCircle size={11} />
+                    {item.unresolved_feedback_count} Unresolved Comment
+                    {item.unresolved_feedback_count !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <Link
+                  href={appendFromParam(`/dashboard/research/${item.id}`, currentRoute)}
+                  className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-gray-700 dark:text-slate-200 dark:hover:bg-gray-800"
+                >
+                  <Eye size={15} />
+                  View Details
+                </Link>
+                <Link
+                  href={appendFromParam(`/dashboard/research/${item.id}/edit`, currentRoute)}
+                  className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300"
+                >
+                  <Edit size={15} />
+                  Edit
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-gray-200 bg-gray-50 font-medium text-gray-500 dark:border-gray-800 dark:bg-gray-800/50">
               <tr>
@@ -339,7 +397,7 @@ export function SubmissionsTable({
               <select
                 value={sectionFilter}
                 onChange={(event) => setSectionFilter(event.target.value)}
-                className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-slate-200"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition-colors focus:border-blue-500 sm:w-auto dark:border-gray-700 dark:bg-gray-900 dark:text-slate-200"
               >
                 <option value="all">All Sections</option>
                 {sections.map((section) => (
@@ -356,7 +414,7 @@ export function SubmissionsTable({
                 key={group}
                 type="button"
                 onClick={() => setGroupFilter(group)}
-                className={`h-10 rounded-xl border px-3 text-sm font-semibold transition-colors ${
+                className={`h-10 flex-1 rounded-xl border px-3 text-xs font-semibold transition-colors sm:flex-none sm:text-sm ${
                   groupFilter === group
                     ? 'border-blue-600 bg-blue-600 text-white'
                     : 'border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50 dark:border-gray-700 dark:bg-gray-900 dark:text-slate-300 dark:hover:bg-blue-950/30'
@@ -375,12 +433,12 @@ export function SubmissionsTable({
                 pending review
               </div>
 
-              <label className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 dark:border-gray-700 dark:bg-gray-900 dark:text-slate-200">
-                <ArrowUpDown size={14} className="text-slate-400" />
+              <label className="inline-flex h-10 w-full items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 sm:w-auto dark:border-gray-700 dark:bg-gray-900 dark:text-slate-200">
+                <ArrowUpDown size={14} className="shrink-0 text-slate-400" />
                 <select
                   value={sortBy}
                   onChange={(event) => setSortBy(event.target.value as SubmissionSort)}
-                  className="bg-transparent outline-none"
+                  className="w-full bg-transparent outline-none sm:w-auto"
                 >
                   <option value="updated-desc">Latest</option>
                   <option value="updated-asc">Oldest</option>
@@ -402,8 +460,88 @@ export function SubmissionsTable({
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
+          <>
+            {/* Mobile stacked cards for teacher full view */}
+            <div className="divide-y divide-slate-200 dark:divide-gray-800 md:hidden">
+              {pagedFilteredSubmissions.map((submission) => {
+                if (!('filter_group' in submission)) {
+                  return null
+                }
+
+                return (
+                  <div key={submission.id} className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold leading-snug text-slate-900 dark:text-white">
+                          {submission.title}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          {submission.author_name}
+                        </p>
+                      </div>
+                      {submission.needs_attention && (
+                        <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
+                          Attention
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                      <span className="font-medium text-slate-700 dark:text-slate-300">
+                        {submission.section_name}
+                      </span>
+                      <span>•</span>
+                      <span>{groupLabels[submission.filter_group]}</span>
+                      <span>•</span>
+                      <span className="inline-flex items-center gap-1">
+                        <Clock3 size={12} />
+                        {formatActivityLabel(submission)}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+                          statusStyles[submission.status] ||
+                          'border-slate-200 bg-slate-100 text-slate-700 dark:border-gray-700 dark:bg-gray-800 dark:text-slate-300'
+                        }`}
+                      >
+                        {submission.status}
+                      </span>
+                      {submission.unresolved_feedback_count > 0 && (
+                        <span className="text-xs font-medium text-purple-700 dark:text-purple-300">
+                          {submission.unresolved_feedback_count} unresolved
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <Link
+                        href={appendFromParam(`/dashboard/research/${submission.id}`, currentRoute)}
+                        className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-900 dark:text-slate-200"
+                      >
+                        <Eye size={15} />
+                        View
+                      </Link>
+                      <Link
+                        href={appendFromParam(
+                          `/dashboard/research/${submission.id}/annotate`,
+                          currentRoute
+                        )}
+                        className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
+                      >
+                        <MessageCircle size={15} />
+                        Feedback
+                      </Link>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden overflow-x-auto md:block">
+              <table className="min-w-full text-left text-sm">
               <thead className="bg-slate-50/90 text-xs uppercase tracking-[0.16em] text-slate-500 dark:bg-gray-950/40 dark:text-slate-400">
                 <tr>
                   <th className="px-4 py-3 font-bold">Title</th>
@@ -517,6 +655,7 @@ export function SubmissionsTable({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 

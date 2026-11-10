@@ -81,15 +81,15 @@ export default function StudentVerificationClient({
 
   return (
     <div className="max-w-6xl">
-      <div className="mb-8 flex items-start gap-4">
-        <div className="rounded-lg bg-blue-50 p-3 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
-          <Users size={28} />
+      <div className="mb-6 flex items-start gap-3 sm:mb-8 sm:gap-4">
+        <div className="shrink-0 rounded-lg bg-blue-50 p-2.5 text-blue-600 sm:p-3 dark:bg-blue-900/20 dark:text-blue-400">
+          <Users size={24} className="sm:h-7 sm:w-7" />
         </div>
-        <div className="flex-1">
-          <h1 className="mb-2 text-3xl font-bold text-gray-900 dark:text-gray-100">
+        <div className="min-w-0 flex-1">
+          <h1 className="mb-1 text-2xl font-bold text-gray-900 sm:mb-2 sm:text-3xl dark:text-gray-100">
             Student Verification Hub
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-600 sm:text-base dark:text-gray-400">
             Review and approve student accounts before unlocking the full academic workspace.
           </p>
         </div>
@@ -113,7 +113,7 @@ export default function StudentVerificationClient({
         <button
           onClick={loadPendingStudents}
           disabled={loading}
-          className="rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+          className="min-h-11 w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 sm:w-auto"
         >
           {loading ? 'Refreshing...' : 'Refresh'}
         </button>
@@ -124,16 +124,80 @@ export default function StudentVerificationClient({
           <Loader2 size={32} className="animate-spin text-blue-600" />
         </div>
       ) : students.length === 0 ? (
-        <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center dark:border-gray-800 dark:bg-gray-900">
+        <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center sm:p-12 dark:border-gray-800 dark:bg-gray-900">
           <CheckCircle size={48} className="mx-auto mb-4 text-green-600 dark:text-green-400" />
           <h3 className="mb-2 text-xl font-bold text-gray-900 dark:text-gray-100">All Clear!</h3>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-600 sm:text-base dark:text-gray-400">
             There are no pending student verification requests at this time.
           </p>
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-          <div className="overflow-x-auto">
+          {/* Mobile stacked cards */}
+          <div className="divide-y divide-gray-200 dark:divide-gray-800 md:hidden">
+            {pagedStudents.map((student) => (
+              <div key={student.id} className="space-y-3 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-base font-bold text-gray-900 dark:text-gray-100">
+                      {student.first_name} {student.last_name}
+                    </p>
+                    <p className="mt-0.5 break-all font-mono text-xs text-gray-500 dark:text-gray-400">
+                      {student.email}
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                    {student.course_program}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-2.5 py-1 font-mono dark:bg-gray-800">
+                    <IdCard size={13} />
+                    {student.student_number || 'Not provided'}
+                  </span>
+                  <span>
+                    Requested{' '}
+                    {new Date(student.updated_at).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    onClick={() => handleVerify(student.id, student.first_name, student.last_name)}
+                    disabled={processing === student.id}
+                    className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-green-50 px-3 py-2 text-sm font-medium text-green-700 transition-colors hover:bg-green-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/40"
+                  >
+                    {processing === student.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <CheckCircle size={16} />
+                    )}
+                    {processing === student.id ? 'Approving...' : 'Approve'}
+                  </button>
+                  <button
+                    onClick={() => handleReject(student.id, student.first_name, student.last_name)}
+                    disabled={processing === student.id}
+                    className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/40"
+                  >
+                    {processing === student.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <XCircle size={16} />
+                    )}
+                    {processing === student.id ? 'Processing...' : 'Disapprove'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-800/50">
@@ -200,7 +264,7 @@ export default function StudentVerificationClient({
               </tbody>
             </table>
           </div>
-          <div className="border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-800 dark:bg-gray-800/50">
+          <div className="border-t border-gray-200 bg-gray-50 px-4 py-4 sm:px-6 dark:border-gray-800 dark:bg-gray-800/50">
             <PaginationControl
               page={page}
               pageSize={pageSize}

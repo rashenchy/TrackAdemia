@@ -655,16 +655,16 @@ function AnnotatePageInner({
         </div>
       ) : null}
 
-      <div className="border-b border-gray-200 bg-white px-6 py-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex items-center gap-4">
-            <BackButton className="rounded-full border border-gray-200 p-2 text-gray-600 transition hover:bg-gray-50" />
-            <div>
+      <div className="border-b border-gray-200 bg-white px-3 py-3 sm:px-6 sm:py-4">
+        <div className="flex flex-col gap-3 sm:gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
+            <BackButton className="shrink-0 rounded-full border border-gray-200 p-2 text-gray-600 transition hover:bg-gray-50" />
+            <div className="min-w-0 flex-1">
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-500">
                 Unified Review Workspace
               </p>
-              <h1 className="text-xl font-bold text-gray-900">{safeResearch.title}</h1>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
+              <h1 className="text-lg font-bold leading-snug text-gray-900 sm:text-xl">{safeResearch.title}</h1>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 sm:gap-2">
                 <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
                   {researchStatus}
                 </span>
@@ -700,7 +700,7 @@ function AnnotatePageInner({
                   params.set('version', event.target.value)
                   router.push(`/dashboard/research/${researchId}/annotate?${params.toString()}`)
                 }}
-                className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 outline-none"
+                className="w-full rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 outline-none sm:w-auto sm:px-4"
               >
                 {availableVersions.map((version) => (
                   <option key={version.id} value={version.version_number}>
@@ -759,7 +759,7 @@ function AnnotatePageInner({
         </div>
       </div>
 
-      <div className="border-b border-gray-200 bg-slate-50/80 px-6 py-3">
+      <div className="border-b border-gray-200 bg-slate-50/80 px-3 py-2.5 sm:px-6 sm:py-3">
         <div className="flex flex-wrap items-center gap-2">
             {activeFormat === 'text' && previousVersion ? (
               <Link
@@ -810,10 +810,10 @@ function AnnotatePageInner({
         </div>
       </div>
 
-      <div className="mt-5 overflow-hidden rounded-[28px] border border-gray-200 bg-white shadow-sm xl:h-[86vh] xl:max-h-[1100px] xl:min-h-[700px]">
+      <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm sm:mt-5 sm:rounded-[28px] xl:h-[86dvh] xl:max-h-[1100px] xl:min-h-[700px]">
         <div className="flex h-full min-h-0 flex-col overflow-hidden xl:flex-row">
         <div className="min-h-0 min-w-0 flex-1 border-b border-gray-200 bg-gray-50 xl:border-b-0 xl:border-r">
-        <div ref={workspaceScrollRef} className="h-full overflow-y-auto p-5 xl:p-6">
+        <div ref={workspaceScrollRef} className="h-full overflow-y-auto p-3 sm:p-5 xl:p-6">
           <div
             className={`flex h-full min-h-full w-full flex-col space-y-4 ${
               canReview &&
@@ -824,7 +824,7 @@ function AnnotatePageInner({
                 : 'pb-6'
             }`}
           >
-            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+            <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:rounded-2xl sm:p-4">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div>
                   <p className="text-sm text-gray-500">
