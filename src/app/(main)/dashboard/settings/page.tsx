@@ -11,6 +11,7 @@ import {
   ArrowRight,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server'
+import { ChangePasswordCard } from '@/components/dashboard/profile/ChangePasswordCard'
 import {
   ADMIN_VIEW_COOKIE,
   getAdminViewMeta,
@@ -111,6 +112,14 @@ export default async function SettingsPage() {
             last
           />
         </div>
+      </div>
+
+      {/* ── SECURITY section (All authenticated users) ── */}
+      <div className="mb-8">
+        <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">
+          Security
+        </p>
+        <ChangePasswordCard disabled={isAdminPreview} />
       </div>
 
       {/* ── Administrator Workspace Shortcut (Admin only) ── */}

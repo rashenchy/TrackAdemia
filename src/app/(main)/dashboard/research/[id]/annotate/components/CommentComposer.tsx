@@ -1,4 +1,4 @@
-import { Loader2 } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import { summarizeQuote } from '../utils/annotation-display'
 
 type CommentComposerProps = {
@@ -25,10 +25,10 @@ export function CommentComposer({
   if (!open) return null
 
   return (
-    <div className="fixed inset-x-0 bottom-6 z-30 flex justify-center px-4">
-      <div className="w-full max-w-xl rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
-        <div className="flex items-start justify-between gap-4">
-          <div>
+    <div className="fixed inset-x-0 bottom-4 z-30 flex justify-center px-3 sm:bottom-6 sm:px-4">
+      <div className="max-h-[90dvh] w-full max-w-xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-2xl sm:p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-gray-500">
               New Feedback
             </p>
@@ -39,9 +39,10 @@ export function CommentComposer({
           <button
             type="button"
             onClick={onClose}
-            className="text-sm font-semibold text-gray-500 transition hover:text-gray-900"
+            aria-label="Close feedback composer"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-200 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900"
           >
-            Close
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
         <textarea

@@ -175,11 +175,11 @@ function ProofreaderComboBox({
   const filtered =
     trimmed.length > 0
       ? proofreaders.filter(
-          (p) =>
-            p.name.toLowerCase().includes(trimmed) ||
-            p.department.toLowerCase().includes(trimmed) ||
-            (p.institution && p.institution.toLowerCase().includes(trimmed))
-        )
+        (p) =>
+          p.name.toLowerCase().includes(trimmed) ||
+          p.department.toLowerCase().includes(trimmed) ||
+          (p.institution && p.institution.toLowerCase().includes(trimmed))
+      )
       : []
 
   return (
@@ -350,6 +350,10 @@ export function ResearchSubmissionForm({
     formatAcademicYearInput(initialData?.academic_year || getDefaultAcademicYear())
   )
   const [clientError, setClientError] = useState<string | null>(null)
+  const [abstractWordCount, setAbstractWordCount] = useState(() => {
+    const trimmed = initialData?.abstract?.trim()
+    return trimmed ? trimmed.split(/\s+/).length : 0
+  })
 
   // Keyword list initialization
   const defaultKeywords = Array.isArray(initialData?.keywords)
@@ -469,6 +473,7 @@ export function ResearchSubmissionForm({
     setSelectedResearchType('capstone')
     setAcademicYearInput(formatAcademicYearInput(getDefaultAcademicYear()))
     setClientError(null)
+    setAbstractWordCount(0)
     setSelectedSubjectCode('')
     setSelectedAdviserId('')
     setTargetDefenseDate('')
@@ -611,8 +616,28 @@ export function ResearchSubmissionForm({
         </div>
 
         <div className="flex flex-col gap-1.5 mt-2">
-          <label className="text-sm font-semibold text-[var(--foreground)]">Abstract / Description</label>
-          <textarea name="abstract" defaultValue={initialData?.abstract} rows={4} required={!isDraftMode} placeholder="Summarize your research goals..." className="rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 bg-transparent text-[var(--foreground)] focus:border-blue-600 outline-none resize-none transition-all" />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label htmlFor="research-abstract" className="text-sm font-semibold text-[var(--foreground)]">Abstract / Description</label>
+            <span className="text-xs font-medium text-gray-500">
+              {abstractWordCount} word{abstractWordCount === 1 ? '' : 's'} (recommended: 150–250 words)
+            </span>
+          </div>
+          <textarea
+            id="research-abstract"
+            name="abstract"
+            defaultValue={initialData?.abstract}
+            rows={5}
+            required={!isDraftMode}
+            onChange={(event) => {
+              const trimmed = event.target.value.trim()
+              setAbstractWordCount(trimmed ? trimmed.split(/\s+/).length : 0)
+            }}
+            placeholder="Write a concise 150–250 word abstract covering the whole research."
+            className="rounded-lg border border-gray-300 dark:border-gray-700 p-3 bg-transparent text-sm text-[var(--foreground)] focus:border-blue-600 outline-none resize-y transition-all"
+          />
+          <p className="text-[11px] text-gray-500">
+            Guide: Aim for around 150–250 words written as a single clear paragraph summarizing purpose, methods, results, and contribution.
+          </p>
         </div>
 
         {/* Dynamic keywords section */}
@@ -1008,11 +1033,10 @@ export function ResearchSubmissionForm({
                   key={option.value}
                   type="button"
                   onClick={() => setSubmissionFormat(option.value)}
-                  className={`rounded-xl border p-4 text-left transition-all ${
-                    isSelected
-                      ? 'border-blue-500 bg-blue-50 shadow-sm dark:border-blue-400 dark:bg-blue-900/20'
-                      : 'border-gray-200 hover:border-blue-300 dark:border-gray-800 dark:hover:border-blue-800'
-                  }`}
+                  className={`rounded-xl border p-4 text-left transition-all ${isSelected
+                    ? 'border-blue-500 bg-blue-50 shadow-sm dark:border-blue-400 dark:bg-blue-900/20'
+                    : 'border-gray-200 hover:border-blue-300 dark:border-gray-800 dark:hover:border-blue-800'
+                    }`}
                 >
                   <p className="text-sm font-bold text-[var(--foreground)]">{option.label}</p>
                   <p className="mt-2 text-xs leading-relaxed text-gray-500">{option.description}</p>

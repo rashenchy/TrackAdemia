@@ -1,11 +1,10 @@
 'use client'
 
 import { useActionState, useState } from 'react'
-import { CheckCircle2, Edit3, Eye, EyeOff, Info, KeyRound, X } from 'lucide-react'
+import { CheckCircle2, Edit3, Info, X } from 'lucide-react'
 import { SubmitButton } from '@/components/auth/SubmitButton'
+import { ChangePasswordCard } from '@/components/dashboard/profile/ChangePasswordCard'
 import {
-  changePassword,
-  type ChangePasswordState,
   type UpdateProfileState,
   updateProfile,
 } from '@/app/(main)/dashboard/profile/actions'
@@ -23,7 +22,6 @@ type ProfileEditFormProps = {
 }
 
 const initialState: UpdateProfileState = {}
-const initialPasswordState: ChangePasswordState = {}
 
 export function ProfileEditForm({
   initialValues,
@@ -32,10 +30,6 @@ export function ProfileEditForm({
 }: ProfileEditFormProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [profileState, profileFormAction] = useActionState(updateProfile, initialState)
-  const [passwordState, passwordFormAction] = useActionState(
-    changePassword,
-    initialPasswordState
-  )
 
   return (
     <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
@@ -114,57 +108,7 @@ export function ProfileEditForm({
             </div>
           </form>
 
-          <form action={passwordFormAction} className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5">
-            <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                <KeyRound size={20} />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-950">Change password</h3>
-                <p className="mt-1 text-sm text-slate-600">
-                  Enter your current password to verify your identity before setting a new one.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <ProfilePasswordInput
-                label="Current Password"
-                name="currentPassword"
-                autoComplete="current-password"
-              />
-              <div className="hidden md:block" />
-              <ProfilePasswordInput
-                label="New Password"
-                name="newPassword"
-                autoComplete="new-password"
-                helper="Use at least 8 characters with uppercase, lowercase, and a number."
-              />
-              <ProfilePasswordInput
-                label="Confirm New Password"
-                name="confirmPassword"
-                autoComplete="new-password"
-              />
-            </div>
-
-            {passwordState.error && (
-              <div className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                <Info size={16} />
-                {passwordState.error}
-              </div>
-            )}
-
-            {passwordState.success && (
-              <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-                <CheckCircle2 size={16} />
-                {passwordState.success}
-              </div>
-            )}
-
-            <SubmitButton className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-700">
-              Update Password
-            </SubmitButton>
-          </form>
+          <ChangePasswordCard disabled={disabled} className="shadow-none" />
         </div>
       ) : (
         <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 px-4 py-4 text-sm text-slate-600">
@@ -197,45 +141,6 @@ function ProfileInput({
         required={required}
         className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition-colors focus:border-blue-500"
       />
-      {helper && <span className="mt-2 block text-xs text-slate-500">{helper}</span>}
-    </label>
-  )
-}
-
-function ProfilePasswordInput({
-  label,
-  name,
-  autoComplete,
-  helper,
-}: {
-  label: string
-  name: string
-  autoComplete: string
-  helper?: string
-}) {
-  const [showPassword, setShowPassword] = useState(false)
-
-  return (
-    <label className="block">
-      <span className="text-sm font-semibold text-slate-700">{label}</span>
-      <div className="relative mt-2">
-        <input
-          type={showPassword ? 'text' : 'password'}
-          name={name}
-          autoComplete={autoComplete}
-          required
-          minLength={8}
-          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 pr-11 text-sm text-slate-900 outline-none transition-colors focus:border-blue-500"
-        />
-        <button
-          type="button"
-          onClick={() => setShowPassword((current) => !current)}
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600"
-          aria-label={showPassword ? 'Hide password' : 'Show password'}
-        >
-          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-        </button>
-      </div>
       {helper && <span className="mt-2 block text-xs text-slate-500">{helper}</span>}
     </label>
   )

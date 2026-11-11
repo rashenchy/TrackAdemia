@@ -198,6 +198,8 @@ function AnnotatePageInner({
 
   const {
     canReview,
+    canMakeReviewDecision,
+    isAssignedProofreader,
     isAuthor,
     canParticipate,
     latestVersion,
@@ -675,11 +677,15 @@ function AnnotatePageInner({
                   {resolvedAnnotations.length} resolved
                 </span>
                 <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
-                  {activeFormat === 'pdf'
-                    ? 'PDF review'
-                    : canEditTextWorkspace
-                      ? 'Edit + comment'
-                      : 'Version view'}
+                  {isAssignedProofreader
+                    ? activeFormat === 'pdf'
+                      ? 'Language review (PDF)'
+                      : 'Language review'
+                    : activeFormat === 'pdf'
+                      ? 'PDF review'
+                      : canEditTextWorkspace
+                        ? 'Edit + comment'
+                        : 'Version view'}
                 </span>
               </div>
               <p className="mt-2 text-sm text-gray-500">
@@ -785,7 +791,7 @@ function AnnotatePageInner({
               <MessageSquare size={16} />
               Next unresolved
             </button>
-            {canReview ? (
+            {canMakeReviewDecision ? (
               <>
                 <button
                   type="button"

@@ -91,7 +91,7 @@ const { data: profile } = await supabase
 
 
 
-    if (profile?.role === 'guest') {
+    if (profile?.role === 'guest' || profile?.role === 'proofreader') {
         redirect('/dashboard')
     }
 

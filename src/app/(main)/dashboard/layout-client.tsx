@@ -422,12 +422,6 @@ export default function DashboardLayoutClient({
     : effectiveIsProofreader
       ? [
           { name: 'Home', href: '/dashboard', icon: Home },
-          {
-            name: 'Task Manager',
-            href: '/dashboard/tasks',
-            icon: CheckSquare,
-            badgeCount: effectiveUnresolvedCount,
-          },
           { name: 'Grammar Checker', href: '/dashboard/grammar', icon: Sparkles },
           { name: 'Plagiarism Checker', href: '/dashboard/plagiarism', icon: ShieldAlert },
           { name: 'Repository', href: '/dashboard/repository', icon: BookOpen },

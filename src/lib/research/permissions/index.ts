@@ -10,6 +10,10 @@ export function isResearchReviewer(role: ResearchUserRole) {
   return role === 'mentor' || role === 'admin' || role === 'proofreader'
 }
 
+export function isAcademicReviewer(role: ResearchUserRole) {
+  return role === 'mentor' || role === 'admin'
+}
+
 export function isResearchMentor(role: ResearchUserRole) {
   return role === 'mentor'
 }

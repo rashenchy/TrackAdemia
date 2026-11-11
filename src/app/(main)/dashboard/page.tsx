@@ -126,6 +126,28 @@ export default async function DashboardPage({
       }
     }
 
+    const assignedIds = (assignedResearch || []).map((r: any) => r.id).filter(Boolean)
+    const noteCountMap = new Map<string, { unresolved: number; resolved: number }>()
+
+    if (assignedIds.length > 0) {
+      const { data: annotationRows } = await db
+        .from('annotations')
+        .select('research_id, is_resolved')
+        .in('research_id', assignedIds)
+
+      if (annotationRows) {
+        annotationRows.forEach((row: any) => {
+          const current = noteCountMap.get(row.research_id) || { unresolved: 0, resolved: 0 }
+          if (row.is_resolved) {
+            current.resolved += 1
+          } else {
+            current.unresolved += 1
+          }
+          noteCountMap.set(row.research_id, current)
+        })
+      }
+    }
+
     const proofreaderManuscripts = (assignedResearch || []).map((r: any) => ({
       id: r.id,
       title: r.title,
@@ -138,6 +160,8 @@ export default async function DashboardPage({
       submission_format: r.submission_format,
       file_url: r.file_url,
       author_name: authorMap.get(r.user_id)?.name || 'Student Author',
+      unresolved_notes_count: noteCountMap.get(r.id)?.unresolved ?? 0,
+      resolved_notes_count: noteCountMap.get(r.id)?.resolved ?? 0,
     }))
 
     return (

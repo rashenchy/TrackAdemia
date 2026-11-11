@@ -17,6 +17,7 @@ import { getPublishedAtForStatusChange } from '@/lib/research/publication'
 import { researchHasPublishablePdf } from '@/lib/research/publication'
 import {
   canTeacherEditPublishedResearch,
+  isAcademicReviewer,
   isResearchReviewer,
 } from '@/lib/research/permissions'
 import { revalidateResearchDetailPaths } from '@/lib/research/cache'
@@ -91,8 +92,36 @@ async function requireReviewer() {
   return context
 }
 
-async function requireTeacherWorkspaceEditor(researchId: string) {
+async function requireAcademicReviewer() {
+  const context = await getAuthenticatedUserContext()
+
+  if (!isAcademicReviewer(context.role)) {
+    throw new Error('Only faculty advisers or administrators can perform this action.')
+  }
+
+  return context
+}
+
+async function requireAssignedReviewer(researchId: string) {
   const context = await requireReviewer()
+
+  if (context.role === 'proofreader') {
+    const { data: research } = await context.supabase
+      .from('research')
+      .select('proofreader_id')
+      .eq('id', researchId)
+      .single()
+
+    if (!research || research.proofreader_id !== context.user.id) {
+      throw new Error('Only the assigned proofreader can annotate this manuscript.')
+    }
+  }
+
+  return context
+}
+
+async function requireTeacherWorkspaceEditor(researchId: string) {
+  const context = await requireAcademicReviewer()
   const { data: research } = await context.supabase
     .from('research')
     .select('user_id, adviser_id, subject_code, status')
@@ -360,7 +389,7 @@ export async function addAnnotation(
   highlightData: AnnotationHighlightData,
   commentText: string
 ) {
-  const { supabase, user, profile } = await requireReviewer()
+  const { supabase, user, profile } = await requireAssignedReviewer(researchId)
   const data = await createAnnotationRecord(supabase, {
     researchId,
     userId: user.id,
@@ -382,7 +411,7 @@ export async function updateReviewDecision(
   researchId: string,
   nextStatus: QuickReviewStatus
 ) {
-  const { supabase } = await requireReviewer()
+  const { supabase } = await requireAcademicReviewer()
 
   if (nextStatus === 'Published') {
     const hasPublishablePdf = await researchHasPublishablePdf(supabase, researchId)
@@ -640,16 +669,20 @@ export async function toggleAnnotationResolved(
 }
 
 export async function deleteAnnotation(annotationId: string) {
-  const { supabase, user } = await requireReviewer()
+  const { supabase, user, role } = await requireReviewer()
 
   const { data: annotation, error: annotationError } = await supabase
     .from('annotations')
-    .select('id, research_id')
+    .select('id, research_id, user_id')
     .eq('id', annotationId)
     .single()
 
   if (annotationError || !annotation) {
     throw new Error('Annotation not found.')
+  }
+
+  if (role === 'proofreader' && annotation.user_id !== user.id) {
+    throw new Error('Proofreaders can only delete their own annotations.')
   }
 
   const result = await removeAnnotationRecord(supabase, {

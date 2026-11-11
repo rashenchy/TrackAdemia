@@ -1,8 +1,8 @@
 'use client'
 
-import { Search, Filter, SlidersHorizontal } from 'lucide-react'
+import { Search, Filter, SlidersHorizontal, RotateCcw } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, type FormEvent } from 'react'
 import { RESEARCH_TYPE_OPTIONS } from '@/lib/research/types'
 
 type YearFilterMode = 'specific' | 'range'
@@ -11,7 +11,7 @@ function sanitizeYearInput(value: string) {
   return value.replace(/\D/g, '').slice(0, 4)
 }
 
-// Search and filter component for the public research repository
+// Search and filter component for the public and dashboard research repository
 export function RepositorySearch({
   basePath = '/dashboard/repository',
   initialQuery = '',
@@ -31,10 +31,8 @@ export function RepositorySearch({
   initialYearFrom?: string
   initialYearTo?: string
 }) {
-
-  // Router utilities for updating URL query parameters
   const router = useRouter()
-  
+
   // Initialize filter states from existing URL parameters
   const [query, setQuery] = useState(initialQuery)
   const [type, setType] = useState(initialType)
@@ -44,71 +42,131 @@ export function RepositorySearch({
   const [yearFrom, setYearFrom] = useState(initialYearFrom)
   const [yearTo, setYearTo] = useState(initialYearTo)
 
-  // Debounced search logic to avoid excessive database queries
-  useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-
-      // Build new URL parameters based on current filters
-      const params = new URLSearchParams()
-      if (query) params.set('q', query)
-      if (type !== 'all') params.set('type', type)
-      if (sort !== 'newest') params.set('sort', sort)
-      params.set('yearMode', yearMode)
-
-      if (yearMode === 'specific') {
-        if (specificYear) params.set('year', specificYear)
-      } else {
-        if (yearFrom) params.set('yearFrom', yearFrom)
-        if (yearTo) params.set('yearTo', yearTo)
-      }
-
-      // Push updated search parameters to the repository page
-      router.push(`${basePath}?${params.toString()}`)
-
-    }, 400) // 400ms delay to debounce typing
-
-    return () => clearTimeout(delayDebounceFn)
-  }, [basePath, query, type, sort, yearMode, specificYear, yearFrom, yearTo, router])
-
   const yearRangeInvalid =
     yearMode === 'range' &&
     yearFrom.length === 4 &&
     yearTo.length === 4 &&
     Number(yearFrom) > Number(yearTo)
 
+  const hasActiveFilters =
+    Boolean(query.trim()) ||
+    type !== 'all' ||
+    sort !== 'newest' ||
+    Boolean(specificYear) ||
+    Boolean(yearFrom) ||
+    Boolean(yearTo) ||
+    Boolean(initialQuery) ||
+    initialType !== 'all' ||
+    initialSort !== 'newest' ||
+    Boolean(initialSpecificYear) ||
+    Boolean(initialYearFrom) ||
+    Boolean(initialYearTo)
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (yearRangeInvalid) {
+      return
+    }
+
+    const params = new URLSearchParams()
+    const trimmedQuery = query.trim()
+
+    if (trimmedQuery) params.set('q', trimmedQuery)
+    if (type !== 'all') params.set('type', type)
+    if (sort !== 'newest') params.set('sort', sort)
+
+    if (yearMode === 'specific') {
+      if (specificYear) {
+        params.set('yearMode', 'specific')
+        params.set('year', specificYear)
+      }
+    } else if (yearFrom || yearTo) {
+      params.set('yearMode', 'range')
+      if (yearFrom) params.set('yearFrom', yearFrom)
+      if (yearTo) params.set('yearTo', yearTo)
+    }
+
+    const queryString = params.toString()
+    router.push(queryString ? `${basePath}?${queryString}` : basePath)
+  }
+
+  const handleReset = () => {
+    setQuery('')
+    setType('all')
+    setSort('newest')
+    setYearMode('specific')
+    setSpecificYear('')
+    setYearFrom('')
+    setYearTo('')
+    router.push(basePath)
+  }
+
   return (
-    <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4">
-      
-      {/* Search Input Field */}
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-        <input 
-          type="text" 
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by title, author, year, keywords, or subject code..." 
-          className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-gray-800 border-none rounded-xl text-[var(--foreground)] outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
-        />
+    <form
+      onSubmit={handleSubmit}
+      className="bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm space-y-4"
+    >
+      {/* Search Input & Submit Button */}
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
+        <div className="relative flex-1 min-w-0">
+          <Search
+            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+            size={20}
+            aria-hidden="true"
+          />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by title, author, year, keywords, or subject code..."
+            aria-label="Search research repository"
+            className="w-full min-h-11 pl-12 pr-4 py-3 bg-gray-50 dark:bg-gray-800 border-none rounded-xl text-[var(--foreground)] outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="submit"
+            disabled={yearRangeInvalid}
+            className="inline-flex min-h-11 flex-1 sm:flex-none items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Search size={16} aria-hidden="true" />
+            Search
+          </button>
+
+          {hasActiveFilters && (
+            <button
+              type="button"
+              onClick={handleReset}
+              aria-label="Clear search filters"
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              <RotateCcw size={15} aria-hidden="true" />
+              <span>Clear</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filter and Sorting Controls */}
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row items-center gap-3">
-
           {/* Research Type Filter */}
           <div className="flex items-center gap-2 w-full sm:w-auto text-sm text-gray-500">
-            <Filter size={16} className="shrink-0" />
+            <Filter size={16} className="shrink-0" aria-hidden="true" />
             <select
               value={type}
               onChange={(e) => setType(e.target.value)}
+              aria-label="Filter by research type"
               className="w-full sm:w-auto min-h-10 bg-transparent font-semibold text-gray-700 dark:text-gray-300 outline-none cursor-pointer"
             >
-                <option value="all">All</option>
-                {RESEARCH_TYPE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
+              <option value="all">All</option>
+              {RESEARCH_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -117,10 +175,11 @@ export function RepositorySearch({
 
           {/* Sorting Options */}
           <div className="flex items-center gap-2 w-full sm:w-auto text-sm text-gray-500">
-            <SlidersHorizontal size={16} className="shrink-0" />
+            <SlidersHorizontal size={16} className="shrink-0" aria-hidden="true" />
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value)}
+              aria-label="Sort results"
               className="w-full sm:w-auto min-h-10 bg-transparent font-semibold text-gray-700 dark:text-gray-300 outline-none cursor-pointer"
             >
               <option value="newest">Newest First</option>
@@ -222,6 +281,6 @@ export function RepositorySearch({
           </div>
         </div>
       </div>
-    </div>
+    </form>
   )
 }

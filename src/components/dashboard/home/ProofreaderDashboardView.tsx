@@ -11,6 +11,7 @@ import {
   Building2,
   Calendar,
   Sparkles,
+  MessageSquare,
 } from 'lucide-react'
 
 export type ProofreaderManuscript = {
@@ -26,6 +27,8 @@ export type ProofreaderManuscript = {
   file_url: string | null
   author_name: string
   author_email?: string | null
+  unresolved_notes_count?: number
+  resolved_notes_count?: number
 }
 
 export type ProofreaderDebugInfo = {
@@ -62,7 +65,7 @@ export function ProofreaderDashboardView({
   debugInfo,
 }: ProofreaderDashboardViewProps) {
   const inReviewCount = manuscripts.filter(
-    (m) => m.status === 'Pending Review' || m.status === 'Resubmitted' || m.status === 'Needs Revision'
+    (m) => m.status === 'Pending Review' || m.status === 'Resubmitted' || m.status === 'Revision Requested'
   ).length
   const publishedCount = manuscripts.filter((m) => m.status === 'Published' || m.status === 'Approved').length
   const totalCount = manuscripts.length
@@ -77,11 +80,11 @@ export function ProofreaderDashboardView({
             {status}
           </span>
         )
-      case 'Needs Revision':
+      case 'Revision Requested':
         return (
           <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
             <AlertCircle size={13} />
-            Needs Revision
+            Revision Requested
           </span>
         )
       case 'Resubmitted':
@@ -103,7 +106,7 @@ export function ProofreaderDashboardView({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 p-4 sm:p-6 lg:p-8">
+    <div className="mx-auto max-w-6xl space-y-6 sm:space-y-8">
       {/* Welcome Banner */}
       <section className="relative overflow-hidden rounded-3xl border border-indigo-200/70 bg-[linear-gradient(135deg,#f5f3ff_0%,#ede9fe_45%,#e0e7ff_100%)] p-6 shadow-sm dark:border-indigo-900/40 dark:bg-slate-900/60 sm:p-8">
         <div className="relative z-10 flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
@@ -137,10 +140,17 @@ export function ProofreaderDashboardView({
             )}
           </div>
 
-          <div className="shrink-0">
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
             <Link
-              href="/repository"
-              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-700 transition-all"
+              href="/dashboard/grammar"
+              className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-indigo-200 bg-white px-4 py-2.5 text-sm font-bold text-indigo-700 shadow-sm hover:bg-indigo-50 transition-all dark:border-indigo-800 dark:bg-slate-900 dark:text-indigo-300 dark:hover:bg-slate-800"
+            >
+              <Sparkles size={16} />
+              Open Grammar Checker
+            </Link>
+            <Link
+              href="/dashboard/repository"
+              className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-700 transition-all"
             >
               <BookOpen size={16} />
               Browse Repository
@@ -234,6 +244,17 @@ export function ProofreaderDashboardView({
                       </span>
                     )}
                     {getStatusBadge(m.status)}
+                    {(m.unresolved_notes_count ?? 0) > 0 ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                        <MessageSquare size={12} />
+                        {m.unresolved_notes_count} Open Note{m.unresolved_notes_count === 1 ? '' : 's'}
+                      </span>
+                    ) : (m.resolved_notes_count ?? 0) > 0 ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                        <CheckCircle2 size={12} />
+                        All Notes Resolved
+                      </span>
+                    ) : null}
                   </div>
 
                   <h3 className="text-base font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-2">
@@ -256,17 +277,17 @@ export function ProofreaderDashboardView({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2.5 shrink-0 pt-2 sm:pt-0">
+                <div className="flex flex-wrap items-center gap-2.5 shrink-0 pt-2 sm:pt-0">
                   <Link
                     href={`/dashboard/research/${m.id}`}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 transition-colors"
                   >
                     View Details
                   </Link>
 
                   <Link
                     href={`/dashboard/research/${m.id}/annotate`}
-                    className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 transition-all"
+                    className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-indigo-700 transition-all"
                   >
                     <SpellCheck size={15} />
                     Review &amp; Annotate

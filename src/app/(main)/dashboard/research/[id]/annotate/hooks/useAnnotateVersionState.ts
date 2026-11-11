@@ -33,8 +33,8 @@ export function useAnnotateVersionState({
   const isAssignedProofreader =
     currentUserRole === 'proofreader' &&
     Boolean(research && currentUserId && research.proofreader_id === currentUserId)
-  const canReview =
-    currentUserRole === 'mentor' || currentUserRole === 'admin' || isAssignedProofreader
+  const canMakeReviewDecision = currentUserRole === 'mentor' || currentUserRole === 'admin'
+  const canReview = canMakeReviewDecision || isAssignedProofreader
   const isAuthor = Boolean(
     research &&
       currentUserId &&
@@ -69,7 +69,7 @@ export function useAnnotateVersionState({
   )
 
   const editableWorkspaceContent = useMemo(() => {
-    if (canReview) {
+    if (canMakeReviewDecision) {
       return normalizeResearchDocumentContent(
         teacherDraft?.content_json ??
           effectiveVersion?.content_json ??
@@ -91,7 +91,7 @@ export function useAnnotateVersionState({
 
     return selectedVersionContent
   }, [
-    canReview,
+    canMakeReviewDecision,
     effectiveVersion?.content_json,
     isAuthor,
     research?.content_json,
@@ -104,7 +104,7 @@ export function useAnnotateVersionState({
   const hasPdf = submissionFormat === 'pdf' || submissionFormat === 'both'
   const hasText = submissionFormat === 'text' || submissionFormat === 'both'
   const canReviewerEditWorkspace =
-    canReview && (research?.status !== 'Published' || canTeacherEditPublished)
+    canMakeReviewDecision && (research?.status !== 'Published' || canTeacherEditPublished)
   const canEditTextWorkspace =
     activeFormat === 'text' &&
     hasText &&
@@ -124,6 +124,8 @@ export function useAnnotateVersionState({
 
   return {
     canReview,
+    canMakeReviewDecision,
+    isAssignedProofreader,
     isAuthor,
     canParticipate,
     latestVersion,
