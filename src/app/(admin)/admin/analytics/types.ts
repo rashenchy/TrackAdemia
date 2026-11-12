@@ -1,6 +1,6 @@
 export interface AnalyticsMetrics {
   totalUsers: number
-  pendingFaculty: number
+  pendingProofreaders: number
   totalPublishedPapers: number
   totalPendingPapers: number
 }

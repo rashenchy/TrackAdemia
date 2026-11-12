@@ -92,9 +92,9 @@ export default function AdminDashboardClient({
               <AlertCircle size={24} className="text-yellow-600 dark:text-yellow-400" />
             </div>
           </div>
-          <p className="text-gray-600 dark:text-gray-400 text-sm font-medium mb-1">Pending Faculty</p>
+          <p className="text-gray-600 dark:text-gray-400 text-sm font-medium mb-1">Pending Proofreaders</p>
           <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
-            {metrics.pendingFaculty}
+            {metrics.pendingProofreaders}
           </p>
         </div>
 

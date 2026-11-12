@@ -11,7 +11,7 @@ import type { AnalyticsMetrics } from './analytics/types'
 
 const EMPTY_METRICS: AnalyticsMetrics = {
   totalUsers: 0,
-  pendingFaculty: 0,
+  pendingProofreaders: 0,
   totalPublishedPapers: 0,
   totalPendingPapers: 0,
 }

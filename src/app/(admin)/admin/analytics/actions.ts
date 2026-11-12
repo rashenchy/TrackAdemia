@@ -32,10 +32,10 @@ export async function getAnalyticsMetrics(): Promise<AnalyticsMetrics> {
       .select('*', { count: 'exact', head: true })
       .eq('is_active', true)
 
-    const { count: pendingFaculty } = await supabase
+    const { count: pendingProofreaders } = await supabase
       .from('profiles')
       .select('*', { count: 'exact', head: true })
-      .eq('role', 'mentor')
+      .eq('role', 'proofreader')
       .eq('is_verified', false)
       .eq('is_active', true)
 
@@ -51,7 +51,7 @@ export async function getAnalyticsMetrics(): Promise<AnalyticsMetrics> {
 
     return {
       totalUsers: totalUsers || 0,
-      pendingFaculty: pendingFaculty || 0,
+      pendingProofreaders: pendingProofreaders || 0,
       totalPublishedPapers: totalPublishedPapers || 0,
       totalPendingPapers: totalPendingPapers || 0,
     }
@@ -59,7 +59,7 @@ export async function getAnalyticsMetrics(): Promise<AnalyticsMetrics> {
     console.error('Error fetching analytics metrics:', error)
     return {
       totalUsers: 0,
-      pendingFaculty: 0,
+      pendingProofreaders: 0,
       totalPublishedPapers: 0,
       totalPendingPapers: 0,
     }
