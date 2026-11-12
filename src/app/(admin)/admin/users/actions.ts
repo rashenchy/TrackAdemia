@@ -9,7 +9,7 @@ export interface UserProfile {
   first_name: string
   last_name: string
   email?: string
-  role: 'student' | 'mentor' | 'admin'
+  role: 'student' | 'mentor' | 'admin' | 'proofreader' | 'guest'
   course_program: string
   is_verified: boolean
   is_active: boolean

@@ -11,7 +11,7 @@ interface UserProfile {
   first_name: string
   last_name: string
   email?: string
-  role: 'student' | 'mentor' | 'admin'
+  role: 'student' | 'mentor' | 'admin' | 'proofreader' | 'guest'
   course_program: string
   is_verified: boolean
   is_active: boolean
@@ -21,7 +21,19 @@ interface UserProfile {
   researchCount?: number
 }
 
+const defaultRoleColor = {
+  bg: 'bg-slate-50 dark:bg-slate-800/60',
+  text: 'text-slate-700 dark:text-slate-300',
+  border: 'border-slate-200 dark:border-slate-700',
+}
+
 const roleColors: Record<string, { bg: string; text: string; border: string }> = {
+  proofreader: {
+    bg: 'bg-indigo-50 dark:bg-indigo-900/20',
+    text: 'text-indigo-700 dark:text-indigo-400',
+    border: 'border-indigo-200 dark:border-indigo-800',
+  },
+  guest: defaultRoleColor,
   student: {
     bg: 'bg-blue-50 dark:bg-blue-900/20',
     text: 'text-blue-700 dark:text-blue-400',
@@ -207,7 +219,9 @@ export default function UserManagementClient({
           <option value="all">All Roles</option>
           <option value="student">Student</option>
           <option value="mentor">Mentor</option>
+          <option value="proofreader">Proofreader</option>
           <option value="admin">Admin</option>
+          <option value="guest">Guest</option>
         </select>
 
         <button
@@ -238,7 +252,8 @@ export default function UserManagementClient({
           {/* Mobile stacked cards */}
           <div className="divide-y divide-gray-200 dark:divide-gray-800 md:hidden">
             {pagedUsers.map((user) => {
-              const roleColor = roleColors[user.role] || roleColors.student
+              const roleColor = roleColors[user.role] ?? defaultRoleColor
+              const roleLabel = user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'User'
 
               return (
                 <div key={user.id} className="space-y-3 p-4">
@@ -254,7 +269,7 @@ export default function UserManagementClient({
                     <span
                       className={`inline-block shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${roleColor.bg} ${roleColor.text} ${roleColor.border}`}
                     >
-                      {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                      {roleLabel}
                     </span>
                   </div>
 
@@ -317,7 +332,8 @@ export default function UserManagementClient({
               </thead>
               <tbody>
                 {pagedUsers.map((user, index) => {
-                  const roleColor = roleColors[user.role]
+                  const roleColor = roleColors[user.role] ?? defaultRoleColor
+                  const roleLabel = user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'User'
 
                   return (
                     <tr
@@ -334,7 +350,7 @@ export default function UserManagementClient({
                       </td>
                       <td className="px-6 py-4 text-sm">
                         <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${roleColor.bg} ${roleColor.text} ${roleColor.border}`}>
-                          {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                          {roleLabel}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
