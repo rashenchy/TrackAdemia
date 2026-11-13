@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { syncResearchReviewStatus } from '@/lib/research/review'
+import { ensureStudentCanResolveAnnotation } from '@/lib/research/annotations'
 import { createNotifications } from '@/lib/notifications/service'
 
 // Create a personal task for the current user
@@ -146,6 +147,32 @@ export async function toggleTaskStatus(
 
     } else {
 
+        const { data: annotationRecord, error: annotationLookupError } = await supabase
+            .from('annotations')
+            .select('id, research_id, created_at, position_data, version_id, version_number')
+            .eq('id', taskId)
+            .single()
+
+        if (annotationLookupError || !annotationRecord) {
+            throw new Error('Annotation not found.')
+        }
+
+        if (!isResolved) {
+            const { data: research } = await supabase
+                .from('research')
+                .select('user_id, members')
+                .eq('id', annotationRecord.research_id)
+                .single()
+
+            const isStudentAuthor =
+                user.id === research?.user_id ||
+                (Array.isArray(research?.members) && research.members.includes(user.id))
+
+            if (isStudentAuthor) {
+                await ensureStudentCanResolveAnnotation(supabase, annotationRecord)
+            }
+        }
+
         // Update the linked annotation status instead
         const { data: annotation, error } = await supabase
             .from('annotations')
@@ -179,35 +206,35 @@ export async function createSectionTask(formData: FormData) {
     if (!user) throw new Error('Unauthorized')
 
     // Extract task details from the form
-    const title = formData.get('title') as string
-    const description = formData.get('description') as string
+    const title = (formData.get('title') as string)?.trim()
+    const description = (formData.get('description') as string) || ''
     const sectionId = formData.get('sectionId') as string
     const dueDate = formData.get('dueDate') as string
 
-    // Insert the main task record
-    const { data: task, error: taskError } = await supabase
-        .from('tasks')
-        .insert({
-            title,
-            description,
-            section_id: sectionId,
-            created_by: user.id,
-            type: 'teacher',
-            due_date: dueDate || null
-        })
-        .select()
-        .single()
+    if (!title || !sectionId) {
+        throw new Error('Title and section are required.')
+    }
 
-    if (taskError) throw taskError
-
-    // Fetch all active students in the section
-    const [{ data: members }, { data: section }, { data: teacherProfile }] = await Promise.all([
+    // Insert the task and fetch section metadata + members in parallel
+    const [taskResult, membersResult, sectionResult, teacherProfileResult] = await Promise.all([
         supabase
-        .from('section_members')
-        .select('user_id')
-        .eq('section_id', sectionId)
-        .eq('status', 'active')
-        .eq('role', 'student'),
+            .from('tasks')
+            .insert({
+                title,
+                description,
+                section_id: sectionId,
+                created_by: user.id,
+                type: 'teacher',
+                due_date: dueDate || null
+            })
+            .select('id')
+            .single(),
+        supabase
+            .from('section_members')
+            .select('user_id')
+            .eq('section_id', sectionId)
+            .eq('status', 'active')
+            .eq('role', 'student'),
         supabase
             .from('sections')
             .select('name')
@@ -220,8 +247,12 @@ export async function createSectionTask(formData: FormData) {
             .single(),
     ])
 
-    const memberIds = members?.map((member) => member.user_id).filter(Boolean) || []
-    let activeStudentIds = memberIds
+    if (taskResult.error || !taskResult.data) {
+        throw taskResult.error || new Error('Failed to create section task.')
+    }
+
+    const task = taskResult.data
+    const memberIds = (membersResult.data || []).map((member) => member.user_id).filter(Boolean)
 
     if (memberIds.length > 0) {
         const { data: activeProfiles } = await supabase
@@ -230,41 +261,41 @@ export async function createSectionTask(formData: FormData) {
             .eq('is_active', true)
             .in('id', memberIds)
 
-        activeStudentIds = (activeProfiles || []).map((profile) => profile.id)
-    }
+        const activeStudentIds = (activeProfiles || []).map((profile) => profile.id)
 
-    // Initialize completion records for each student
-    if (activeStudentIds.length > 0) {
+        if (activeStudentIds.length > 0) {
+            const teacherName =
+                `${teacherProfileResult.data?.first_name ?? ''} ${teacherProfileResult.data?.last_name ?? ''}`.trim() ||
+                'Your teacher'
 
-        const completions = activeStudentIds.map((studentId) => ({
-            task_id: task.id,
-            student_id: studentId,
-            is_completed: false
-        }))
-
-        const { error: compError } = await supabase
-            .from('task_completions')
-            .insert(completions)
-
-        if (compError) console.error("Error initializing completions:", compError)
-
-        const teacherName =
-            `${teacherProfile?.first_name ?? ''} ${teacherProfile?.last_name ?? ''}`.trim() ||
-            'Your teacher'
-
-        await createNotifications(
-            supabase,
-            activeStudentIds.map((studentId) => ({
-                user_id: studentId,
-                actor_id: user.id,
-                title: 'New assigned task',
-                message: `${teacherName} assigned "${title}"${section?.name ? ` in ${section.name}` : ''}.`,
-                notification_type: 'task_assigned',
-                reference_id: task.id,
-                section_id: sectionId,
-                event_key: `task-assigned:${task.id}:${studentId}`,
+            const completions = activeStudentIds.map((studentId) => ({
+                task_id: task.id,
+                student_id: studentId,
+                is_completed: false
             }))
-        )
+
+            // Insert completions and notifications in parallel
+            const [{ error: compError }] = await Promise.all([
+                supabase
+                    .from('task_completions')
+                    .insert(completions),
+                createNotifications(
+                    supabase,
+                    activeStudentIds.map((studentId) => ({
+                        user_id: studentId,
+                        actor_id: user.id,
+                        title: 'New assigned task',
+                        message: `${teacherName} assigned "${title}"${sectionResult.data?.name ? ` in ${sectionResult.data.name}` : ''}.`,
+                        notification_type: 'task_assigned',
+                        reference_id: task.id,
+                        section_id: sectionId,
+                        event_key: `task-assigned:${task.id}:${studentId}`,
+                    }))
+                ),
+            ])
+
+            if (compError) console.error('Error initializing completions:', compError)
+        }
     }
 
     // Refresh the tasks page

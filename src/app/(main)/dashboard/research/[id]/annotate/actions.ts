@@ -29,6 +29,7 @@ import {
 import {
   createAnnotationRecord,
   createAnnotationReplyRecord,
+  ensureStudentCanResolveAnnotation,
   removeAnnotationRecord,
   setAnnotationResolvedState,
 } from '@/lib/research/annotations'
@@ -278,108 +279,7 @@ async function getAnnotatedVersionRecord(
   return fallbackResearch
 }
 
-async function ensureStudentCanResolveAnnotation(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  userId: string,
-  annotation: {
-    id: string
-    research_id: string
-    created_at: string
-    position_data: unknown
-    version_id?: string | null
-    version_number?: number | null
-  }
-) {
-  const [{ data: studentDraft }, { data: latestStudentVersion }] = await Promise.all([
-    supabase
-      .from('research_drafts')
-      .select('updated_at, content_json')
-      .eq('research_id', annotation.research_id)
-      .eq('owner_role', 'student')
-      .eq('owner_user_id', userId)
-      .eq('is_active', true)
-      .maybeSingle(),
-    supabase
-      .from('research_versions')
-      .select('created_at, content_json, file_url')
-      .eq('research_id', annotation.research_id)
-      .eq('uploaded_by', userId)
-      .eq('created_by_role', 'student')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ])
 
-  const studentChanges: StudentChangeRecord[] = []
-
-  if (studentDraft?.updated_at && studentDraft.updated_at > annotation.created_at) {
-    studentChanges.push({
-      changedAt: studentDraft.updated_at,
-      content: studentDraft.content_json,
-      fileUrl: null,
-      source: 'draft',
-    })
-  }
-
-  if (latestStudentVersion?.created_at && latestStudentVersion.created_at > annotation.created_at) {
-    studentChanges.push({
-      changedAt: latestStudentVersion.created_at,
-      content: latestStudentVersion.content_json,
-      fileUrl: latestStudentVersion.file_url ?? null,
-      source: 'version',
-    })
-  }
-
-  if (studentChanges.length === 0) {
-    throw new Error(
-      'You need to save or submit changes to your manuscript before marking this feedback as resolved.'
-    )
-  }
-
-  if (!isTextAnnotationPosition(annotation.position_data)) {
-    const hasNewStudentVersion = studentChanges.some((change) => change.source === 'version')
-
-    if (!hasNewStudentVersion) {
-      throw new Error(
-        'PDF feedback can only be resolved after you submit a newer student version.'
-      )
-    }
-
-    return
-  }
-
-  const latestTextChange = [...studentChanges]
-    .filter((change) => change.content)
-    .sort((first, second) => second.changedAt.localeCompare(first.changedAt))[0]
-
-  if (!latestTextChange) {
-    throw new Error(
-      'Text feedback can only be resolved after you save or submit editor changes.'
-    )
-  }
-
-  const annotatedVersion = await getAnnotatedVersionRecord(supabase, {
-    annotationId: annotation.id,
-    researchId: annotation.research_id,
-    versionId: annotation.version_id,
-    versionNumber: annotation.version_number,
-  })
-
-  const previousSectionText = getSectionPlainText(
-    annotatedVersion.content_json,
-    annotation.position_data.sectionKey
-  )
-  const currentSectionText = getSectionPlainText(
-    latestTextChange.content,
-    annotation.position_data.sectionKey
-  )
-
-  if (!currentSectionText || previousSectionText === currentSectionText) {
-    throw new Error(
-      'Update the annotated section in the manuscript editor before marking this feedback as resolved.'
-    )
-  }
-}
 
 
 // Creates a new annotation linked to a highlighted portion of the research document
@@ -655,7 +555,7 @@ export async function toggleAnnotationResolved(
     (Array.isArray(research?.members) && research.members.includes(user.id))
 
   if (newStatus && isStudentAuthor) {
-    await ensureStudentCanResolveAnnotation(supabase, user.id, annotationRecord)
+    await ensureStudentCanResolveAnnotation(supabase, annotationRecord)
   }
 
   const data = await setAnnotationResolvedState(supabase, {

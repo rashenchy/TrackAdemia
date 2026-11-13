@@ -144,7 +144,23 @@ export async function updateResearch(editId: string, prevState: FormState | null
     return { error: 'Please provide a project start date before submitting.' }
   }
 
-  // Collect member assignments
+  // Collect leader and member assignments
+  const requestedLeaderId = (formData.get('leaderId') as string)?.trim() || ''
+  let nextLeaderId = current.user_id
+
+  if (!isTeacher && requestedLeaderId && requestedLeaderId !== current.user_id) {
+    const { data: candidateLeader } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', requestedLeaderId)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (candidateLeader?.id) {
+      nextLeaderId = candidateLeader.id
+    }
+  }
+
   const rawMembers: string[] = []
   const rawMemberRoles: string[] = []
   for (const [key, value] of formData.entries()) {
@@ -156,10 +172,15 @@ export async function updateResearch(editId: string, prevState: FormState | null
   const memberRoles: string[] = []
   for (let i = 0; i < rawMembers.length; i++) {
     const memberId = rawMembers[i]
-    if (memberId && memberId !== current.user_id && !members.includes(memberId)) {
+    if (memberId && memberId !== nextLeaderId && !members.includes(memberId)) {
       members.push(memberId)
       memberRoles.push(rawMemberRoles[i] || 'Member')
     }
+  }
+
+  if (!isTeacher && nextLeaderId !== user.id && !members.includes(user.id)) {
+    members.push(user.id)
+    memberRoles.push('Member')
   }
 
 
@@ -290,6 +311,7 @@ export async function updateResearch(editId: string, prevState: FormState | null
     ),
     submission_format: submissionFormat,
     content_json: !isTeacher && hasTextContent ? documentContent : null,
+    user_id: nextLeaderId,
     members: members.filter(id => id !== ''),
     member_roles: memberRoles,
     ...(fileUrl && { file_url: fileUrl, original_file_name: originalFileName })

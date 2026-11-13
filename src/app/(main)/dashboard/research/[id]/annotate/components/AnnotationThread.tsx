@@ -18,6 +18,8 @@ type AnnotationThreadProps = {
   selectedAnnotation: AnnotationRecord
   canParticipate: boolean
   canReview: boolean
+  canResolveSelected?: boolean
+  resolveDisabledReason?: string | null
   deletingAnnotationId: string | null
   isLoadingReplies: boolean
   threadReplies: ReplyRecord[]
@@ -34,6 +36,8 @@ export function AnnotationThread({
   selectedAnnotation,
   canParticipate,
   canReview,
+  canResolveSelected = true,
+  resolveDisabledReason = null,
   deletingAnnotationId,
   isLoadingReplies,
   threadReplies,
@@ -60,20 +64,27 @@ export function AnnotationThread({
           Back to list
         </button>
         {canParticipate ? (
-          <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-col items-end gap-1.5">
             <button
               type="button"
+              disabled={!selectedAnnotation.is_resolved && !canResolveSelected}
+              title={!selectedAnnotation.is_resolved ? resolveDisabledReason || undefined : undefined}
               onClick={() =>
                 onToggleResolve(selectedAnnotation.id, selectedAnnotation.is_resolved)
               }
-              className={`rounded-full px-3 py-1.5 text-xs font-bold ${
+              className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
                 selectedAnnotation.is_resolved
                   ? 'bg-green-100 text-green-700'
-                  : 'bg-gray-100 text-gray-700'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50'
               }`}
             >
               {selectedAnnotation.is_resolved ? 'Resolved' : 'Mark resolved'}
             </button>
+            {!selectedAnnotation.is_resolved && !canResolveSelected && resolveDisabledReason ? (
+              <p className="max-w-[210px] text-right text-[11px] font-medium leading-snug text-amber-700">
+                {resolveDisabledReason}
+              </p>
+            ) : null}
             {canReview ? (
               <button
                 type="button"

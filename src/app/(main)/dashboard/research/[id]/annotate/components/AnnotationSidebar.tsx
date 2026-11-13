@@ -26,6 +26,8 @@ type AnnotationSidebarProps = {
   selectedAnnotation: AnnotationRecord | null
   canParticipate: boolean
   canReview: boolean
+  canResolveSelected?: boolean
+  resolveDisabledReason?: string | null
   deletingAnnotationId: string | null
   isLoadingReplies: boolean
   threadReplies: ReplyRecord[]
@@ -51,6 +53,8 @@ export function AnnotationSidebar({
   selectedAnnotation,
   canParticipate,
   canReview,
+  canResolveSelected = true,
+  resolveDisabledReason = null,
   deletingAnnotationId,
   isLoadingReplies,
   threadReplies,
@@ -285,6 +289,8 @@ export function AnnotationSidebar({
               selectedAnnotation={selectedAnnotation}
               canParticipate={canParticipate}
               canReview={canReview}
+              canResolveSelected={canResolveSelected}
+              resolveDisabledReason={resolveDisabledReason}
               deletingAnnotationId={deletingAnnotationId}
               isLoadingReplies={isLoadingReplies}
               threadReplies={threadReplies}

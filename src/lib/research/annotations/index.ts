@@ -7,7 +7,12 @@ import {
   getVersionLineageKey,
   type AnnotationVersionLike,
 } from '@/lib/research/annotation-versioning'
-import { type TextAnnotationPosition } from '@/lib/research/document'
+import { isTextAnnotationPosition, type TextAnnotationPosition } from '@/lib/research/document'
+import {
+  evaluateStudentAnnotationResolveEligibility,
+  type AnnotationResolveEligibility,
+  type StudentChangeInput,
+} from './resolve-eligibility'
 
 type SupabaseClientLike = Awaited<ReturnType<typeof createClient>>
 
@@ -275,4 +280,127 @@ export async function createAnnotationReplyRecord(
   }
 
   return { ...reply, profiles: profile }
+}
+
+type AnnotationResolveTarget = {
+  id: string
+  research_id: string
+  created_at: string
+  position_data?: unknown
+  version_id?: string | null
+  version_number?: number | null
+}
+
+async function getAnnotatedVersionContent(
+  supabase: SupabaseClientLike,
+  annotation: AnnotationResolveTarget
+) {
+  if (annotation.version_id) {
+    const { data: versionById } = await supabase
+      .from('research_versions')
+      .select('content_json')
+      .eq('id', annotation.version_id)
+      .maybeSingle()
+
+    if (versionById) {
+      return versionById.content_json
+    }
+  }
+
+  if (annotation.version_number != null) {
+    const { data: versionByNumber } = await supabase
+      .from('research_versions')
+      .select('content_json')
+      .eq('research_id', annotation.research_id)
+      .eq('version_number', annotation.version_number)
+      .maybeSingle()
+
+    if (versionByNumber) {
+      return versionByNumber.content_json
+    }
+  }
+
+  const { data: fallbackResearch } = await supabase
+    .from('research')
+    .select('content_json')
+    .eq('id', annotation.research_id)
+    .maybeSingle()
+
+  if (!fallbackResearch) {
+    throw new Error(`Could not load the manuscript snapshot for annotation ${annotation.id}.`)
+  }
+
+  return fallbackResearch.content_json
+}
+
+/**
+ * Checks whether a student author has made qualifying edits or submitted a newer version
+ * after the given annotation was created.
+ */
+export async function getStudentAnnotationResolveStatus(
+  supabase: SupabaseClientLike,
+  annotation: AnnotationResolveTarget
+): Promise<AnnotationResolveEligibility> {
+  const [{ data: studentDraft }, { data: latestStudentVersion }] = await Promise.all([
+    supabase
+      .from('research_drafts')
+      .select('updated_at, content_json')
+      .eq('research_id', annotation.research_id)
+      .eq('owner_role', 'student')
+      .eq('is_active', true)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from('research_versions')
+      .select('created_at, content_json')
+      .eq('research_id', annotation.research_id)
+      .eq('created_by_role', 'student')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
+
+  const studentChanges: StudentChangeInput[] = []
+
+  if (studentDraft?.updated_at) {
+    studentChanges.push({
+      changedAt: studentDraft.updated_at,
+      content: studentDraft.content_json,
+      source: 'draft',
+    })
+  }
+
+  if (latestStudentVersion?.created_at) {
+    studentChanges.push({
+      changedAt: latestStudentVersion.created_at,
+      content: latestStudentVersion.content_json,
+      source: 'version',
+    })
+  }
+
+  const annotatedVersionContent = isTextAnnotationPosition(annotation.position_data)
+    ? await getAnnotatedVersionContent(supabase, annotation)
+    : null
+
+  return evaluateStudentAnnotationResolveEligibility({
+    annotationCreatedAt: annotation.created_at,
+    positionData: annotation.position_data,
+    annotatedVersionContent,
+    studentChanges,
+  })
+}
+
+export async function ensureStudentCanResolveAnnotation(
+  supabase: SupabaseClientLike,
+  annotation: AnnotationResolveTarget
+) {
+  const status = await getStudentAnnotationResolveStatus(supabase, annotation)
+
+  if (!status.canResolve) {
+    throw new Error(
+      status.reason ||
+        'You need to update your manuscript before marking this feedback as resolved.'
+    )
+  }
 }

@@ -216,7 +216,7 @@ export function GuestDashboardView({
                     <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
                       {request.status === 'approved' ? (
                         <Link
-                          href={`/repository/${request.researchId}`}
+                          href={`/dashboard/repository/${request.researchId}`}
                           className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-all hover:bg-emerald-700"
                         >
                           <BookOpen size={14} />
@@ -224,7 +224,7 @@ export function GuestDashboardView({
                         </Link>
                       ) : (
                         <Link
-                          href={`/repository/${request.researchId}`}
+                          href={`/dashboard/repository/${request.researchId}`}
                           className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900"
                         >
                           <span>View Abstract</span>

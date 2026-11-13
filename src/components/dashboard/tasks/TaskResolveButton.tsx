@@ -13,6 +13,7 @@ type TaskResolveButtonProps = {
   taskId: string
   currentStatus: string
   source: TaskSource
+  disabledReason?: string | null
 }
 
 function getConfirmationCopy(source: TaskSource) {
@@ -43,6 +44,7 @@ export function TaskResolveButton({
   taskId,
   currentStatus,
   source,
+  disabledReason = null,
 }: TaskResolveButtonProps) {
   const router = useRouter()
   const { confirm, notify } = usePopup()
@@ -50,9 +52,10 @@ export function TaskResolveButton({
   const [optimisticStatus, setOptimisticStatus] = useState(currentStatus)
 
   const isResolved = optimisticStatus === 'resolved'
+  const isBlockedByMissingRevision = !isResolved && Boolean(disabledReason)
 
   const handleClick = async () => {
-    if (isPending) {
+    if (isPending || isBlockedByMissingRevision) {
       return
     }
 
@@ -71,11 +74,14 @@ export function TaskResolveButton({
       try {
         await toggleTaskStatus(taskId, currentStatus, source)
         router.refresh()
-      } catch {
+      } catch (error) {
         setOptimisticStatus(currentStatus)
         notify({
           title: 'Update failed',
-          message: 'We could not update this task right now. Please try again.',
+          message:
+            error instanceof Error
+              ? error.message
+              : 'We could not update this task right now. Please try again.',
           variant: 'error',
         })
       }
@@ -86,13 +92,14 @@ export function TaskResolveButton({
     <button
       type="button"
       onClick={() => void handleClick()}
-      disabled={isPending}
+      disabled={isPending || isBlockedByMissingRevision}
+      title={isBlockedByMissingRevision ? disabledReason || undefined : undefined}
       aria-label={isResolved ? 'Mark task as unresolved' : 'Mark task as resolved'}
       className={`mt-1 rounded-full p-1 transition-all ${
         isResolved
           ? 'bg-green-50 text-green-500 dark:bg-green-900/20'
           : 'text-gray-300 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20'
-      } disabled:cursor-not-allowed disabled:opacity-70`}
+      } disabled:cursor-not-allowed disabled:opacity-50`}
     >
       {isPending ? (
         <Loader2 size={24} className="animate-spin" />

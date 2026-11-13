@@ -37,6 +37,9 @@ export default function DashboardLayoutClient({
   previewRole = '',
   previewIsVerified = false,
   isAdminPreview = false,
+  initialDisplayName = '',
+  initialRole = '',
+  initialIsVerified = false,
 }: {
   children: React.ReactNode
   previewMode?: 'mentor' | 'student' | 'student-pending' | null
@@ -44,17 +47,26 @@ export default function DashboardLayoutClient({
   previewRole?: string
   previewIsVerified?: boolean
   isAdminPreview?: boolean
+  initialDisplayName?: string
+  initialRole?: string
+  initialIsVerified?: boolean
 }) {
+  const effectiveInitialRole = isAdminPreview ? previewRole : initialRole
+  const effectiveInitialVerified = isAdminPreview ? previewIsVerified : initialIsVerified
+  const effectiveInitialDisplayName = isAdminPreview ? previewDisplayName : initialDisplayName
+
   const router = useRouter()
   const pathname = usePathname()
-  const [isFaculty, setIsFaculty] = useState(previewRole === 'mentor' || previewRole === 'admin')
-  const [isVerified, setIsVerified] = useState(previewIsVerified)
-  const [isStudent, setIsStudent] = useState(previewRole === 'student')
+  const [isFaculty, setIsFaculty] = useState(
+    effectiveInitialRole === 'mentor' || effectiveInitialRole === 'admin'
+  )
+  const [isVerified, setIsVerified] = useState(effectiveInitialVerified)
+  const [isStudent, setIsStudent] = useState(effectiveInitialRole === 'student')
   const [pendingRoute, setPendingRoute] = useState<string | null>(null)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [userName, setUserName] = useState(previewDisplayName)
-  const [userRole, setUserRole] = useState(previewRole)
+  const [userName, setUserName] = useState(effectiveInitialDisplayName)
+  const [userRole, setUserRole] = useState(effectiveInitialRole)
   const [unresolvedCount, setUnresolvedCount] = useState(0)
   const [submissionAlertCount, setSubmissionAlertCount] = useState(0)
   const [pendingStudentCount, setPendingStudentCount] = useState(0)

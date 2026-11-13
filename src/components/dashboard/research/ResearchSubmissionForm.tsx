@@ -291,6 +291,7 @@ export function ResearchSubmissionForm({
   sectionAdvisers?: Record<string, SectionAdviserOption>,
   proofreaderOptions?: ProofreaderOption[],
   initialData?: {
+    user_id?: string
     title?: string
     type?: string
     abstract?: string
@@ -341,6 +342,7 @@ export function ResearchSubmissionForm({
   const defaultRoles = initialData?.member_roles?.length ? initialData.member_roles ?? [''] : ['']
 
   const [isGroup, setIsGroup] = useState(Boolean(initialData?.members?.length))
+  const [leaderId, setLeaderId] = useState(initialData?.user_id || currentUserId)
   const [members, setMembers] = useState<string[]>(defaultMembers)
   const [roles, setRoles] = useState<string[]>(defaultRoles)
   const [selectedResearchType, setSelectedResearchType] = useState(
@@ -447,6 +449,12 @@ export function ResearchSubmissionForm({
     setMembers(newMembers)
   }
 
+  const handleRoleChange = (index: number, newRole: string) => {
+    const nextRoles = [...roles]
+    nextRoles[index] = newRole
+    setRoles(nextRoles)
+  }
+
   const enableGroupMode = () => {
     setIsGroup(true)
 
@@ -464,10 +472,48 @@ export function ResearchSubmissionForm({
     }
   }
 
+  const enableIndividualMode = () => {
+    setIsGroup(false)
+    setLeaderId(currentUserId)
+  }
+
+  const handleLeaderChange = (nextLeaderId: string) => {
+    if (!nextLeaderId || nextLeaderId === leaderId) return
+    setLeaderId(nextLeaderId)
+  }
+
+  const selectedMemberIds = Array.from(
+    new Set(members.map((id) => id.trim()).filter(Boolean))
+  )
+
+  const leaderCandidateIds = isGroup
+    ? selectedMemberIds.length > 0
+      ? currentId && initialData?.user_id && !selectedMemberIds.includes(initialData.user_id)
+        ? [initialData.user_id, ...selectedMemberIds]
+        : selectedMemberIds
+      : [currentUserId]
+    : [currentUserId]
+
+  const effectiveLeaderId = isGroup
+    ? leaderCandidateIds.includes(leaderId)
+      ? leaderId
+      : leaderCandidateIds[0]
+    : currentUserId
+
+  const leaderOptions = leaderCandidateIds.map((id) => {
+    const matched = classmates.find((c) => c.id === id)
+    const cleanName = matched?.name.replace(' (You)', '').trim()
+    return {
+      id,
+      label: cleanName || (id === currentUserId ? 'You' : 'Team Member'),
+    }
+  })
+
   // Form reset logic
   const clearForm = useCallback(() => {
     setMembers([''])
     setRoles([''])
+    setLeaderId(initialData?.user_id || currentUserId)
     setKeywordsList(ensureMinimumKeywordSlots(['']))
     setIsGroup(false)
     setSelectedResearchType('capstone')
@@ -871,28 +917,47 @@ export function ResearchSubmissionForm({
             <h2 className="text-lg font-bold text-[var(--foreground)]">Authorship & Team</h2>
           </div>
           <div className="flex items-center bg-gray-100 dark:bg-gray-800 p-1 rounded-lg">
-            <button type="button" onClick={() => setIsGroup(false)} className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${!isGroup ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'}`}>Individual</button>
+            <button type="button" onClick={enableIndividualMode} className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${!isGroup ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'}`}>Individual</button>
             <button type="button" onClick={enableGroupMode} className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all ${isGroup ? 'bg-white dark:bg-gray-700 shadow-sm text-blue-600' : 'text-gray-500'}`}>Group</button>
           </div>
         </div>
 
-        {/* Research Leader Display */}
-        <div className="flex items-center justify-between p-4 bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/60 rounded-xl">
-          <div className="flex items-center gap-3">
+        {/* Research Leader Display & Selector */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/60 rounded-xl">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
               <Crown size={18} />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                  {classmates.find((c) => c.id === currentUserId)?.name.replace(' (You)', '').trim() || 'You'}
-                </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                {isGroup && leaderOptions.length > 1 ? (
+                  <select
+                    name="leaderId"
+                    value={effectiveLeaderId}
+                    onChange={(e) => handleLeaderChange(e.target.value)}
+                    aria-label="Select Research Leader"
+                    className="rounded-lg border border-blue-200 bg-white px-2.5 py-1 text-sm font-bold text-slate-900 outline-none focus:border-blue-600 dark:border-blue-800 dark:bg-gray-900 dark:text-slate-100"
+                  >
+                    {leaderOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <>
+                    <input type="hidden" name="leaderId" value={effectiveLeaderId} />
+                    <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                      {leaderOptions.find((option) => option.id === effectiveLeaderId)?.label || 'You'}
+                    </span>
+                  </>
+                )}
                 <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 rounded-full border border-blue-200 dark:border-blue-800">
                   Research Leader
                 </span>
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Primary author & responsible for reviewing research access requests
+                Primary author &amp; responsible for reviewing research access requests
               </p>
             </div>
           </div>
@@ -911,29 +976,39 @@ export function ResearchSubmissionForm({
             </div>
 
             <div className="grid gap-4">
-              {members.map((memberId, index) => (
-                <div key={index} className="flex flex-col sm:flex-row gap-3 group relative">
-                  <MemberComboBox
-                    index={index}
-                    classmates={classmates}
-                    value={memberId}
-                    onChange={(val) => handleMemberSelection(index, val)}
-                    isDraftMode={isDraftMode}
-                  />
-                  <input
-                    name={`role-${index}`}
-                    required={!isDraftMode}
-                    defaultValue={roles[index] || ""}
-                    placeholder="Role (e.g. Lead Programmer, Data Analyst)"
-                    className="flex-1 rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 text-sm bg-white dark:bg-gray-800 text-[var(--foreground)] outline-none focus:border-blue-600 transition-all"
-                  />
-                  {members.length > 1 && (
-                    <button type="button" onClick={() => removeMember(index)} className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors border border-transparent hover:border-red-100 flex-shrink-0">
-                      <Trash2 size={18} />
-                    </button>
-                  )}
-                </div>
-              ))}
+              {members.map((memberId, index) => {
+                const availableClassmates = classmates.filter(
+                  (c) =>
+                    c.id === memberId ||
+                    !members.some((otherId, otherIdx) => otherIdx !== index && otherId === c.id)
+                )
+
+                return (
+                  <div key={index} className="flex flex-col sm:flex-row gap-3 group relative">
+                    <MemberComboBox
+                      key={`${index}-${memberId}`}
+                      index={index}
+                      classmates={availableClassmates}
+                      value={memberId}
+                      onChange={(val) => handleMemberSelection(index, val)}
+                      isDraftMode={isDraftMode}
+                    />
+                    <input
+                      name={`role-${index}`}
+                      required={!isDraftMode}
+                      value={roles[index] || ''}
+                      onChange={(e) => handleRoleChange(index, e.target.value)}
+                      placeholder="Role (e.g. Lead Programmer, Data Analyst)"
+                      className="flex-1 rounded-lg border border-gray-300 dark:border-gray-700 p-2.5 text-sm bg-white dark:bg-gray-800 text-[var(--foreground)] outline-none focus:border-blue-600 transition-all"
+                    />
+                    {members.length > 1 && (
+                      <button type="button" onClick={() => removeMember(index)} className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors border border-transparent hover:border-red-100 flex-shrink-0">
+                        <Trash2 size={18} />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}

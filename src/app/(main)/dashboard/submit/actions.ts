@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import {
   uploadResearchDocument,
   uploadResearchDiagram,
@@ -121,7 +122,23 @@ export async function submitResearch(prevState: FormState | null, formData: Form
     return { error: 'Please provide a project start date before submitting.' }
   }
 
-  // Collect members and their roles
+  // Collect leader, members, and their roles
+  const requestedLeaderId = (formData.get('leaderId') as string)?.trim() || ''
+  let leaderId = user.id
+
+  if (!isTeacher && requestedLeaderId && requestedLeaderId !== user.id) {
+    const { data: candidateLeader } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', requestedLeaderId)
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (candidateLeader?.id) {
+      leaderId = candidateLeader.id
+    }
+  }
+
   const rawMembers: string[] = []
   const rawMemberRoles: string[] = []
 
@@ -135,10 +152,15 @@ export async function submitResearch(prevState: FormState | null, formData: Form
 
   for (let i = 0; i < rawMembers.length; i++) {
     const memberId = rawMembers[i]
-    if (memberId && memberId !== user.id && !members.includes(memberId)) {
+    if (memberId && memberId !== leaderId && !members.includes(memberId)) {
       members.push(memberId)
       memberRoles.push(rawMemberRoles[i] || 'Member')
     }
+  }
+
+  if (leaderId !== user.id && !members.includes(user.id)) {
+    members.push(user.id)
+    memberRoles.push('Member')
   }
 
   // Secure file upload
@@ -236,11 +258,13 @@ export async function submitResearch(prevState: FormState | null, formData: Form
     }
   }
 
+  const writeClient = leaderId !== user.id ? createAdminClient() || supabase : supabase
+
   // Insert research record
-  const { data: newResearch, error } = await supabase
+  const { data: newResearch, error } = await writeClient
     .from('research')
     .insert({
-      user_id: user.id,
+      user_id: leaderId,
       title,
       type,
       abstract,
@@ -279,7 +303,7 @@ export async function submitResearch(prevState: FormState | null, formData: Form
   if (!isDraft && newResearch && (fileUrl || (!isTeacher && hasTextContent))) {
     const versionInfo = getNextStudentVersion([])
 
-    const { error: versionError } = await supabase
+    const { error: versionError } = await writeClient
       .from('research_versions')
       .insert({
         research_id: newResearch.id,

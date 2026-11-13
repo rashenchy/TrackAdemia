@@ -26,6 +26,10 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePopup } from '@/components/ui/PopupProvider'
+import {
+  evaluateStudentAnnotationResolveEligibility,
+  type StudentChangeInput,
+} from '@/lib/research/annotations/resolve-eligibility'
 
 import { ResearchDocumentStructureEditor } from '@/components/dashboard/research/ResearchDocumentStructureEditor'
 import { getVersionLabel } from '@/lib/research/versioning'
@@ -169,7 +173,6 @@ function AnnotatePageInner({
   const [filter, setFilter] = useState<'all' | 'unresolved' | 'resolved'>('unresolved')
   const [annotationPanelOpen, setAnnotationPanelOpen] = useState(true)
   const [isExportingPdf, setIsExportingPdf] = useState(false)
-  const [isExportingDocx, setIsExportingDocx] = useState(false)
 
   const {
     research,
@@ -258,6 +261,56 @@ function AnnotatePageInner({
     setActiveFormat,
     searchParams,
   })
+
+  const selectedAnnotationResolveStatus = useMemo(() => {
+    if (!selectedAnnotation || canReview || selectedAnnotation.is_resolved || !isAuthor) {
+      return { canResolve: true, reason: null }
+    }
+
+    const studentChanges: StudentChangeInput[] = []
+    const studentDraft = workspaceDrafts.find(
+      (draft) => draft.owner_role === 'student'
+    )
+
+    if (studentDraft?.updated_at) {
+      studentChanges.push({
+        changedAt: studentDraft.updated_at,
+        content: studentDraft.content_json,
+        source: 'draft',
+      })
+    }
+
+    const latestStudentVersion = availableVersions
+      .filter((version) => version.created_by_role === 'student')
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+
+    if (latestStudentVersion?.created_at) {
+      studentChanges.push({
+        changedAt: latestStudentVersion.created_at,
+        content: latestStudentVersion.content_json,
+        source: 'version',
+      })
+    }
+
+    const annotatedVersion =
+      availableVersions.find((v) => v.id === selectedAnnotation.version_id) ??
+      availableVersions.find((v) => v.version_number === selectedAnnotation.version_number) ??
+      null
+
+    return evaluateStudentAnnotationResolveEligibility({
+      annotationCreatedAt: selectedAnnotation.created_at,
+      positionData: selectedAnnotation.position_data,
+      annotatedVersionContent: annotatedVersion?.content_json ?? research?.content_json ?? null,
+      studentChanges,
+    })
+  }, [
+    availableVersions,
+    canReview,
+    isAuthor,
+    research?.content_json,
+    selectedAnnotation,
+    workspaceDrafts,
+  ])
 
   const {
     workspaceContent,
@@ -446,77 +499,6 @@ function AnnotatePageInner({
       })
     } finally {
       setIsExportingPdf(false)
-    }
-  }
-
-  const handleExportAnnotatedDocx = async () => {
-    if (activeFormat !== 'text' || isExportingDocx) return
-
-    setIsExportingDocx(true)
-
-    try {
-      const params = new URLSearchParams({
-        mode: 'unresolved',
-      })
-
-      if (effectiveVersionNumber) {
-        params.set('version', String(effectiveVersionNumber))
-      }
-
-      const response = await fetch(
-        `/dashboard/research/${researchId}/annotate/export-docx?${params.toString()}`,
-        {
-          method: 'GET',
-        }
-      )
-
-      if (!response.ok) {
-        let message = 'We could not export the Word file right now.'
-        const contentType = response.headers.get('content-type')
-
-        if (contentType?.includes('application/json')) {
-          const payload = (await response.json()) as { error?: string }
-          if (payload.error) {
-            message = payload.error
-          }
-        }
-
-        throw new Error(message)
-      }
-
-      const blob = await response.blob()
-      const downloadUrl = URL.createObjectURL(blob)
-      const disposition =
-        response.headers.get('content-disposition') ??
-        response.headers.get('Content-Disposition') ??
-        ''
-      const fileNameMatch = disposition.match(/filename="([^"]+)"/i)
-      const downloadFileName =
-        fileNameMatch?.[1] ||
-        `${(research?.title ?? 'research').replace(/[^\w\s-]+/g, '').trim().replace(/\s+/g, '-') || 'research'}-feedback.docx`
-
-      const link = document.createElement('a')
-      link.href = downloadUrl
-      link.download = downloadFileName
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(downloadUrl)
-
-      notify({
-        title: 'Word export ready',
-        message: 'Your unresolved text feedback has been exported with inline highlights and comments.',
-        variant: 'success',
-      })
-    } catch (error) {
-      notify({
-        title: 'Export failed',
-        message:
-          error instanceof Error ? error.message : 'We could not export the Word file right now.',
-        variant: 'error',
-      })
-    } finally {
-      setIsExportingDocx(false)
     }
   }
 
@@ -873,21 +855,6 @@ function AnnotatePageInner({
                       {isExportingPdf ? 'Exporting...' : 'Export Annotated PDF'}
                     </button>
                   ) : null}
-                  {activeFormat === 'text' ? (
-                    <button
-                      type="button"
-                      onClick={() => void handleExportAnnotatedDocx()}
-                      disabled={isExportingDocx || unresolvedTextAnnotations.length === 0}
-                      className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {isExportingDocx ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <Download size={16} />
-                      )}
-                      {isExportingDocx ? 'Exporting...' : 'Export Word with Feedback'}
-                    </button>
-                  ) : null}
                   <button
                     type="button"
                     onClick={() => setAnnotationPanelOpen(true)}
@@ -1025,6 +992,8 @@ function AnnotatePageInner({
             selectedAnnotation={selectedAnnotation}
             canParticipate={canParticipate}
             canReview={canReview}
+            canResolveSelected={selectedAnnotationResolveStatus.canResolve}
+            resolveDisabledReason={selectedAnnotationResolveStatus.reason}
             deletingAnnotationId={deletingAnnotationId}
             isLoadingReplies={isLoadingReplies}
             threadReplies={threadReplies}

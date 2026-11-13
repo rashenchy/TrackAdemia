@@ -35,6 +35,22 @@ export default async function DashboardLayout({
   const adminPreviewMode = isAdminViewMode(previewCookie) ? previewCookie : null
 
   const previewMeta = adminPreviewMode ? getAdminViewMeta(adminPreviewMode) : null
+  const isAdminPreview = profile.role === 'admin' && Boolean(adminPreviewMode)
+
+  const { data: layoutProfile } = await supabase
+    .from('profiles')
+    .select('is_verified, first_name, last_name')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  const initialDisplayName =
+    [layoutProfile?.first_name, layoutProfile?.last_name].filter(Boolean).join(' ').trim() ||
+    user.email?.split('@')[0] ||
+    ''
+  const initialIsVerified =
+    profile.role === 'admin' || profile.role === 'guest'
+      ? true
+      : Boolean(layoutProfile?.is_verified)
 
   return (
     <DashboardLayoutClient
@@ -42,7 +58,10 @@ export default async function DashboardLayout({
       previewDisplayName={previewMeta?.displayName}
       previewRole={previewMeta?.role}
       previewIsVerified={previewMeta?.isVerified}
-      isAdminPreview={profile.role === 'admin' && Boolean(adminPreviewMode)}
+      isAdminPreview={isAdminPreview}
+      initialDisplayName={initialDisplayName}
+      initialRole={profile.role}
+      initialIsVerified={initialIsVerified}
     >
       {children}
     </DashboardLayoutClient>

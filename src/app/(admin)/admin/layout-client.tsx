@@ -187,7 +187,7 @@ export default function AdminLayoutClient({ children }: { children: React.ReactN
     { name: 'Reports', href: '/admin/reports', icon: BarChart },
     { name: 'Announcements', href: '/admin/announcements', icon: Megaphone },
     { name: 'API Monitoring', href: '/admin/api-monitoring', icon: Activity },
-    { name: 'Research Repository', href: '/dashboard/repository', icon: BookOpen },
+    { name: 'Research Repository', href: '/admin/repository', icon: BookOpen },
     { name: 'View As User', href: '/admin/view-as-user', icon: Eye },
   ]
 
