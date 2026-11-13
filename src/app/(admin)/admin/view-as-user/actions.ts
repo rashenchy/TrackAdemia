@@ -30,9 +30,8 @@ async function requireAdmin() {
 }
 
 export async function beginViewAsUser(mode: AdminViewMode) {
-  await requireAdmin()
+  const [, cookieStore] = await Promise.all([requireAdmin(), cookies()])
 
-  const cookieStore = await cookies()
   cookieStore.set(ADMIN_VIEW_COOKIE, mode, {
     path: '/',
     httpOnly: true,
@@ -43,9 +42,8 @@ export async function beginViewAsUser(mode: AdminViewMode) {
 }
 
 export async function stopViewAsUser() {
-  await requireAdmin()
+  const [, cookieStore] = await Promise.all([requireAdmin(), cookies()])
 
-  const cookieStore = await cookies()
   cookieStore.delete(ADMIN_VIEW_COOKIE)
 
   redirect('/admin/view-as-user')

@@ -49,13 +49,18 @@ export default async function DashboardPage({
   const successMessage = resolvedSearchParams.success
 
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const [{ data: { user } }, cookieStore] = await Promise.all([
+    supabase.auth.getUser(),
+    cookies(),
+  ])
 
   if (!user) {
     redirect('/login')
   }
+
+  const previewCookie = cookieStore.get(ADMIN_VIEW_COOKIE)?.value
+  const adminPreviewMode = isAdminViewMode(previewCookie) ? previewCookie : null
+  const previewMeta = adminPreviewMode ? getAdminViewMeta(adminPreviewMode) : null
 
   let profile: any = null
   const { data: profileWithInst, error: profileErr } = await supabase
@@ -73,6 +78,76 @@ export default async function DashboardPage({
       .eq('id', user.id)
       .single()
     profile = basicProfile
+  }
+
+  const isAdminPreview = profile?.role === 'admin' && Boolean(previewMeta)
+
+  if (isAdminPreview) {
+    const activeAnnouncements = await getActiveAnnouncements()
+    const isTeacher = previewMeta?.role === 'mentor'
+
+    return (
+      <div className="space-y-8">
+        <div className="rounded-[1.75rem] border border-blue-200 bg-blue-50 p-6 text-blue-900 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-100">
+          <p className="text-xs font-bold uppercase tracking-[0.24em] text-blue-700 dark:text-blue-300">
+            Preview Mode
+          </p>
+          <h1 className="mt-3 text-3xl font-black tracking-tight">
+            Welcome back, {previewMeta?.displayName || 'User Preview'}!
+          </h1>
+          <p className="mt-3 max-w-3xl text-sm leading-7 opacity-90">
+            This dashboard is being rendered as a{' '}
+            {previewMeta?.role === 'mentor'
+              ? 'faculty / adviser'
+              : previewMeta?.isVerified
+                ? 'verified student'
+                : 'student awaiting approval'}{' '}
+            so you can inspect navigation, access state, and the overall user-facing shell before
+            returning to faculty settings.
+          </p>
+        </div>
+
+        {activeAnnouncements.length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-gray-500">
+              <Megaphone size={16} />
+              Announcements
+            </div>
+
+            <div className="space-y-3">
+              {activeAnnouncements.map((announcement) => (
+                <div
+                  key={announcement.id}
+                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900"
+                >
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
+                    <span>{announcement.type}</span>
+                    <span>{new Date(announcement.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <h2 className="mt-3 text-lg font-bold text-slate-950 dark:text-white">
+                    {announcement.title}
+                  </h2>
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600 dark:text-slate-300">
+                    {announcement.message}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="rounded-[1.75rem] border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm dark:border-gray-700 dark:bg-gray-900">
+          <h2 className="text-xl font-bold text-slate-950 dark:text-white">
+            {isTeacher ? 'Teacher dashboard preview is active' : 'Student dashboard preview is active'}
+          </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
+            Use the sidebar to inspect how the interface behaves for this account type. Data-heavy
+            tools in preview mode intentionally stay lightweight so the layout, access rules, and
+            messaging are easier to verify.
+          </p>
+        </div>
+      </div>
+    )
   }
 
   if (profile?.role === 'guest') {
@@ -176,12 +251,6 @@ export default async function DashboardPage({
     )
   }
 
-  const cookieStore = await cookies()
-  const previewCookie = cookieStore.get(ADMIN_VIEW_COOKIE)?.value
-  const adminPreviewMode = isAdminViewMode(previewCookie) ? previewCookie : null
-  const previewMeta = adminPreviewMode ? getAdminViewMeta(adminPreviewMode) : null
-  const isAdminPreview = profile?.role === 'admin' && Boolean(previewMeta)
-
   const activeAnnouncements = await getActiveAnnouncements()
 
   let displaySubmissions: DashboardSubmission[] = []
@@ -196,74 +265,7 @@ export default async function DashboardPage({
     notification_type: string
   }> = []
 
-  const isTeacher = isAdminPreview
-    ? previewMeta?.role === 'mentor'
-    : isFacultyRole(profile?.role)
-
-  if (isAdminPreview) {
-    return (
-      <div className="space-y-8">
-        <div className="rounded-[1.75rem] border border-blue-200 bg-blue-50 p-6 text-blue-900 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-100">
-          <p className="text-xs font-bold uppercase tracking-[0.24em] text-blue-700 dark:text-blue-300">
-            Preview Mode
-          </p>
-          <h1 className="mt-3 text-3xl font-black tracking-tight">
-            Welcome back, {previewMeta?.displayName || 'User Preview'}!
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-7 opacity-90">
-            This dashboard is being rendered as a{' '}
-            {previewMeta?.role === 'mentor'
-              ? 'faculty / adviser'
-              : previewMeta?.isVerified
-                ? 'verified student'
-                : 'student awaiting approval'}{' '}
-            so you can inspect navigation, access state, and the overall user-facing shell before
-            returning to faculty settings.
-          </p>
-        </div>
-
-        {activeAnnouncements.length > 0 && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-gray-500">
-              <Megaphone size={16} />
-              Announcements
-            </div>
-
-            <div className="space-y-3">
-              {activeAnnouncements.map((announcement) => (
-                <div
-                  key={announcement.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900"
-                >
-                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500">
-                    <span>{announcement.type}</span>
-                    <span>{new Date(announcement.created_at).toLocaleDateString()}</span>
-                  </div>
-                  <h2 className="mt-3 text-lg font-bold text-slate-950 dark:text-white">
-                    {announcement.title}
-                  </h2>
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600 dark:text-slate-300">
-                    {announcement.message}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="rounded-[1.75rem] border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm dark:border-gray-700 dark:bg-gray-900">
-          <h2 className="text-xl font-bold text-slate-950 dark:text-white">
-            {isTeacher ? 'Teacher dashboard preview is active' : 'Student dashboard preview is active'}
-          </h2>
-          <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-600 dark:text-slate-300">
-            Use the sidebar to inspect how the interface behaves for this account type. Data-heavy
-            tools in preview mode intentionally stay lightweight so the layout, access rules, and
-            messaging are easier to verify.
-          </p>
-        </div>
-      </div>
-    )
-  }
+  const isTeacher = isFacultyRole(profile?.role)
 
   if (isTeacher) {
     const { submissions } = await getTeacherSubmissionData(supabase, user.id)

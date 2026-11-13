@@ -7,7 +7,6 @@ import {
   getAdminViewMeta,
   isAdminViewMode,
 } from '@/lib/users/admin-view-mode'
-import { getProfileAccessState } from '@/lib/users/access'
 
 export default async function DashboardLayout({
   children,
@@ -23,34 +22,34 @@ export default async function DashboardLayout({
     redirect('/login')
   }
 
-  const profile = await getProfileAccessState(supabase, user.id)
+  const [{ data: userProfile }, cookieStore] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, role, is_active, is_verified, first_name, last_name')
+      .eq('id', user.id)
+      .maybeSingle(),
+    cookies(),
+  ])
 
-  if (!profile?.is_active) {
+  if (!userProfile?.is_active) {
     await supabase.auth.signOut()
     redirect('/login?error=' + encodeURIComponent('This account has been deactivated. Please contact an administrator.'))
   }
 
-  const cookieStore = await cookies()
   const previewCookie = cookieStore.get(ADMIN_VIEW_COOKIE)?.value
   const adminPreviewMode = isAdminViewMode(previewCookie) ? previewCookie : null
 
   const previewMeta = adminPreviewMode ? getAdminViewMeta(adminPreviewMode) : null
-  const isAdminPreview = profile.role === 'admin' && Boolean(adminPreviewMode)
-
-  const { data: layoutProfile } = await supabase
-    .from('profiles')
-    .select('is_verified, first_name, last_name')
-    .eq('id', user.id)
-    .maybeSingle()
+  const isAdminPreview = userProfile.role === 'admin' && Boolean(adminPreviewMode)
 
   const initialDisplayName =
-    [layoutProfile?.first_name, layoutProfile?.last_name].filter(Boolean).join(' ').trim() ||
+    [userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ').trim() ||
     user.email?.split('@')[0] ||
     ''
   const initialIsVerified =
-    profile.role === 'admin' || profile.role === 'guest'
+    userProfile.role === 'admin' || userProfile.role === 'guest'
       ? true
-      : Boolean(layoutProfile?.is_verified)
+      : Boolean(userProfile.is_verified)
 
   return (
     <DashboardLayoutClient
@@ -60,7 +59,7 @@ export default async function DashboardLayout({
       previewIsVerified={previewMeta?.isVerified}
       isAdminPreview={isAdminPreview}
       initialDisplayName={initialDisplayName}
-      initialRole={profile.role}
+      initialRole={userProfile.role}
       initialIsVerified={initialIsVerified}
     >
       {children}

@@ -15,6 +15,7 @@ import {
 } from '@/components/navigation/ResponsiveAppShell'
 import {
   ArrowLeft,
+  Loader2,
   Home,
   Settings,
   FilePlus,
@@ -528,15 +529,39 @@ export default function DashboardLayoutClient({
       } mode`
     : undefined
 
+  const [isExitingPreview, startExitTransition] = useTransition()
+
+  const handleReturnToAdmin = () => {
+    if (isExitingPreview) return
+    startExitTransition(async () => {
+      try {
+        await stopViewAsUser()
+      } catch (err) {
+        console.error('Failed to exit preview:', err)
+      }
+    })
+  }
+
   const headerAction = isAdminPreview ? (
     <button
       type="button"
-      onClick={() => stopViewAsUser()}
-      className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100 sm:px-3 sm:py-2 sm:text-sm dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200 dark:hover:bg-blue-950/50"
+      onClick={handleReturnToAdmin}
+      disabled={isExitingPreview}
+      className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-60 disabled:cursor-not-allowed sm:px-3 sm:py-2 sm:text-sm dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200 dark:hover:bg-blue-950/50"
     >
-      <ArrowLeft size={16} aria-hidden="true" />
-      <span className="hidden sm:inline">Return to Admin</span>
-      <span className="sm:hidden">Exit Preview</span>
+      {isExitingPreview ? (
+        <>
+          <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+          <span className="hidden sm:inline">Returning to Admin...</span>
+          <span className="sm:hidden">Exiting...</span>
+        </>
+      ) : (
+        <>
+          <ArrowLeft size={16} aria-hidden="true" />
+          <span className="hidden sm:inline">Return to Admin</span>
+          <span className="sm:hidden">Exit Preview</span>
+        </>
+      )}
     </button>
   ) : undefined
 

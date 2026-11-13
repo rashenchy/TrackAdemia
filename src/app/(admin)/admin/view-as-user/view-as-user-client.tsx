@@ -1,6 +1,7 @@
 'use client'
 
-import { Eye, GraduationCap, ShieldAlert, UserRound } from 'lucide-react'
+import { useState, useTransition } from 'react'
+import { Eye, GraduationCap, Loader2, ShieldAlert, UserRound } from 'lucide-react'
 import type { AdminViewMode } from '@/lib/users/admin-view-mode'
 
 interface ViewAsUserClientProps {
@@ -50,6 +51,21 @@ const previewOptions: Array<{
 export default function ViewAsUserClient({
   beginViewAsUser,
 }: ViewAsUserClientProps) {
+  const [isPending, startTransition] = useTransition()
+  const [pendingMode, setPendingMode] = useState<AdminViewMode | null>(null)
+
+  const handleSelect = (mode: AdminViewMode) => {
+    if (isPending) return
+    setPendingMode(mode)
+    startTransition(async () => {
+      try {
+        await beginViewAsUser(mode)
+      } catch (err) {
+        setPendingMode(null)
+      }
+    })
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-8">
       <section className="rounded-[2rem] border border-purple-200 bg-[linear-gradient(135deg,#faf5ff_0%,#ffffff_45%,#eef2ff_100%)] p-8 shadow-sm dark:border-purple-900/40 dark:bg-[linear-gradient(135deg,rgba(88,28,135,0.22)_0%,rgba(17,24,39,0.96)_48%,rgba(30,41,59,0.95)_100%)]">
@@ -74,21 +90,38 @@ export default function ViewAsUserClient({
       <section className="grid gap-6 lg:grid-cols-3">
         {previewOptions.map((option) => {
           const Icon = option.icon
+          const isThisPending = isPending && pendingMode === option.mode
+          const isOtherPending = isPending && pendingMode !== option.mode
 
           return (
-            <form key={option.mode} action={beginViewAsUser.bind(null, option.mode)}>
+            <div key={option.mode}>
               <button
-                type="submit"
-                className={`group h-full w-full rounded-[1.75rem] border bg-gradient-to-br p-6 text-left shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg ${option.accent}`}
+                type="button"
+                onClick={() => handleSelect(option.mode)}
+                disabled={isPending}
+                className={`group h-full w-full rounded-[1.75rem] border bg-gradient-to-br p-6 text-left shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg disabled:cursor-not-allowed ${
+                  isOtherPending ? 'opacity-50 pointer-events-none' : ''
+                } ${option.accent}`}
               >
                 <div className="flex h-full flex-col">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/80 shadow-sm dark:bg-slate-950/40">
-                      <Icon size={28} />
+                      {isThisPending ? (
+                        <Loader2 size={28} className="animate-spin text-current" />
+                      ) : (
+                        <Icon size={28} />
+                      )}
                     </div>
-                    <span className="rounded-full bg-white/80 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-700 dark:bg-slate-950/40 dark:text-slate-200">
-                      Open Preview
-                    </span>
+                    {isThisPending ? (
+                      <span className="flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-800 shadow-sm dark:bg-slate-950 dark:text-slate-200">
+                        <Loader2 size={12} className="animate-spin" />
+                        Opening...
+                      </span>
+                    ) : (
+                      <span className="rounded-full bg-white/80 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-slate-700 dark:bg-slate-950/40 dark:text-slate-200">
+                        Open Preview
+                      </span>
+                    )}
                   </div>
 
                   <div className="mt-6 flex-1">
@@ -105,7 +138,7 @@ export default function ViewAsUserClient({
                   </div>
                 </div>
               </button>
-            </form>
+            </div>
           )
         })}
       </section>
