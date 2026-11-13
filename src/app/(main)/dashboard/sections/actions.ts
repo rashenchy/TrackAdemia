@@ -50,24 +50,27 @@ export async function joinSection(
 ) {
   const supabase = await createClient()
 
-  // Ensure user is authenticated
-  const { data: { user } } = await supabase.auth.getUser()
+  // Run user authentication and cookie reading in parallel
+  const [{ data: { user } }, cookieStore] = await Promise.all([
+    supabase.auth.getUser(),
+    cookies(),
+  ])
+
   if (!user) return { error: 'You must be logged in.' }
 
   const joinCode = (formData.get('joinCode') as string)?.toUpperCase().trim()
 
   // Rate limiting: maximum of 5 failed attempts
-  const cookieStore = await cookies()
   const attempts = parseInt(cookieStore.get('join_attempts')?.value || '0')
 
   if (attempts >= 5) {
     return { error: 'Too many failed attempts. Please try again later.' }
   }
 
-  // Find the section by join code
+  // Find the section by join code (including teacher_id upfront)
   const { data: section, error: sectionError } = await supabase
     .from('sections')
-    .select('id, name, is_frozen')
+    .select('id, name, is_frozen, teacher_id')
     .eq('join_code', joinCode)
     .single()
 
@@ -82,13 +85,20 @@ export async function joinSection(
     return { error: 'This section is currently frozen by the teacher. No new joins allowed.' }
   }
 
-  // Check if the user already exists in the section
-  const { data: existing } = await supabase
-    .from('section_members')
-    .select('id, status')
-    .eq('section_id', section.id)
-    .eq('user_id', user.id)
-    .maybeSingle()
+  // Check existing membership and fetch student profile in parallel
+  const [{ data: existing }, { data: profile }] = await Promise.all([
+    supabase
+      .from('section_members')
+      .select('id, status')
+      .eq('section_id', section.id)
+      .eq('user_id', user.id)
+      .maybeSingle(),
+    supabase
+      .from('profiles')
+      .select('first_name, last_name')
+      .eq('id', user.id)
+      .single(),
+  ])
 
   if (existing) {
     if (existing.status === 'banned') {
@@ -115,23 +125,11 @@ export async function joinSection(
   // Reset rate limit after successful join
   cookieStore.delete('join_attempts')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('first_name, last_name')
-    .eq('id', user.id)
-    .single()
-
-  const { data: teacherSection } = await supabase
-    .from('sections')
-    .select('teacher_id')
-    .eq('id', section.id)
-    .single()
-
-  if (teacherSection?.teacher_id) {
+  if (section.teacher_id) {
     const studentName = `${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim() || 'A student'
 
     await createNotification(supabase, {
-      user_id: teacherSection.teacher_id,
+      user_id: section.teacher_id,
       actor_id: user.id,
       title: 'Student joined your section',
       message: `${studentName} joined ${section.name}.`,

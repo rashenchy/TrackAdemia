@@ -15,13 +15,23 @@ import { redirect } from 'next/navigation'
 export async function updateResearchStatus(researchId: string, formData: FormData) {
   const supabase = await createClient()
 
-  // AUTHENTICATION: Ensure a user is logged in before allowing any action
+  // Run user auth and current research lookup in parallel
+  const [{ data: { user } }, { data: currentResearch, error: currentResearchError }] =
+    await Promise.all([
+      supabase.auth.getUser(),
+      supabase
+        .from('research')
+        .select('status, published_at, file_url')
+        .eq('id', researchId)
+        .single(),
+    ])
 
-  const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
+  if (currentResearchError || !currentResearch) {
+    throw new Error('Research record not found.')
+  }
 
-  // AUTHORIZATION: Verify the user is a mentor before permitting status updates
-
+  // Verify the user is a mentor before permitting status updates
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
@@ -32,8 +42,6 @@ export async function updateResearchStatus(researchId: string, formData: FormDat
     throw new Error('Only reviewers can update research status.')
   }
 
-  // INPUT EXTRACTION: Retrieve status change and optional new file reference
-
   const status = formData.get('status') as string
   const fileUrl = formData.get('fileUrl') as string | null
 
@@ -42,25 +50,16 @@ export async function updateResearchStatus(researchId: string, formData: FormDat
   }
 
   if (status === 'Published') {
-    const hasPublishablePdf = await researchHasPublishablePdf(supabase, researchId)
+    const hasPublishablePdf =
+      Boolean(currentResearch.file_url) ||
+      (await researchHasPublishablePdf(supabase, researchId))
 
     if (!hasPublishablePdf) {
       throw new Error('A PDF manuscript is required before this research can be published.')
     }
   }
 
-  const { data: currentResearch, error: currentResearchError } = await supabase
-    .from('research')
-    .select('status, published_at')
-    .eq('id', researchId)
-    .single()
-
-  if (currentResearchError || !currentResearch) {
-    throw new Error('Research record not found.')
-  }
-
-  // DATABASE UPDATE: Apply the new research status
-
+  // Apply the new research status
   const { error } = await supabase
     .from('research')
     .update({
@@ -78,12 +77,8 @@ export async function updateResearchStatus(researchId: string, formData: FormDat
     throw new Error('Failed to update status')
   }
 
-  // VERSION TRACKING: If a new document file was uploaded, create a new version entry
-
+  // If a new document file was uploaded, create a new version entry
   if (fileUrl) {
-
-    // Determine the next version number by checking the latest existing version
-
     const { data: existingVersions } = await supabase
       .from('research_versions')
       .select('version_number')
@@ -96,8 +91,6 @@ export async function updateResearchStatus(researchId: string, formData: FormDat
         ? existingVersions[0].version_number + 1
         : 2
 
-    // Insert a new version record linked to the uploaded file
-
     await supabase.from('research_versions').insert({
       research_id: researchId,
       uploaded_by: user.id,
@@ -106,11 +99,8 @@ export async function updateResearchStatus(researchId: string, formData: FormDat
     })
   }
 
-  // CACHE REFRESH: Revalidate pages so the updated research status appears immediately
-
+  // Revalidate paths so the updated research status appears immediately
   revalidateResearchOverviewPaths(researchId)
-
-  redirect(`/dashboard/research/${researchId}?updated=${Date.now()}`)
 }
 
 export async function reviewAccessRequestAction(input: {

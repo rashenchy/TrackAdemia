@@ -70,7 +70,7 @@ export function ResearchStatusForm({
       action={action}
       className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-200 shadow-sm w-fit dark:border-gray-800 dark:bg-gray-900/50"
     >
-      <StatusControls currentStatus={currentStatus} canPublish={canPublish} />
+      <StatusControls key={currentStatus} currentStatus={currentStatus} canPublish={canPublish} />
     </form>
   )
 }

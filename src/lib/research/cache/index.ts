@@ -10,7 +10,6 @@ export function revalidateResearchDetailPaths(researchId: string) {
 export function revalidateResearchOverviewPaths(researchId: string) {
   revalidatePath(`/dashboard/research/${researchId}`)
   revalidatePath('/dashboard')
-  revalidatePath('/dashboard', 'layout')
   revalidatePath('/dashboard/student-submissions')
   revalidatePath('/dashboard/repository')
 }
